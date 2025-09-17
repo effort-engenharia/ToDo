@@ -114,15 +114,6 @@ src/
 - **Hot Reload**: Ativo
 - **Build Otimizado**: Pronto para produção
 
-## 🤖 MCP browsermcp Integration
-- **Model Context Protocol**: Integração com browsermcp para automação de browser
-- **Testes de Interface**: Capacidade de interagir automaticamente com elementos da página
-- **Navegação Automatizada**: Cliques, navegação e preenchimento de formulários
-- **Debugging por Logs**: SEMPRE usar console.log() para debugging - NÃO tirar screenshots automaticamente
-- **Console Monitoring**: Verificar logs através de mcp_browsermcp_browser_get_console_logs
-- **Screenshots Manuais**: Quando necessário visualizar interface, SOLICITAR ao usuário para fazer print manual
-- **Validação de UX**: Testes automatizados de fluxos de usuário e responsividade via logs
-
 ## 🎯 Próximos Passos (Opcionais)
 - Integrar com dados reais do Google Sheets
 - Adicionar filtros por período

@@ -25,11 +25,13 @@ import EditableMetricCard from './components/EditableMetricCard';
 import EditableGauge from './components/EditableGauge';
 import { getMetaFromCode, updateMetaInCode, DEFAULT_METAS } from './utils/codeUpdater';
 import MetasDebugPanel from './components/MetasDebugPanel';
+import ApontamentosComercial from './components/ApontamentosComercial';
 
 function App() {
   const [selectedMonth, setSelectedMonth] = useState('setembro');
   const [selectedYear, setSelectedYear] = useState('2025');
   const [isDataChanging, setIsDataChanging] = useState(false);
+  const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard' ou 'apontamentos'
   
   // Meta editável pelo usuário com persistência no localStorage
   const [metaPersonalizada, setMetaPersonalizada] = useState(() => {
@@ -234,11 +236,17 @@ function App() {
     }
   }, [availableMonths, selectedMonth]);
 
+  // Renderizar página de apontamentos se selecionada (APÓS todos os hooks)
+  if (currentPage === 'apontamentos') {
+    return <ApontamentosComercial onVoltar={() => setCurrentPage('dashboard')} />;
+  }
+
   // Header moderno com gradiente
   const ModernHeader = () => (
     <div className="header-gradient shadow-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+        {/* Primeira linha: Título e controles */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 mb-4">
           <div className="text-center lg:text-left">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-white leading-tight">
               Dashboard Comercial
@@ -295,6 +303,16 @@ function App() {
               {loading ? 'Carregando...' : 'Atualizar'}
             </button>
           </div>
+        </div>
+        
+        {/* Segunda linha: Botão APONTAMENTOS COMERCIAL alinhado à direita */}
+        <div className="flex justify-end">
+          <button 
+            onClick={() => setCurrentPage('apontamentos')}
+            className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-sm sm:text-base transform hover:-translate-y-1"
+          >
+            📝 APONTAMENTOS COMERCIAL
+          </button>
         </div>
       </div>
     </div>

@@ -9,13 +9,16 @@ import {
   FaMapMarkedAlt,
   FaTasks,
   FaUserTie,
-  FaSpinner
+  FaSpinner,
+  FaEye,
+  FaEyeSlash
 } from 'react-icons/fa';
 import { apontamentosService } from '../services/supabaseService';
 import ApontamentosTable from './ApontamentosTable';
 
 const ApontamentosComercial = ({ onVoltar }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isFormVisible, setIsFormVisible] = useState(false); // Estado inicial oculto
   const [formData, setFormData] = useState({
     tipoOportunidade: '',
     nomeCliente: '',
@@ -240,37 +243,50 @@ const ApontamentosComercial = ({ onVoltar }) => {
                   className="bg-white/20 backdrop-blur-sm text-white placeholder-white/70 pl-10 pr-4 py-2 sm:py-3 rounded-lg sm:rounded-xl border border-white/30 focus:outline-none focus:ring-2 focus:ring-yellow-300 text-sm sm:text-base w-full sm:w-64"
                 />
               </div>
+              
+              {/* Botão para ocultar/mostrar formulário */}
+              <button
+                onClick={() => setIsFormVisible(!isFormVisible)}
+                className="bg-white/20 hover:bg-white/30 text-white p-2 sm:p-3 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl flex items-center space-x-2"
+                title={isFormVisible ? "Ocultar formulário de cadastro" : "Mostrar formulário de cadastro"}
+              >
+                {isFormVisible ? <FaEyeSlash className="text-lg sm:text-xl" /> : <FaEye className="text-lg sm:text-xl" />}
+                <span className="hidden sm:inline text-sm">
+                  {isFormVisible ? "Ocultar Formulário de Cadastro" : "Mostrar Formulário de Cadastro"}
+                </span>
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto p-4 sm:p-6">
-        <div className="bg-white rounded-xl sm:rounded-2xl p-6 sm:p-8 shadow-xl">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Tipo de Oportunidade */}
-            <div>
-              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                <FaTasks className="mr-2 text-blue-500" />
-                Tipo de Oportunidade *
-              </label>
-              <select
-                value={formData.tipoOportunidade}
-                onChange={(e) => setFormData(prev => ({ ...prev, tipoOportunidade: e.target.value }))}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.tipoOportunidade ? 'border-red-500' : 'border-gray-300'
-                }`}
-              >
-                <option value="">Selecione o tipo de oportunidade</option>
-                {tiposOportunidade.map((tipo) => (
-                  <option key={tipo} value={tipo}>{tipo}</option>
-                ))}
-              </select>
-              {errors.tipoOportunidade && (
-                <p className="text-red-500 text-sm mt-1">{errors.tipoOportunidade}</p>
-              )}
-            </div>
+      {isFormVisible && (
+        <div className="max-w-4xl mx-auto p-4 sm:p-6">
+          <div className="bg-white rounded-xl sm:rounded-2xl p-6 sm:p-8 shadow-xl">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Tipo de Oportunidade */}
+              <div>
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  <FaTasks className="mr-2 text-blue-500" />
+                  Tipo de Oportunidade *
+                </label>
+                <select
+                  value={formData.tipoOportunidade}
+                  onChange={(e) => setFormData(prev => ({ ...prev, tipoOportunidade: e.target.value }))}
+                  className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.tipoOportunidade ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
+                  <option value="">Selecione o tipo de oportunidade</option>
+                  {tiposOportunidade.map((tipo) => (
+                    <option key={tipo} value={tipo}>{tipo}</option>
+                  ))}
+                </select>
+                {errors.tipoOportunidade && (
+                  <p className="text-red-500 text-sm mt-1">{errors.tipoOportunidade}</p>
+                )}
+              </div>
 
             {/* Nome do Cliente */}
             <div>
@@ -494,6 +510,7 @@ const ApontamentosComercial = ({ onVoltar }) => {
           </form>
         </div>
       </div>
+      )}
 
       {/* Tabela de Apontamentos */}
       <ApontamentosTable 

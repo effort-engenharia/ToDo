@@ -549,7 +549,7 @@ function App() {
         <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {/* Qual cliente está fechando mais serviço */}
           <OriginChart 
-            data={dashboardData?.origemClientes || {}}
+            data={dashboardData?.servicosFechadosPorOrigem || {}}
             title="QUAL CLIENTE ESTÁ FECHANDO MAIS SERVIÇO?"
           />
         </div>

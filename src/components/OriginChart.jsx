@@ -2,9 +2,13 @@ import React from 'react';
 import { FaUserTie, FaAd, FaHandshake, FaSearch, FaGoogle, FaEllipsisH } from 'react-icons/fa';
 
 const OriginChart = ({ data, title = "POR ONDE NOSSO CLIENTE ESTÁ CHEGANDO" }) => {
+  // Verificar se é o gráfico de serviços fechados baseado no título
+  const isServicesChart = title.includes("FECHANDO MAIS SERVIÇO");
+  
   // Log detalhado dos dados de origem
   console.log('🎯 OriginChart - Dados recebidos:', {
     title,
+    isServicesChart,
     hasData: !!data,
     specificValues: data ? {
       carteira: data.carteira,
@@ -27,7 +31,12 @@ const OriginChart = ({ data, title = "POR ONDE NOSSO CLIENTE ESTÁ CHEGANDO" }) 
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <FaUserTie className="mx-auto text-4xl text-gray-400 mb-4" />
-            <p className="text-gray-500">Dados de origem de clientes não disponíveis</p>
+            <p className="text-gray-500">
+              {isServicesChart 
+                ? "Dados de serviços fechados não disponíveis" 
+                : "Dados de origem de clientes não disponíveis"
+              }
+            </p>
           </div>
         </div>
       </div>
@@ -114,7 +123,10 @@ const OriginChart = ({ data, title = "POR ONDE NOSSO CLIENTE ESTÁ CHEGANDO" }) 
             <div
               key={index}
               className={`${origin.color} ${gridClass} rounded-md p-2 flex flex-col justify-center items-center text-white relative overflow-hidden hover:opacity-90 transition-all cursor-pointer group`}
-              title={`${origin.name}: ${origin.value} clientes (${origin.percentage}%)`}
+              title={isServicesChart 
+                ? `${origin.name}: ${origin.value} serviços fechados`
+                : `${origin.name}: ${origin.value} clientes (${origin.percentage}%)`
+              }
             >
               {/* Conteúdo principal */}
               <div className="text-center flex flex-col items-center justify-center h-full">
@@ -128,9 +140,9 @@ const OriginChart = ({ data, title = "POR ONDE NOSSO CLIENTE ESTÁ CHEGANDO" }) 
                   {origin.name}
                 </div>
                 
-                {/* Porcentagem */}
+                {/* Valor - mostrar quantidade ou porcentagem baseado no tipo de gráfico */}
                 <div className={`font-bold ${parseInt(origin.percentage) >= 15 ? 'text-lg' : 'text-sm'}`}>
-                  {origin.percentage}%
+                  {isServicesChart ? origin.value : `${origin.percentage}%`}
                 </div>
               </div>
               
@@ -138,8 +150,18 @@ const OriginChart = ({ data, title = "POR ONDE NOSSO CLIENTE ESTÁ CHEGANDO" }) 
               <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <div className="text-center text-white text-xs">
                   <div className="font-bold">{origin.name}</div>
-                  <div>{origin.value} clientes</div>
-                  <div>{origin.percentage}% do total</div>
+                  <div>
+                    {isServicesChart 
+                      ? `${origin.value} serviços fechados`
+                      : `${origin.value} clientes`
+                    }
+                  </div>
+                  <div>
+                    {isServicesChart 
+                      ? `${origin.percentage}% do total`
+                      : `${origin.percentage}% do total`
+                    }
+                  </div>
                 </div>
               </div>
             </div>

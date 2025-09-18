@@ -138,6 +138,14 @@ export const processSheetData = (rawData, metaPersonalizada = 50000) => {
         google: 3,
         outros: 2
       },
+      servicosFechadosPorOrigem: {
+        carteira: 7,
+        adm: 4,
+        indicacao: 3,
+        prospeccao: 1,
+        google: 1,
+        outros: 0
+      },
       timeline: [],
       distributionData: [
         { name: 'Qualificação', value: 23, color: '#3B82F6' },
@@ -182,6 +190,7 @@ const processRealData = (data, metaPersonalizada = 50000) => {
     ganhosPerdas: extractGanhosPerdas(data),
     metaEntrada: extractMetaEntrada(data, metaPersonalizada),
     origemClientes: extractOrigemClientes(data),
+    servicosFechadosPorOrigem: extractServicosFechadosPorOrigem(data),
     timeline: extractTimeline(data),
     distributionData: extractDistributionData(data)
   };
@@ -194,7 +203,8 @@ const processRealData = (data, metaPersonalizada = 50000) => {
     servicosObject: result.servicosObject,
     funil: result.funil,
     clientesAtendidos: result.clientesAtendidos,
-    origemClientes: result.origemClientes
+    origemClientes: result.origemClientes,
+    servicosFechadosPorOrigem: result.servicosFechadosPorOrigem
   });
   
   return result;
@@ -639,6 +649,58 @@ const extractOrigemClientes = (data) => {
   
   console.log('🎯 Origens únicas encontradas na planilha:', Array.from(origensUnicas));
   console.log('🎯 Mapeamento final de origens:', origemMap);
+  
+  return origemMap;
+};
+
+const extractServicosFechadosPorOrigem = (data) => {
+  console.log('🎯 extractServicosFechadosPorOrigem iniciado com', data.length, 'registros');
+  
+  // Filtrar apenas registros com Fase = "CONTRATO/VENDA"
+  const servicosFechados = data.filter(item => {
+    const fase = item.Fase;
+    return fase === 'CONTRATO/VENDA';
+  });
+  
+  console.log('💼 Serviços com CONTRATO/VENDA encontrados:', servicosFechados.length);
+  
+  const origemMap = {
+    carteira: 0,
+    adm: 0,
+    indicacao: 0,
+    prospeccao: 0,
+    google: 0,
+    outros: 0
+  };
+  
+  // Contar quantidade de serviços fechados por origem
+  servicosFechados.forEach((item, index) => {
+    const origem = item['O Cliente Chegou por:'];
+    
+    if (!origem) {
+      console.log(`⚠️ Item ${index}: Origem vazia ou undefined`);
+      return;
+    }
+    
+    // Mapear origem real para categoria esperada
+    const origemLower = origem.toLowerCase().trim();
+    
+    if (origemLower.includes('carteira') || origemLower.includes('própria')) {
+      origemMap.carteira += 1;
+    } else if (origemLower.includes('adm') || origemLower.includes('administrativo')) {
+      origemMap.adm += 1;
+    } else if (origemLower.includes('indicação') || origemLower.includes('indicacao')) {
+      origemMap.indicacao += 1;
+    } else if (origemLower.includes('prospecção') || origemLower.includes('prospeccao') || origemLower.includes('prospectar')) {
+      origemMap.prospeccao += 1;
+    } else if (origemLower.includes('google') || origemLower.includes('ads') || origemLower.includes('search')) {
+      origemMap.google += 1;
+    } else {
+      origemMap.outros += 1;
+    }
+  });
+  
+  console.log('💼 Serviços fechados por origem:', origemMap);
   
   return origemMap;
 };

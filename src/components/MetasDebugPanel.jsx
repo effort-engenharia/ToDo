@@ -19,15 +19,7 @@ const MetasDebugPanel = () => {
   };
 
   if (!isVisible) {
-    return (
-      <button
-        onClick={() => setIsVisible(true)}
-        className="fixed bottom-4 right-4 p-2 bg-gray-600 hover:bg-gray-700 text-white rounded-full shadow-lg transition-colors z-50"
-        title="Mostrar painel de configurações"
-      >
-        <FaCog className="text-sm" />
-      </button>
-    );
+    return null;
   }
 
   return (

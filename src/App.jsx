@@ -428,10 +428,6 @@ function App() {
                 delay={400}
               />
             </div>
-            
-            <div className="mt-3 sm:mt-4 text-center text-xs sm:text-sm text-gray-500">
-              ⚠️ Existe Cliente Duplicado
-            </div>
           </div>
         </div>
 
@@ -456,8 +452,7 @@ function App() {
               <div className="text-center">
                 <div className="text-xs sm:text-sm text-gray-600 mb-2">CONTRATO/VENDA</div>
                 <div className="text-2xl sm:text-3xl font-bold text-green-600">{dashboardData?.ganhosPerdas?.contratoVenda?.quantidade || 0}</div>
-                <div className="text-xs sm:text-sm text-gray-500">0</div>
-                <div className="text-sm sm:text-lg font-medium text-gray-700">
+                <div className="text-sm sm:text-lg font-medium text-gray-700 mt-2">
                   {formatCurrency(dashboardData?.ganhosPerdas?.contratoVenda?.valor || 0)}
                 </div>
               </div>
@@ -465,16 +460,9 @@ function App() {
               <div className="text-center">
                 <div className="text-xs sm:text-sm text-gray-600 mb-2">CANCELADO/PERCA</div>
                 <div className="text-2xl sm:text-3xl font-bold text-red-600">{dashboardData?.ganhosPerdas?.canceladoPerca?.quantidade || 0}</div>
-                <div className="text-xs sm:text-sm text-gray-500">0</div>
-                <div className="text-sm sm:text-lg font-medium text-gray-700">
+                <div className="text-sm sm:text-lg font-medium text-gray-700 mt-2">
                   {formatCurrency(dashboardData?.ganhosPerdas?.canceladoPerca?.valor || 0)}
                 </div>
-              </div>
-            </div>
-            
-            <div className="mt-4 sm:mt-6 flex justify-center">
-              <div className="bg-gray-100 px-3 sm:px-4 py-2 rounded-lg">
-                <span className="text-xs sm:text-sm text-gray-600">1-2/2</span>
               </div>
             </div>
 
@@ -509,7 +497,7 @@ function App() {
                     <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                       <h5 className="text-sm font-medium text-gray-900">Detalhes dos Serviços Perdidos</h5>
                     </div>
-                    <div className="divide-y divide-gray-200 max-h-64 overflow-y-auto">
+                    <div className="divide-y divide-gray-200 max-h-80 overflow-y-auto">
                       {dashboardData.ganhosPerdas.canceladoPerca.detalhes.map((item, index) => (
                         <div key={index} className="px-4 py-3 hover:bg-gray-50 transition-colors">
                           <div className="flex justify-between items-center">

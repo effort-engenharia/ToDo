@@ -122,12 +122,12 @@ export const processSheetData = (rawData, metaPersonalizada = 50000) => {
         quadrosDePainel: 6,
         outros: 3
       },
-      funil: { qualificacao: 23, canceladoPerca: 5, negociacao: 18, contratoVenda: 16 },
+      funil: { qualificacao: 23, canceladoPerca: 4, negociacao: 18, contratoVenda: 16 },
       relacionamento: { pamelli: 35, edgar: 28, eduarda: 31 },
       clientesAtendidos: { pamelli: 8, edgar: 6, eduarda: 9 },
       ganhosPerdas: {
         contratoVenda: { quantidade: 16, valor: 256800 },
-        canceladoPerca: { quantidade: 5, valor: 89200 }
+        canceladoPerca: { quantidade: 4, valor: 89200 }
       },
       metaEntrada: { valor: 45600, meta: metaPersonalizada },
       origemClientes: {
@@ -143,7 +143,7 @@ export const processSheetData = (rawData, metaPersonalizada = 50000) => {
         { name: 'Qualificação', value: 23, color: '#3B82F6' },
         { name: 'Negociação', value: 18, color: '#10B981' },
         { name: 'Contratos/Vendas', value: 16, color: '#8B5CF6' },
-        { name: 'Cancelados/Perdas', value: 5, color: '#EF4444' }
+        { name: 'Cancelados/Perdas', value: 4, color: '#EF4444' }
       ]
     };
   }
@@ -568,7 +568,7 @@ const extractGanhosPerdas = (data) => {
     cliente: item['Nome Cliente'] || 'Cliente não informado',
     valor: parseFloat(item['Valor ']) || 0,
     servico: item['Tipo de Oportunidade'] || 'Serviço não informado'
-  })).filter(item => item.valor > 0); // Só incluir itens com valor válido
+  })); // Incluir TODOS os itens cancelados, mesmo com valor 0
 
   const resultado = {
     contratoVenda: { quantidade: contratoVenda.length, valor: valorContratoVenda },
@@ -577,7 +577,9 @@ const extractGanhosPerdas = (data) => {
       valor: valorCanceladoPerca,
       detalhes: servicosPerdidosDetalhes
     }
-  };  console.log('🏆 Ganhos vs Perdas processados:', resultado);
+  };
+
+  console.log('🏆 Ganhos vs Perdas processados:', resultado);
   
   return resultado;
 };

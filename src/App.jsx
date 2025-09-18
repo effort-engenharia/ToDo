@@ -24,6 +24,7 @@ import MultiTitleGauge from './components/MultiTitleGauge';
 import EditableMetricCard from './components/EditableMetricCard';
 import EditableGauge from './components/EditableGauge';
 import { getMetaFromCode, updateMetaInCode, DEFAULT_METAS } from './utils/codeUpdater';
+import { getCurrentMetas, salvarMeta } from './config/metas';
 import MetasDebugPanel from './components/MetasDebugPanel';
 import ApontamentosComercial from './components/ApontamentosComercial';
 
@@ -38,19 +39,58 @@ function App() {
     return getMetaFromCode('valorEntrada', DEFAULT_METAS.valorEntrada);
   });
   
-  // Meta editável para clientes atendidos com persistência no localStorage  
+  // Meta editável para clientes atendidos com carregamento inicial do Supabase
   const [metaClientesAtendidos, setMetaClientesAtendidos] = useState(() => {
     return getMetaFromCode('clientesAtendidos', DEFAULT_METAS.clientesAtendidos);
   });
 
-  // Salvar meta personalizada no localStorage sempre que mudar
+  // Carregar metas do Supabase na inicialização
   useEffect(() => {
-    updateMetaInCode('valorEntrada', metaPersonalizada);
+    const loadInitialMetas = async () => {
+      try {
+        const metas = await getCurrentMetas();
+        setMetaPersonalizada(metas.valorEntrada);
+        setMetaClientesAtendidos(metas.clientesAtendidos);
+      } catch (error) {
+        console.error('Erro ao carregar metas iniciais do Supabase:', error);
+      }
+    };
+    
+    loadInitialMetas();
+  }, []);
+
+  // Salvar meta personalizada no Supabase e localStorage sempre que mudar
+  useEffect(() => {
+    const saveMeta = async () => {
+      try {
+        await salvarMeta('valor_entrada', metaPersonalizada, `Meta atualizada via App em ${new Date().toLocaleString('pt-BR')}`);
+      } catch (error) {
+        console.error('Erro ao salvar meta de valor de entrada:', error);
+        // Fallback para localStorage
+        updateMetaInCode('valorEntrada', metaPersonalizada);
+      }
+    };
+    
+    if (metaPersonalizada !== DEFAULT_METAS.valorEntrada) {
+      saveMeta();
+    }
   }, [metaPersonalizada]);
 
-  // Salvar meta de clientes atendidos no localStorage sempre que mudar
+  // Salvar meta de clientes atendidos no Supabase e localStorage sempre que mudar
   useEffect(() => {
-    updateMetaInCode('clientesAtendidos', metaClientesAtendidos);
+    const saveMeta = async () => {
+      try {
+        await salvarMeta('clientes_atendidos', metaClientesAtendidos, `Meta atualizada via App em ${new Date().toLocaleString('pt-BR')}`);
+      } catch (error) {
+        console.error('Erro ao salvar meta de clientes atendidos:', error);
+        // Fallback para localStorage
+        updateMetaInCode('clientesAtendidos', metaClientesAtendidos);
+      }
+    };
+    
+    if (metaClientesAtendidos !== DEFAULT_METAS.clientesAtendidos) {
+      saveMeta();
+    }
   }, [metaClientesAtendidos]);
   
   const { data, allData, loading, error, lastUpdated, refreshData } = useGoogleSheetsData(selectedMonth, selectedYear);

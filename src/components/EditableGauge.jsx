@@ -3,6 +3,7 @@ import ReactECharts from 'echarts-for-react';
 import { FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
 import { useAnimations } from '../hooks/useAnimations';
 import { updateMetaInCode } from '../utils/codeUpdater';
+import { salvarMeta } from '../config/metas';
 
 const EditableGauge = ({ 
   title, 
@@ -37,14 +38,22 @@ const EditableGauge = ({
   const handleSave = async () => {
     const newMeta = parseInt(tempMeta);
     if (!isNaN(newMeta) && newMeta > 0) {
-      // Salvar no código/localStorage
-      await updateMetaInCode('clientesAtendidos', newMeta);
-      
-      // Atualizar o estado local
-      onMaxValueChange(newMeta);
-      setIsEditing(false);
-      
-      console.log(`✅ Meta de clientes atendidos atualizada para: ${newMeta}`);
+      try {
+        // Salvar no Supabase
+        await salvarMeta('clientes_atendidos', newMeta, `Meta atualizada via EditableGauge em ${new Date().toLocaleString('pt-BR')}`);
+        
+        // Fallback para localStorage
+        await updateMetaInCode('clientesAtendidos', newMeta);
+        
+        // Atualizar o estado local
+        onMaxValueChange(newMeta);
+        setIsEditing(false);
+        
+        console.log(`✅ Meta de clientes atendidos atualizada para: ${newMeta}`);
+      } catch (error) {
+        console.error('Erro ao salvar meta:', error);
+        alert('Erro ao salvar meta. Verifique o console para mais detalhes.');
+      }
     }
   };
 

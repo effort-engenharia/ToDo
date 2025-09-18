@@ -536,18 +536,20 @@ function App() {
           />
         </div>
 
-        {/* Terceira linha - Serviços e Origem */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          {/* Serviços Negociados */}
+        {/* Terceira linha - Serviços Negociados */}
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <ServicesChart data={servicosObject} />
-
-          {/* Origem dos Clientes */}
-          <OriginChart data={dashboardData?.origemClientes || {}} />
         </div>
 
-        {/* Quarta linha - Cliente fechando mais */}
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 mb-6 sm:mb-8">
-          {/* Qual cliente está fechando mais serviço */}
+        {/* Quarta linha - Origem dos Clientes */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          {/* POR ONDE NOSSO CLIENTE ESTÁ CHEGANDO */}
+          <OriginChart 
+            data={dashboardData?.origemClientes || {}} 
+            title="POR ONDE NOSSO CLIENTE ESTÁ CHEGANDO"
+          />
+
+          {/* QUAL CLIENTE ESTÁ FECHANDO MAIS SERVIÇO? */}
           <OriginChart 
             data={dashboardData?.servicosFechadosPorOrigem || {}}
             title="QUAL CLIENTE ESTÁ FECHANDO MAIS SERVIÇO?"

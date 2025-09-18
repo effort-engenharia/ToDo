@@ -444,7 +444,7 @@ const extractRegioes = (data) => {
   const servicosQuantidade = {};
   
   Object.values(servicosMap).forEach(servico => {
-    // Mapear nomes para chaves simplificadas
+    // Mapear nomes para chaves simplificadas, mantendo serviços individuais
     let chave = servico.nome.toLowerCase();
     const originalChave = chave;
     
@@ -455,7 +455,19 @@ const extractRegioes = (data) => {
     else if (chave.includes('projetos')) chave = 'projetosEletricos';
     else if (chave.includes('laudos')) chave = 'laudos';
     else if (chave.includes('cmi')) chave = 'cmi';
-    else chave = 'outros';
+    else {
+      // Em vez de agrupar como "outros", manter o nome original do serviço
+      // Converter para chave válida (remover espaços, caracteres especiais)
+      chave = servico.nome
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .replace(/[^a-z0-9]/g, '') // Remove caracteres especiais
+        .replace(/\s+/g, ''); // Remove espaços
+      
+      // Se a chave ficar vazia, usar um nome genérico
+      if (!chave) chave = `servico${Object.keys(servicosQuantidade).length + 1}`;
+    }
     
     console.log(`🔄 Mapeamento: "${servico.nome}" -> "${originalChave}" -> "${chave}"`);
     

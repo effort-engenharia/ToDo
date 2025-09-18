@@ -84,40 +84,71 @@ const ServicesChart = ({ data }) => {
       value: services.cmi || 0, 
       color: 'bg-red-600',
       icon: FaCog 
-    },
-    { 
-      name: 'Outros', 
-      value: services.outros || 0, 
-      color: 'bg-red-300',
-      icon: FaClipboardList 
     }
-  ].filter(service => service.value > 0); // Filtrar apenas serviços com valores válidos
-  
-  console.log('📊 ServicesChart - Lista de serviços processados:', {
-    servicesList,
-    filteredCount: servicesList.length,
-    totalBeforeFilter: 8,
-    servicesWithZero: [
-      { name: 'Adequação Elétrica', value: services.adequacaoEletrica || 0 },
-      { name: 'Medição Ôhmica', value: services.medicaoOhmica || 0 },
-      { name: 'SPDA', value: services.spda || 0 },
-      { name: 'Quadros de Painel', value: services.quadrosDePainel || 0 },
-      { name: 'Projetos Elétricos', value: services.projetosEletricos || 0 },
-      { name: 'Laudos', value: services.laudos || 0 },
-      { name: 'CMI', value: services.cmi || 0 },
-      { name: 'Outros', value: services.outros || 0 }
-    ]
+  ];
+
+  // Adicionar dinamicamente outros serviços que não estão na lista fixa
+  const fixedServiceKeys = ['adequacaoEletrica', 'medicaoOhmica', 'spda', 'quadrosDePainel', 'projetosEletricos', 'laudos', 'cmi'];
+  const dynamicColors = ['bg-blue-500', 'bg-purple-500', 'bg-yellow-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500', 'bg-cyan-500', 'bg-lime-500', 'bg-amber-500', 'bg-rose-500'];
+  let colorIndex = 0;
+
+  Object.entries(services).forEach(([key, value]) => {
+    if (!fixedServiceKeys.includes(key) && value > 0) {
+      // Converter chave para nome legível com mapeamento específico
+      let serviceName;
+      
+      // Mapeamento específico para nomes conhecidos
+      const serviceNameMap = {
+        'sistemaDeIluminacao': 'Sistema de Iluminação',
+        'avcb': 'AVCB',
+        'civil': 'Civil',
+        'estacaoDeRecarga': 'Estação de Recarga',
+        'prumadas': 'Prumadas',
+        'manutencaoEletricas': 'Manutenção Elétricas',
+        'cabinePrimaria': 'Cabine Primária',
+        'sistaMadeIncendio': 'Sistema de Incêndio',
+        'quadroElevador': 'Quadro Elevador'
+      };
+      
+      if (serviceNameMap[key]) {
+        serviceName = serviceNameMap[key];
+      } else {
+        // Conversão genérica para outros nomes
+        serviceName = key
+          .replace(/([A-Z])/g, ' $1') // Adicionar espaço antes de maiúsculas
+          .replace(/^./, str => str.toUpperCase()) // Primeira letra maiúscula
+          .trim();
+      }
+
+      servicesList.push({
+        name: serviceName,
+        value: value,
+        color: dynamicColors[colorIndex % dynamicColors.length],
+        icon: FaClipboardList
+      });
+      colorIndex++;
+    }
   });
 
-  // Organizar em grid como treemap
+  // Filtrar apenas serviços com valores válidos
+  const filteredServicesList = servicesList.filter(service => service.value > 0);
+  
+  console.log('📊 ServicesChart - Lista de serviços processados:', {
+    filteredServicesList,
+    filteredCount: filteredServicesList.length,
+    totalServices: Object.keys(services).length,
+    servicesWithZero: Object.entries(services).filter(([key, value]) => value === 0)
+  });
+
+  // Organizar em grid responsivo baseado nos valores
   const getGridSize = (value, total) => {
     const percentage = (value / total) * 100;
-    if (percentage > 25) return 'col-span-4 row-span-4';
-    if (percentage > 15) return 'col-span-3 row-span-3';
-    if (percentage > 8) return 'col-span-2 row-span-3';
-    if (percentage > 5) return 'col-span-2 row-span-2';
-    if (percentage > 2) return 'col-span-2 row-span-1';
-    return 'col-span-1 row-span-1';
+    if (percentage > 20) return 'col-span-6 row-span-2'; // Muito grande
+    if (percentage > 15) return 'col-span-4 row-span-2'; // Grande
+    if (percentage > 10) return 'col-span-3 row-span-2'; // Médio-grande
+    if (percentage > 5) return 'col-span-2 row-span-2';  // Médio
+    if (percentage > 2) return 'col-span-2 row-span-1';  // Pequeno
+    return 'col-span-1 row-span-1';                      // Muito pequeno
   };
 
   return (
@@ -126,44 +157,49 @@ const ServicesChart = ({ data }) => {
         SERVIÇOS NEGOCIADOS
       </h3>
       
-      {/* Treemap Grid */}
-      <div className="grid grid-cols-4 sm:grid-cols-6 grid-rows-6 sm:grid-rows-8 gap-1 sm:gap-2 h-80 sm:h-96">
-        {servicesList.map((service, index) => {
+      {/* Grid de Serviços */}
+      <div className="grid grid-cols-6 gap-3 auto-rows-min min-h-[20rem]">
+        {filteredServicesList.map((service, index) => {
           const Icon = service.icon;
           const gridSize = getGridSize(service.value, total);
           
           return (
             <div
               key={index}
-              className={`${service.color} ${gridSize} rounded-lg p-2 sm:p-3 flex flex-col justify-center items-center text-white relative overflow-hidden hover:opacity-90 transition-all cursor-pointer group`}
+              className={`${service.color} ${gridSize} rounded-xl p-4 flex flex-col justify-center items-center text-white relative overflow-hidden hover:opacity-90 transition-all cursor-pointer group min-h-[4rem]`}
               title={`${service.name}: ${service.value} serviços`}
             >
               {/* Conteúdo principal */}
               <div className="text-center flex flex-col items-center justify-center h-full">
                 {/* Ícone - mostrar apenas em blocos maiores */}
                 {service.value > 10 && (
-                  <Icon className="text-white/90 mb-1 text-lg" />
+                  <Icon className="text-white/90 mb-2 text-lg" />
                 )}
                 
-                {/* Nome */}
-                <div className={`font-bold text-center leading-tight ${service.value > 15 ? 'text-sm' : 'text-xs'}`}>
+                {/* Nome - sempre completo e legível */}
+                <div className={`font-bold text-center leading-tight ${
+                  service.value > 20 ? 'text-base' : 
+                  service.value > 10 ? 'text-sm' : 
+                  service.value > 5 ? 'text-sm' : 'text-xs'
+                }`} style={{ wordBreak: 'break-word', hyphens: 'auto' }}>
                   {service.name}
                 </div>
                 
                 {/* Valor */}
-                <div className={`font-bold ${service.value > 15 ? 'text-lg' : 'text-sm'}`}>
+                <div className={`font-bold mt-1 ${
+                  service.value > 20 ? 'text-2xl' : 
+                  service.value > 10 ? 'text-xl' : 
+                  service.value > 5 ? 'text-lg' : 'text-base'
+                }`}>
                   {service.value}
                 </div>
               </div>
               
-              {/* Tooltip hover */}
-              <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <div className="text-center text-white text-xs">
-                  <div className="font-bold">{service.name}</div>
-                  <div>{service.value} serviços</div>
-                  <div>
-                    {((service.value / total) * 100).toFixed(1)}% do total
-                  </div>
+              {/* Tooltip hover - simplificado */}
+              <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                <div className="text-center text-white p-2">
+                  <div className="font-bold text-sm break-words">{service.name}</div>
+                  <div className="text-xs opacity-90">{service.value} serviços ({((service.value / total) * 100).toFixed(1)}%)</div>
                 </div>
               </div>
             </div>

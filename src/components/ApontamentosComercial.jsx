@@ -37,6 +37,12 @@ const ApontamentosComercial = ({ onVoltar }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
+  // Estados para controlar os valores formatados dos inputs monetários
+  const [displayValues, setDisplayValues] = useState({
+    valorTotalServico: 'R$ 0,00',
+    valorEntradaServico: 'R$ 0,00'
+  });
+
   // Opções dos comboboxes
   const tiposOportunidade = [
     'MEDIÇÃO OHMICA',
@@ -102,12 +108,17 @@ const ApontamentosComercial = ({ onVoltar }) => {
     return { value: num.toString(), label: `${num}x` };
   });
 
-  // Função para formatar valor monetário
-  const formatCurrency = (value) => {
-    const numericValue = value.toString().replace(/\D/g, '');
-    const formattedValue = (parseInt(numericValue) / 100).toLocaleString('pt-BR', {
+  // Função para formatar valor monetário para exibição
+  const formatCurrency = (numericValue) => {
+    if (!numericValue) return 'R$ 0,00';
+    const cleanValue = numericValue.toString().replace(/\D/g, '');
+    if (!cleanValue) return 'R$ 0,00';
+    
+    const formattedValue = (parseInt(cleanValue) / 100).toLocaleString('pt-BR', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     });
     return formattedValue;
   };
@@ -115,7 +126,16 @@ const ApontamentosComercial = ({ onVoltar }) => {
   // Função para manipular mudanças nos inputs monetários
   const handleCurrencyChange = (field, value) => {
     const numericValue = value.replace(/\D/g, '');
-    const finalValue = parseInt(numericValue) / 100;
+    
+    // Atualiza o valor formatado para exibição
+    const formattedValue = formatCurrency(numericValue);
+    setDisplayValues(prev => ({
+      ...prev,
+      [field]: formattedValue
+    }));
+    
+    // Atualiza o valor numérico no formData
+    const finalValue = numericValue ? parseInt(numericValue) / 100 : 0;
     setFormData(prev => ({
       ...prev,
       [field]: finalValue
@@ -195,6 +215,10 @@ const ApontamentosComercial = ({ onVoltar }) => {
         quantidadeParcelas: '1',
         cidadeAtendimento: '',
         cidadeOutras: ''
+      });
+      setDisplayValues({
+        valorTotalServico: 'R$ 0,00',
+        valorEntradaServico: 'R$ 0,00'
       });
       setErrors({});
       
@@ -406,7 +430,7 @@ const ApontamentosComercial = ({ onVoltar }) => {
                 </label>
                 <input
                   type="text"
-                  value={formatCurrency(formData.valorTotalServico)}
+                  value={displayValues.valorTotalServico}
                   onChange={(e) => handleCurrencyChange('valorTotalServico', e.target.value)}
                   placeholder="R$ 0,00"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -421,7 +445,7 @@ const ApontamentosComercial = ({ onVoltar }) => {
                 </label>
                 <input
                   type="text"
-                  value={formatCurrency(formData.valorEntradaServico)}
+                  value={displayValues.valorEntradaServico}
                   onChange={(e) => handleCurrencyChange('valorEntradaServico', e.target.value)}
                   placeholder="R$ 0,00"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"

@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-
-const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzD0ZEX7if_H3G2dfAVmwz5_4k0FaW1_ogJuTHZJrF2q3M_17VkVS3nXFlyfuvXfk9X/exec';
+import { apontamentosService } from '../services/supabaseService';
 
 export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) => {
   const [data, setData] = useState(null);
@@ -15,26 +13,25 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
       setLoading(true);
       setError(null);
       
-      console.log('🔍 Buscando dados da API...');
+      console.log('🔍 Buscando dados do Supabase...');
       
-      // Sempre buscar todos os dados da API (sem filtros na URL)
-      const response = await axios.get(GOOGLE_SHEETS_URL);
+      // Buscar todos os dados do Supabase
+      const response = await apontamentosService.buscarApontamentos();
       
-      console.log('🔍 Resposta da API recebida:', {
-        status: response.status,
-        dataType: typeof response.data,
-        isArray: Array.isArray(response.data),
-        dataLength: response.data?.length,
-        firstItem: response.data?.[0]
+      console.log('🔍 Resposta do Supabase recebida:', {
+        dataType: typeof response,
+        isArray: Array.isArray(response),
+        dataLength: response?.length,
+        firstItem: response?.[0]
       });
       
       // Armazenar todos os dados
-      setAllData(response.data);
+      setAllData(response);
       
       // Filtrar dados no lado cliente se necessário
-      let filteredData = response.data;
+      let filteredData = response;
       
-      if (selectedMonth && selectedYear && Array.isArray(response.data)) {
+      if (selectedMonth && selectedYear && Array.isArray(response)) {
         console.log('🎯 Filtrando dados para:', selectedMonth, selectedYear);
         
         // Mapeamento de meses
@@ -49,9 +46,9 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
         
         console.log('🎯 Target:', { targetMonth, targetYear });
         
-        filteredData = response.data.filter((item, index) => {
-          if (!item['Data de contato']) {
-            if (index < 3) console.log(`⚠️ Item ${index}: Sem data de contato`);
+        filteredData = response.filter((item, index) => {
+          if (!item.created_at) {
+            if (index < 3) console.log(`⚠️ Item ${index}: Sem created_at`);
             return false;
           }
           
@@ -59,15 +56,15 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
           let dataContato;
           try {
             // Se a data estiver em formato ISO ou similar
-            dataContato = new Date(item['Data de contato']);
+            dataContato = new Date(item.created_at);
             
             // Verificar se a data é válida
             if (isNaN(dataContato.getTime())) {
-              if (index < 3) console.log(`⚠️ Item ${index}: Data inválida:`, item['Data de contato']);
+              if (index < 3) console.log(`⚠️ Item ${index}: Data inválida:`, item.created_at);
               return false;
             }
           } catch (error) {
-            if (index < 3) console.log(`⚠️ Item ${index}: Erro ao processar data:`, item['Data de contato'], error);
+            if (index < 3) console.log(`⚠️ Item ${index}: Erro ao processar data:`, item.created_at, error);
             return false;
           }
           
@@ -77,7 +74,7 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
           // Log dos primeiros 5 itens para debug
           if (index < 5) {
             console.log(`📅 Item ${index}:`, {
-              dataOriginal: item['Data de contato'],
+              dataOriginal: item.created_at,
               dataConvertida: dataContato,
               itemMonth,
               itemYear,
@@ -89,7 +86,7 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
             });
           }
           
-          // CORREÇÃO: Filtrar apenas registros do ano E mês especificados
+          // Filtrar apenas registros do ano E mês especificados
           const isMatch = itemMonth === targetMonth && itemYear === targetYear;
           
           return isMatch;
@@ -97,15 +94,15 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
         
         console.log('📊 Dados filtrados:', {
           filtrados: filteredData.length,
-          total: response.data.length,
-          porcentagem: ((filteredData.length / response.data.length) * 100).toFixed(1) + '%',
+          total: response.length,
+          porcentagem: ((filteredData.length / response.length) * 100).toFixed(1) + '%',
           periodo: `${selectedMonth}/${selectedYear}`
         });
         
         // Se não há dados para o período filtrado, avisar no console
         if (filteredData.length === 0) {
           console.warn('⚠️ Nenhum dado encontrado para o período:', selectedMonth, selectedYear);
-          console.log('💡 Sugestão: Verifique se existem dados com "Data de contato" para este período');
+          console.log('💡 Sugestão: Verifique se existem dados com "created_at" para este período');
         }
       }
       
@@ -113,7 +110,7 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
       setLastUpdated(new Date());
       console.log('✅ Dados atualizados com sucesso:', filteredData?.length, 'itens');
     } catch (err) {
-      setError('Erro ao carregar dados da planilha');
+      setError('Erro ao carregar dados do Supabase');
       console.error('Erro ao buscar dados:', err);
     } finally {
       setLoading(false);

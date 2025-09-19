@@ -214,21 +214,21 @@ const processRealData = (data, metaPersonalizada = 50000) => {
 const extractReceitas = (data) => {
   console.log('💰 Extraindo receitas de', data.length, 'registros');
   
-  const contratoVenda = data.filter(item => item.Fase === 'CONTRATO/VENDA');
+  const contratoVenda = data.filter(item => item.fase === 'CONTRATO/VENDA');
   console.log('📋 Contratos/Vendas encontrados:', contratoVenda.length);
   
-  // CORRIGIDO: Usar "Valor de Entrada" que é onde estão os valores reais
+  // Usar valor_entrada_servico que é onde estão os valores reais
   const valorEntrada = contratoVenda.reduce((sum, item) => {
-    const valor = parseFloat(item['Valor de Entrada']) || 0;
+    const valor = parseFloat(item.valor_entrada_servico) || 0;
     return sum + valor;
   }, 0);
   
-  const negociacao = data.filter(item => item.Fase === 'NEGOCIAÇÃO');
+  const negociacao = data.filter(item => item.fase === 'NEGOCIAÇÃO');
   console.log('🤝 Negociações encontradas:', negociacao.length);
   
-  // Para negociações, também usar "Valor de Entrada"
+  // Para negociações, também usar valor_entrada_servico
   const aReceber = negociacao.reduce((sum, item) => {
-    const valor = parseFloat(item['Valor de Entrada']) || 0;
+    const valor = parseFloat(item.valor_entrada_servico) || 0;
     return sum + valor;
   }, 0);
   
@@ -249,8 +249,8 @@ const extractDespesas = (data) => {
 
 const extractSaldos = (data) => {
   const valores = data
-    .filter(item => item['Valor de Entrada'] && parseFloat(item['Valor de Entrada']) > 0)
-    .map(item => parseFloat(item['Valor de Entrada']));
+    .filter(item => item.valor_entrada_servico && parseFloat(item.valor_entrada_servico) > 0)
+    .map(item => parseFloat(item.valor_entrada_servico));
   
   if (valores.length === 0) return { maximo: 0, minimo: 0, media: 0 };
   
@@ -265,23 +265,22 @@ const extractVendedores = (data) => {
   console.log('👥 extractVendedores - Processando dados de vendedores:', data.length, 'registros');
   
   // Filtrar apenas dados com fase CONTRATO/VENDA para relatório de vendas
-  const dadosVendas = data.filter(item => item['Fase'] === 'CONTRATO/VENDA');
+  const dadosVendas = data.filter(item => item.fase === 'CONTRATO/VENDA');
   console.log('🎯 extractVendedores - Filtrados para CONTRATO/VENDA:', dadosVendas.length, 'de', data.length, 'registros');
   
   const vendedoresMap = {};
   
   dadosVendas.forEach((item, index) => {
-    const vendedor = item['Proprietário do relacionamento'];
+    const vendedor = item.proprietario_relacionamento;
     if (!vendedor) return;
     
     // Log dos primeiros 3 itens para debug
     if (index < 3) {
       console.log(`👥 Item ${index}:`, {
         vendedor,
-        valor: item['Valor '],
-        valorEntrada: item['Valor de Entrada'],
-        valorRaw: item.Valor,
-        fase: item.Fase
+        valor: item.valor_total_servico,
+        valorEntrada: item.valor_entrada_servico,
+        fase: item.fase
       });
     }
     
@@ -296,8 +295,8 @@ const extractVendedores = (data) => {
     }
     
     // Tratar valores vazios, undefined ou NaN - usar 0 como fallback
-    const valor = parseFloat(item['Valor ']) || 0;
-    const valorEntrada = parseFloat(item['Valor de Entrada']) || 0;
+    const valor = parseFloat(item.valor_total_servico) || 0;
+    const valorEntrada = parseFloat(item.valor_entrada_servico) || 0;
     
     vendedoresMap[vendedor].vendas += 1;
     vendedoresMap[vendedor].valor += valor;
@@ -322,23 +321,23 @@ const extractRegioes = (data) => {
   console.log('🌍 extractRegioes - Processando dados de região:', data.length, 'registros');
   
   // Filtrar apenas dados com fase CONTRATO/VENDA para relatório de vendas
-  const dadosVendas = data.filter(item => item['Fase'] === 'CONTRATO/VENDA');
+  const dadosVendas = data.filter(item => item.fase === 'CONTRATO/VENDA');
   console.log('🎯 extractRegioes - Filtrados para CONTRATO/VENDA:', dadosVendas.length, 'de', data.length, 'registros');
   
   // Agrupar por vendedor E região (não apenas por região)
   const vendedorRegiaMap = {};
   
   dadosVendas.forEach((item, index) => {
-    const regiao = item.Área;
-    const proprietario = item['Proprietário do relacionamento'];
+    const regiao = item.cidade_atendimento;
+    const proprietario = item.proprietario_relacionamento;
     
     // Log dos primeiros 3 itens para debug
     if (index < 3) {
       console.log(`🌍 Item ${index}:`, {
         regiao,
         proprietario,
-        valor: item['Valor '],
-        valorEntrada: item['Valor de Entrada'],
+        valor: item.valor_total_servico,
+        valorEntrada: item.valor_entrada_servico,
         campos: Object.keys(item)
       });
     }
@@ -359,7 +358,7 @@ const extractRegioes = (data) => {
     }
     
     // Tratar valores vazios ou undefined
-    const valor = parseFloat(item['Valor ']) || 0;
+    const valor = parseFloat(item.valor_total_servico) || 0;
     vendedorRegiaMap[chave].valor += valor;
     vendedorRegiaMap[chave].vendas += 1;
   });
@@ -403,16 +402,15 @@ const extractRegioes = (data) => {
   const servicosMap = {};
   
   data.forEach((item, index) => {
-    const servico = item['Tipo de Oportunidade'];
-    // CORRIGIDO: Usar "Valor " (com espaço) para cálculos gerais
-    const valor = item['Valor '] || 0;
+    const servico = item.tipo_oportunidade;
+    const valor = item.valor_total_servico || 0;
     
     // Log detalhado dos primeiros 3 itens
     if (index < 3) {
       console.log(`⚙️ Item ${index}:`, {
         servico,
-        valorRaw: item['Valor '],
-        valorEntrada: item['Valor de Entrada'],
+        valorRaw: item.valor_total_servico,
+        valorEntrada: item.valor_entrada_servico,
         valorUsado: valor,
         valorParsed: parseFloat(valor),
         allFields: Object.keys(item)
@@ -492,7 +490,7 @@ const extractFunil = (data) => {
   };
   
   data.forEach(item => {
-    const fase = item.Fase;
+    const fase = item.fase;
     switch(fase) {
       case 'QUALIFICAÇÃO':
         funil.qualificacao += 1;
@@ -516,7 +514,7 @@ const extractRelacionamento = (data) => {
   const relacionamentoMap = {};
   
   data.forEach(item => {
-    const vendedor = item['Proprietário do relacionamento'];
+    const vendedor = item.proprietario_relacionamento;
     if (!vendedor) return;
     
     if (!relacionamentoMap[vendedor]) {
@@ -532,8 +530,8 @@ const extractClientesAtendidos = (data) => {
   const clientesPorVendedor = {};
   
   data.forEach(item => {
-    const vendedor = item['Proprietário do relacionamento'];
-    const cliente = item['Nome Cliente'];
+    const vendedor = item.proprietario_relacionamento;
+    const cliente = item.nome_cliente;
     
     if (!vendedor || !cliente || !cliente.trim()) return;
     
@@ -556,40 +554,40 @@ const extractClientesAtendidos = (data) => {
 const extractGanhosPerdas = (data) => {
   console.log('🎯 extractGanhosPerdas iniciado com', data.length, 'registros');
   
-  const contratoVenda = data.filter(item => item.Fase === 'CONTRATO/VENDA');
-  const canceladoPerca = data.filter(item => item.Fase === 'CANCELADO/PERCA');
+  const contratoVenda = data.filter(item => item.fase === 'CONTRATO/VENDA');
+  const canceladoPerca = data.filter(item => item.fase === 'CANCELADO/PERCA');
   
   console.log('📋 Filtros aplicados:', {
     contratoVenda: contratoVenda.length,
     canceladoPerca: canceladoPerca.length,
     exemplosContratoVenda: contratoVenda.slice(0, 2).map(item => ({ 
-      Fase: item.Fase, 
-      Valor: item.Valor,
-      Cliente: item['Nome Cliente'] 
+      Fase: item.fase, 
+      Valor: item.valor_total_servico,
+      Cliente: item.nome_cliente 
     })),
     exemplosCancelado: canceladoPerca.slice(0, 2).map(item => ({ 
-      Fase: item.Fase, 
-      Valor: item.Valor,
-      Cliente: item['Nome Cliente'] 
+      Fase: item.fase, 
+      Valor: item.valor_total_servico,
+      Cliente: item.nome_cliente 
     }))
   });
   
-  // CORRIGIDO: Usar "Valor " (com espaço) em vez de "Valor de Entrada" para Ganhos vs Perdas
+  // Usar valor_total_servico para Ganhos vs Perdas
   const valorContratoVenda = contratoVenda.reduce((sum, item) => {
-    const valor = parseFloat(item['Valor ']) || 0;
+    const valor = parseFloat(item.valor_total_servico) || 0;
     return sum + valor;
   }, 0);
   
   const valorCanceladoPerca = canceladoPerca.reduce((sum, item) => {
-    const valor = parseFloat(item['Valor ']) || 0;
+    const valor = parseFloat(item.valor_total_servico) || 0;
     return sum + valor;
   }, 0);
 
   // Extrair detalhes dos serviços perdidos para tabela
   const servicosPerdidosDetalhes = canceladoPerca.map(item => ({
-    cliente: item['Nome Cliente'] || 'Cliente não informado',
-    valor: parseFloat(item['Valor ']) || 0,
-    servico: item['Tipo de Oportunidade'] || 'Serviço não informado'
+    cliente: item.nome_cliente || 'Cliente não informado',
+    valor: parseFloat(item.valor_total_servico) || 0,
+    servico: item.tipo_oportunidade || 'Serviço não informado'
   })); // Incluir TODOS os itens cancelados, mesmo com valor 0
 
   const resultado = {
@@ -608,7 +606,7 @@ const extractGanhosPerdas = (data) => {
 
 const extractMetaEntrada = (data, metaPersonalizada = 50000) => {
   const valorEntrada = data.reduce((sum, item) => {
-    const valor = parseFloat(item['Valor de Entrada']) || 0;
+    const valor = parseFloat(item.valor_entrada_servico) || 0;
     return sum + valor;
   }, 0);
   
@@ -632,7 +630,7 @@ const extractOrigemClientes = (data) => {
   const origensUnicas = new Set();
   
   data.forEach((item, index) => {
-    const origem = item['O Cliente Chegou por:'];
+    const origem = item.origem_cliente;
     
     if (!origem) {
       console.log(`⚠️ Item ${index}: Origem vazia ou undefined`);
@@ -670,7 +668,7 @@ const extractServicosFechadosPorOrigem = (data) => {
   
   // Filtrar apenas registros com Fase = "CONTRATO/VENDA"
   const servicosFechados = data.filter(item => {
-    const fase = item.Fase;
+    const fase = item.fase;
     return fase === 'CONTRATO/VENDA';
   });
   
@@ -687,7 +685,7 @@ const extractServicosFechadosPorOrigem = (data) => {
   
   // Contar quantidade de serviços fechados por origem
   servicosFechados.forEach((item, index) => {
-    const origem = item['O Cliente Chegou por:'];
+    const origem = item.origem_cliente;
     
     if (!origem) {
       console.log(`⚠️ Item ${index}: Origem vazia ou undefined`);
@@ -722,7 +720,7 @@ const extractTimeline = (data) => {
   const timelineMap = {};
   
   data.forEach(item => {
-    const dataContato = item['Data de contato'];
+    const dataContato = item.created_at;
     if (!dataContato) return;
     
     const date = new Date(dataContato);
@@ -735,8 +733,8 @@ const extractTimeline = (data) => {
       };
     }
     
-    const valor = parseFloat(item.Valor) || 0;
-    if (item.Fase === 'CONTRATO/VENDA') {
+    const valor = parseFloat(item.valor_total_servico) || 0;
+    if (item.fase === 'CONTRATO/VENDA') {
       timelineMap[monthYear].receitas += valor;
     }
   });

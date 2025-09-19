@@ -460,10 +460,17 @@ function App() {
               <ChartCard
                 title=""
                 type="bar"
-                data={{
-                  labels: Object.keys(dashboardData?.clientesAtendidos || {}).map(nome => nome.charAt(0).toUpperCase() + nome.slice(1)),
-                  values: Object.values(dashboardData?.clientesAtendidos || {})
-                }}
+                data={(() => {
+                  const clientesData = dashboardData?.clientesAtendidos || {};
+                  // Criar array de pares [nome, valor] e ordenar por valor (maior para menor)
+                  const sortedEntries = Object.entries(clientesData)
+                    .sort(([,a], [,b]) => b - a);
+                  
+                  return {
+                    labels: sortedEntries.map(([nome]) => nome.charAt(0).toUpperCase() + nome.slice(1)),
+                    values: sortedEntries.map(([,valor]) => valor)
+                  };
+                })()}
                 height={300}
                 delay={400}
               />

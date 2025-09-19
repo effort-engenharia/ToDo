@@ -9,7 +9,9 @@ import {
   FaLink,
   FaTimes,
   FaSave,
-  FaSpinner
+  FaSpinner,
+  FaCheck,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import { arsenalService } from '../services/supabaseService';
 
@@ -33,6 +35,9 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
   const [fileToDelete, setFileToDelete] = useState(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [loading, setLoading] = useState(true);
+
+  // Estados para notificações
+  const [notifications, setNotifications] = useState([]);
 
   // Carregar dados ao montar o componente
   useEffect(() => {
@@ -58,6 +63,22 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Funções para gerenciar notificações
+  const addNotification = (message, type = 'success') => {
+    const id = Date.now();
+    const notification = { id, message, type };
+    setNotifications(prev => [...prev, notification]);
+    
+    // Remove a notificação após 5 segundos
+    setTimeout(() => {
+      removeNotification(id);
+    }, 5000);
+  };
+
+  const removeNotification = (id) => {
+    setNotifications(prev => prev.filter(notif => notif.id !== id));
   };
 
   // Cabeçalho moderno mantendo o estilo da página principal
@@ -401,9 +422,10 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
       setLinks(prev => [...prev, novoLink]);
       setNewLink({ nome: '', url: '' });
       setIsAddingLink(false);
+      addNotification('Link criado com sucesso!', 'success');
     } catch (error) {
       console.error('Erro ao salvar link:', error);
-      alert('Erro ao salvar link. Tente novamente.');
+      addNotification('Erro ao salvar link. Tente novamente.', 'error');
     }
   }, [newLink]);
 
@@ -421,9 +443,10 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
       ));
       setEditingLinkId(null);
       setEditingLinkData({ nome: '', url: '' });
+      addNotification('Link atualizado com sucesso!', 'success');
     } catch (error) {
       console.error('Erro ao atualizar link:', error);
-      alert('Erro ao atualizar link. Tente novamente.');
+      addNotification('Erro ao atualizar link. Tente novamente.', 'error');
     }
   }, [editingLinkData]);
 
@@ -441,9 +464,10 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
         setShowDeleteLinkModal(false);
         setLinkToDelete(null);
         setDeleteLinkConfirmName('');
+        addNotification('Link excluído com sucesso!', 'success');
       } catch (error) {
         console.error('Erro ao excluir link:', error);
-        alert('Erro ao excluir link. Tente novamente.');
+        addNotification('Erro ao excluir link. Tente novamente.', 'error');
       }
     }
   }, [deleteLinkConfirmName, linkToDelete]);
@@ -487,7 +511,10 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
 
     // Mostrar arquivos inválidos se houver
     if (arquivosInvalidos.length > 0) {
-      alert(`❌ Arquivos inválidos:\n${arquivosInvalidos.join('\n')}\n\n${arquivosValidos.length > 0 ? 'Os arquivos válidos serão enviados.' : 'Nenhum arquivo será enviado.'}`);
+      addNotification(
+        `Arquivos inválidos encontrados: ${arquivosInvalidos.length}. ${arquivosValidos.length > 0 ? 'Enviando arquivos válidos...' : 'Nenhum arquivo será enviado.'}`,
+        'warning'
+      );
     }
 
     // Se não há arquivos válidos, cancela
@@ -528,16 +555,26 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
 
       // Mostrar resultado do upload
       if (sucessosUpload > 0 && errosUpload.length === 0) {
-        alert(`✅ ${sucessosUpload} arquivo(s) enviado(s) com sucesso!`);
+        addNotification(`${sucessosUpload} arquivo(s) enviado(s) com sucesso!`, 'success');
       } else if (sucessosUpload > 0 && errosUpload.length > 0) {
-        alert(`⚠️ ${sucessosUpload} arquivo(s) enviado(s), ${errosUpload.length} falharam.\n\nErros:\n${errosUpload.map(e => `• ${e.nome}: ${e.erro}`).join('\n')}`);
+        addNotification(`${sucessosUpload} arquivo(s) enviado(s), ${errosUpload.length} falharam.`, 'warning');
+        // Mostrar erros específicos em notificações separadas
+        errosUpload.slice(0, 3).forEach(erro => {
+          addNotification(`${erro.nome}: ${erro.erro}`, 'error');
+        });
+        if (errosUpload.length > 3) {
+          addNotification(`...e mais ${errosUpload.length - 3} erro(s)`, 'error');
+        }
       } else {
-        const mensagensErro = errosUpload.map(e => `• ${e.nome}: ${e.erro}`).join('\n');
-        alert(`❌ Falha no upload de todos os arquivos.\n\nErros:\n${mensagensErro}`);
+        addNotification('Falha no upload de todos os arquivos', 'error');
+        // Mostrar primeiro erro específico
+        if (errosUpload.length > 0) {
+          addNotification(`${errosUpload[0].nome}: ${errosUpload[0].erro}`, 'error');
+        }
       }
     } catch (error) {
       console.error('💥 Erro geral no upload:', error);
-      alert(`❌ Erro inesperado: ${error.message}`);
+      addNotification(`Erro inesperado: ${error.message}`, 'error');
     } finally {
       setIsUploading(false);
       event.target.value = '';
@@ -555,7 +592,7 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Erro ao baixar arquivo:', error);
-      alert('Erro ao baixar arquivo. Tente novamente.');
+      addNotification('Erro ao baixar arquivo. Tente novamente.', 'error');
     }
   };
 
@@ -573,11 +610,49 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
         setShowDeleteModal(false);
         setFileToDelete(null);
         setDeleteConfirmName('');
+        addNotification('Arquivo excluído com sucesso!', 'success');
       } catch (error) {
         console.error('Erro ao excluir arquivo:', error);
-        alert('Erro ao excluir arquivo. Tente novamente.');
+        addNotification('Erro ao excluir arquivo. Tente novamente.', 'error');
       }
     }
+  };
+
+  // Componente de notificações toast
+  const NotificationToast = () => {
+    if (notifications.length === 0) return null;
+
+    return (
+      <div className="fixed bottom-4 right-4 z-50 space-y-2">
+        {notifications.map((notification) => (
+          <div
+            key={notification.id}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg transform transition-all duration-300 ease-in-out animate-slide-in-right max-w-sm ${
+              notification.type === 'success' 
+                ? 'bg-green-500 text-white' 
+                : notification.type === 'error'
+                ? 'bg-red-500 text-white'
+                : 'bg-yellow-500 text-white'
+            }`}
+          >
+            <div className="flex-shrink-0">
+              {notification.type === 'success' && <FaCheck className="text-lg" />}
+              {notification.type === 'error' && <FaTimes className="text-lg" />}
+              {notification.type === 'warning' && <FaExclamationTriangle className="text-lg" />}
+            </div>
+            <div className="flex-1 text-sm font-medium">
+              {notification.message}
+            </div>
+            <button
+              onClick={() => removeNotification(notification.id)}
+              className="flex-shrink-0 text-white/80 hover:text-white transition-colors"
+            >
+              <FaTimes className="text-sm" />
+            </button>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   // Função utilitária
@@ -618,6 +693,9 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
       {/* Modais de confirmação */}
       {renderDeleteLinkModal()}
       {renderDeleteModal()}
+      
+      {/* Notificações Toast */}
+      <NotificationToast />
     </div>
   );
 };

@@ -443,3 +443,196 @@ export const metasService = {
     }
   }
 };
+
+// Serviços para Arsenal de Guerra
+export const arsenalService = {
+  // Serviços para Links
+  async criarLink(dadosLink) {
+    try {
+      const { data, error } = await supabase
+        .from('arsenal_links')
+        .insert([{
+          nome: dadosLink.nome,
+          url: dadosLink.url
+        }])
+        .select();
+
+      if (error) {
+        console.error('Erro ao criar link:', error);
+        throw error;
+      }
+
+      return data[0];
+    } catch (error) {
+      console.error('Erro no serviço de criação de link:', error);
+      throw error;
+    }
+  },
+
+  async buscarLinks() {
+    try {
+      const { data, error } = await supabase
+        .from('arsenal_links')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar links:', error);
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Erro no serviço de busca de links:', error);
+      throw error;
+    }
+  },
+
+  async atualizarLink(id, dadosLink) {
+    try {
+      const { data, error } = await supabase
+        .from('arsenal_links')
+        .update({
+          nome: dadosLink.nome,
+          url: dadosLink.url
+        })
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('Erro ao atualizar link:', error);
+        throw error;
+      }
+
+      return data[0];
+    } catch (error) {
+      console.error('Erro no serviço de atualização de link:', error);
+      throw error;
+    }
+  },
+
+  async excluirLink(id) {
+    try {
+      const { error } = await supabase
+        .from('arsenal_links')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erro ao excluir link:', error);
+        throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Erro no serviço de exclusão de link:', error);
+      throw error;
+    }
+  },
+
+  // Serviços para Arquivos
+  async uploadArquivo(arquivo) {
+    try {
+      const nomeArquivo = `${Date.now()}-${arquivo.name}`;
+      const caminhoArquivo = `arquivos/${nomeArquivo}`;
+
+      // Upload do arquivo para o Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('arsenal-arquivos')
+        .upload(caminhoArquivo, arquivo);
+
+      if (uploadError) {
+        console.error('Erro no upload do arquivo:', uploadError);
+        throw uploadError;
+      }
+
+      // Salvar metadados na tabela
+      const { data, error } = await supabase
+        .from('arsenal_arquivos')
+        .insert([{
+          nome: arquivo.name,
+          nome_arquivo_original: arquivo.name,
+          tamanho_bytes: arquivo.size,
+          tipo_arquivo: arquivo.type,
+          caminho_storage: caminhoArquivo
+        }])
+        .select();
+
+      if (error) {
+        console.error('Erro ao salvar metadados do arquivo:', error);
+        throw error;
+      }
+
+      return data[0];
+    } catch (error) {
+      console.error('Erro no serviço de upload de arquivo:', error);
+      throw error;
+    }
+  },
+
+  async buscarArquivos() {
+    try {
+      const { data, error } = await supabase
+        .from('arsenal_arquivos')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar arquivos:', error);
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Erro no serviço de busca de arquivos:', error);
+      throw error;
+    }
+  },
+
+  async excluirArquivo(id, caminhoStorage) {
+    try {
+      // Excluir arquivo do Storage
+      const { error: storageError } = await supabase.storage
+        .from('arsenal-arquivos')
+        .remove([caminhoStorage]);
+
+      if (storageError) {
+        console.error('Erro ao excluir arquivo do storage:', storageError);
+      }
+
+      // Excluir metadados da tabela
+      const { error } = await supabase
+        .from('arsenal_arquivos')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erro ao excluir metadados do arquivo:', error);
+        throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Erro no serviço de exclusão de arquivo:', error);
+      throw error;
+    }
+  },
+
+  async downloadArquivo(caminhoStorage) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('arsenal-arquivos')
+        .download(caminhoStorage);
+
+      if (error) {
+        console.error('Erro ao baixar arquivo:', error);
+        throw error;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Erro no serviço de download de arquivo:', error);
+      throw error;
+    }
+  }
+};

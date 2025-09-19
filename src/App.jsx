@@ -27,12 +27,13 @@ import { getMetaFromCode, updateMetaInCode, DEFAULT_METAS } from './utils/codeUp
 import { getCurrentMetas, salvarMeta } from './config/metas';
 import MetasDebugPanel from './components/MetasDebugPanel';
 import ApontamentosComercial from './components/ApontamentosComercial';
+import ArsenalDeGuerra from './components/ArsenalDeGuerra';
 
 function App() {
   const [selectedMonth, setSelectedMonth] = useState('setembro');
   const [selectedYear, setSelectedYear] = useState('2025');
   const [isDataChanging, setIsDataChanging] = useState(false);
-  const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard' ou 'apontamentos'
+  const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard', 'apontamentos' ou 'arsenal'
   
   // Meta editável pelo usuário com persistência no localStorage
   const [metaPersonalizada, setMetaPersonalizada] = useState(() => {
@@ -281,6 +282,11 @@ function App() {
     return <ApontamentosComercial onVoltar={() => setCurrentPage('dashboard')} />;
   }
 
+  // Renderizar página Arsenal de Guerra se selecionada
+  if (currentPage === 'arsenal') {
+    return <ArsenalDeGuerra onVoltar={() => setCurrentPage('dashboard')} />;
+  }
+
   // Header moderno com gradiente
   const ModernHeader = () => (
     <div className="header-gradient shadow-xl">
@@ -345,13 +351,19 @@ function App() {
           </div>
         </div>
         
-        {/* Segunda linha: Botão APONTAMENTOS COMERCIAL alinhado à direita */}
-        <div className="flex justify-end">
+        {/* Segunda linha: Botões APONTAMENTOS COMERCIAL e ARSENAL DE GUERRA */}
+        <div className="flex justify-end gap-4">
           <button 
             onClick={() => setCurrentPage('apontamentos')}
             className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-sm sm:text-base transform hover:-translate-y-1"
           >
             📝 APONTAMENTOS COMERCIAL
+          </button>
+          <button 
+            onClick={() => setCurrentPage('arsenal')}
+            className="arsenal-guerra-btn text-white font-bold px-6 sm:px-8 py-3 sm:py-4 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-sm sm:text-base transform hover:-translate-y-1"
+          >
+            ⚔️ ARSENAL DE GUERRA
           </button>
         </div>
       </div>

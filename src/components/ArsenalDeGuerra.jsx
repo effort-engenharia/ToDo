@@ -296,7 +296,7 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
               <div>
                 <div className="font-medium text-gray-800">{arquivo.nome}</div>
                 <div className="text-sm text-gray-500">
-                  {arquivo.tamanho} • {new Date(arquivo.dataUpload).toLocaleDateString('pt-BR')}
+                  {arquivo.tamanho} • {new Date(arquivo.dataUpload).toLocaleDateString('pt-BR')} às {new Date(arquivo.dataUpload).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                 </div>
               </div>
             </div>

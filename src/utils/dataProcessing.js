@@ -217,7 +217,14 @@ const extractReceitas = (data) => {
   const contratoVenda = data.filter(item => item.fase === 'CONTRATO/VENDA');
   console.log('📋 Contratos/Vendas encontrados:', contratoVenda.length);
   
-  // Usar valor_entrada_servico que é onde estão os valores reais
+  // CORRIGIDO: Usar valor_total_servico para valor total dos contratos/vendas
+  const valorTotal = contratoVenda.reduce((sum, item) => {
+    const valor = parseFloat(item.valor_total_servico) || 0;
+    console.log(`💰 Contrato ${item.nome_cliente}: valor_total_servico = ${valor}`);
+    return sum + valor;
+  }, 0);
+  
+  // Para valor de entrada, usar valor_entrada_servico
   const valorEntrada = contratoVenda.reduce((sum, item) => {
     const valor = parseFloat(item.valor_entrada_servico) || 0;
     return sum + valor;
@@ -226,16 +233,17 @@ const extractReceitas = (data) => {
   const negociacao = data.filter(item => item.fase === 'NEGOCIAÇÃO');
   console.log('🤝 Negociações encontradas:', negociacao.length);
   
-  // Para negociações, também usar valor_entrada_servico
+  // Para negociações, usar valor_total_servico como valor em negociação
   const aReceber = negociacao.reduce((sum, item) => {
-    const valor = parseFloat(item.valor_entrada_servico) || 0;
+    const valor = parseFloat(item.valor_total_servico) || 0;
     return sum + valor;
   }, 0);
   
   const result = { 
-    recebido: valorEntrada, 
-    aReceber: aReceber, 
-    atrasadas: 0 
+    recebido: valorTotal, // Valor total dos contratos fechados
+    aReceber: aReceber,   // Valor total em negociação
+    atrasadas: 0,
+    valorEntrada: valorEntrada // Valor de entrada específico dos contratos
   };
   
   console.log('💰 Receitas calculadas:', result);
@@ -605,10 +613,25 @@ const extractGanhosPerdas = (data) => {
 };
 
 const extractMetaEntrada = (data, metaPersonalizada = 50000) => {
-  const valorEntrada = data.reduce((sum, item) => {
-    const valor = parseFloat(item.valor_entrada_servico) || 0;
-    return sum + valor;
+  console.log('🎯 extractMetaEntrada - Calculando valor de entrada total');
+  
+  // Filtrar apenas contratos fechados (CONTRATO/VENDA) para valor de entrada
+  const contratosFechados = data.filter(item => item.fase === 'CONTRATO/VENDA');
+  console.log(`📋 Contratos fechados encontrados: ${contratosFechados.length}`);
+  
+  // Usar valor_entrada_servico para entrada efetiva dos contratos fechados
+  const valorEntrada = contratosFechados.reduce((sum, item) => {
+    const valorEntradaServico = parseFloat(item.valor_entrada_servico) || 0;
+    const valorTotalServico = parseFloat(item.valor_total_servico) || 0;
+    
+    // Se há valor de entrada específico, usar ele; senão usar o valor total como entrada
+    const valorUsado = valorEntradaServico > 0 ? valorEntradaServico : valorTotalServico;
+    
+    console.log(`💰 ${item.nome_cliente}: entrada=${valorEntradaServico}, total=${valorTotalServico}, usado=${valorUsado}`);
+    return sum + valorUsado;
   }, 0);
+  
+  console.log(`🎯 Meta de Entrada calculada: ${valorEntrada} de ${metaPersonalizada}`);
   
   // Usar meta personalizada passada como parâmetro
   return { valor: valorEntrada, meta: metaPersonalizada };

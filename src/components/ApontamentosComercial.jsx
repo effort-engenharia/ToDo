@@ -16,7 +16,7 @@ import {
 import { apontamentosService } from '../services/supabaseService';
 import ApontamentosTable from './ApontamentosTable';
 
-const ApontamentosComercial = ({ onVoltar }) => {
+const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormVisible, setIsFormVisible] = useState(false); // Estado inicial oculto
   const [formData, setFormData] = useState({
@@ -224,6 +224,11 @@ const ApontamentosComercial = ({ onVoltar }) => {
       
       // Trigger reload da tabela
       setReloadTrigger(prev => prev + 1);
+      
+      // Atualizar dados no dashboard principal se a callback foi fornecida
+      if (onDataUpdate) {
+        onDataUpdate();
+      }
     } catch (error) {
       console.error('Erro ao salvar apontamento:', error);
       alert('Erro ao salvar apontamento. Tente novamente.');

@@ -13,16 +13,25 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
       setLoading(true);
       setError(null);
       
-      console.log('🔍 Buscando dados do Supabase...');
+      console.log('🔍 Buscando dados do Supabase... (timestamp:', new Date().toLocaleTimeString(), ')');
       
-      // Buscar todos os dados do Supabase
-      const response = await apontamentosService.buscarApontamentos();
+      // Buscar todos os dados do Supabase com cache busting
+      const response = await apontamentosService.buscarApontamentos({
+        _t: Date.now() // Cache busting parameter
+      });
       
       console.log('🔍 Resposta do Supabase recebida:', {
         dataType: typeof response,
         isArray: Array.isArray(response),
         dataLength: response?.length,
-        firstItem: response?.[0]
+        timestamp: new Date().toLocaleTimeString(),
+        firstItems: response?.slice(0, 3)?.map(item => ({
+          nome: item.nome_cliente,
+          fase: item.fase,
+          valor_total: item.valor_total_servico,
+          valor_entrada: item.valor_entrada_servico,
+          created: item.created_at
+        }))
       });
       
       // Armazenar todos os dados

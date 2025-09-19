@@ -224,9 +224,9 @@ function App() {
     ];
 
     allData.forEach(item => {
-      if (item['Data de contato']) {
+      if (item.created_at) {
         try {
-          const date = new Date(item['Data de contato']);
+          const date = new Date(item.created_at);
           if (!isNaN(date.getTime())) {
             const year = date.getFullYear();
             const month = date.getMonth(); // 0-based
@@ -279,7 +279,13 @@ function App() {
 
   // Renderizar página de apontamentos se selecionada (APÓS todos os hooks)
   if (currentPage === 'apontamentos') {
-    return <ApontamentosComercial onVoltar={() => setCurrentPage('dashboard')} />;
+    return <ApontamentosComercial 
+      onVoltar={() => {
+        refreshData(); // Atualizar dados quando voltar
+        setCurrentPage('dashboard');
+      }} 
+      onDataUpdate={refreshData} // Função para atualizar dados
+    />;
   }
 
   // Renderizar página Arsenal de Guerra se selecionada

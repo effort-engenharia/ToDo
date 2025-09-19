@@ -123,7 +123,7 @@ const RegionSalesTable = ({ regionData }) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
             <div className="bg-blue-50 p-4 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">
-                {new Set(regions.map(item => item.cidade || item.regiao)).size}
+                {new Set(regions.map(item => (item.cidade || item.regiao || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))).size}
               </div>
               <div className="text-blue-600 text-sm font-medium">
                 Regiões Ativas

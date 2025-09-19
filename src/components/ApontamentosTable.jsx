@@ -283,67 +283,73 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nome_cliente')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('nome_cliente')}>
                   <div className="flex items-center">
                     Nome do Cliente
                     {renderSortIcon('nome_cliente')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('fase')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tipo_oportunidade')}>
+                  <div className="flex items-center">
+                    Oportunidade
+                    {renderSortIcon('tipo_oportunidade')}
+                  </div>
+                </th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('fase')}>
                   <div className="flex items-center">
                     Fase
                     {renderSortIcon('fase')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('origem_cliente')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('origem_cliente')}>
                   <div className="flex items-center">
                     Origem
                     {renderSortIcon('origem_cliente')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('proprietario_relacionamento')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('proprietario_relacionamento')}>
                   <div className="flex items-center">
                     Proprietário
                     {renderSortIcon('proprietario_relacionamento')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('valor_total_servico')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('valor_total_servico')}>
                   <div className="flex items-center">
                     Valor Total
                     {renderSortIcon('valor_total_servico')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('valor_entrada_servico')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('valor_entrada_servico')}>
                   <div className="flex items-center">
                     Valor Entrada
                     {renderSortIcon('valor_entrada_servico')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('quantidade_parcelas')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('quantidade_parcelas')}>
                   <div className="flex items-center">
                     Parcelas
                     {renderSortIcon('quantidade_parcelas')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('cidade_atendimento')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('cidade_atendimento')}>
                   <div className="flex items-center">
                     Cidade
                     {renderSortIcon('cidade_atendimento')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('created_at')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('created_at')}>
                   <div className="flex items-center">
                     Data Cadastro
                     {renderSortIcon('created_at')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('updated_at')}>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('updated_at')}>
                   <div className="flex items-center">
                     Última Modificação
                     {renderSortIcon('updated_at')}
                   </div>
                 </th>
-                <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
@@ -351,13 +357,19 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
             <tbody className="bg-white divide-y divide-gray-200">
               {sortedApontamentos.map((apontamento) => (
                 <tr key={apontamento.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-4 whitespace-nowrap text-sm">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm">
                     {editingId === apontamento.id ? 
                       renderEditInput('nomeCliente', editData.nomeCliente) :
                       <span className="font-medium text-gray-900">{apontamento.nome_cliente}</span>
                     }
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm">
+                    {editingId === apontamento.id ? 
+                      renderEditInput('tipoOportunidade', editData.tipoOportunidade, 'select-tipo') :
+                      <span className="text-gray-700 text-xs">{apontamento.tipo_oportunidade}</span>
+                    }
+                  </td>
+                  <td className="px-2 py-4 whitespace-nowrap text-sm">
                     {editingId === apontamento.id ? 
                       renderEditInput('fase', editData.fase, 'select-fase') :
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
@@ -370,49 +382,49 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
                       </span>
                     }
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700">
                     {editingId === apontamento.id ? 
                       renderEditInput('origemCliente', editData.origemCliente, 'select-origem') :
                       apontamento.origem_cliente
                     }
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700">
                     {editingId === apontamento.id ? 
                       renderEditInput('proprietarioRelacionamento', editData.proprietarioRelacionamento, 'select-proprietario') :
                       apontamento.proprietario_relacionamento || '-'
                     }
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700">
                     {editingId === apontamento.id ? 
                       renderEditInput('valorTotalServico', editData.valorTotalServico, 'number') :
                       formatCurrency(apontamento.valor_total_servico)
                     }
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700">
                     {editingId === apontamento.id ? 
                       renderEditInput('valorEntradaServico', editData.valorEntradaServico, 'number') :
                       formatCurrency(apontamento.valor_entrada_servico)
                     }
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700">
                     {editingId === apontamento.id ? 
                       renderEditInput('quantidadeParcelas', editData.quantidadeParcelas, 'select-parcelas') :
                       `${apontamento.quantidade_parcelas}x`
                     }
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700">
                     {editingId === apontamento.id ? 
                       renderEditInput('cidadeAtendimento', editData.cidadeAtendimento, 'select-cidade') :
                       apontamento.cidade_atendimento || '-'
                     }
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700">
                     {formatDate(apontamento.created_at)}
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-2 py-4 whitespace-nowrap text-sm text-gray-700">
                     {formatDate(apontamento.updated_at)}
                   </td>
-                  <td className="px-3 py-4 whitespace-nowrap text-center text-sm font-medium">
+                  <td className="px-2 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <div className="flex items-center justify-center space-x-2">
                       {editingId === apontamento.id ? (
                         <>

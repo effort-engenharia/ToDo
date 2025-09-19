@@ -254,6 +254,7 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
             id="fileUpload"
             multiple
             onChange={handleFileUpload}
+            accept="*/*"
             className="hidden"
           />
           <label
@@ -458,22 +459,85 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
+    // Validações antes do upload
+    const arquivosInvalidos = [];
+    const arquivosValidos = [];
+
+    for (const file of files) {
+      // Validar tamanho (50MB)
+      if (file.size > 50 * 1024 * 1024) {
+        arquivosInvalidos.push(`${file.name}: muito grande (máx 50MB)`);
+        continue;
+      }
+
+      // Validar se não está vazio
+      if (file.size === 0) {
+        arquivosInvalidos.push(`${file.name}: arquivo vazio`);
+        continue;
+      }
+
+      // Validar nome do arquivo
+      if (!file.name || file.name.trim() === '') {
+        arquivosInvalidos.push(`Arquivo sem nome válido`);
+        continue;
+      }
+
+      arquivosValidos.push(file);
+    }
+
+    // Mostrar arquivos inválidos se houver
+    if (arquivosInvalidos.length > 0) {
+      alert(`❌ Arquivos inválidos:\n${arquivosInvalidos.join('\n')}\n\n${arquivosValidos.length > 0 ? 'Os arquivos válidos serão enviados.' : 'Nenhum arquivo será enviado.'}`);
+    }
+
+    // Se não há arquivos válidos, cancela
+    if (arquivosValidos.length === 0) {
+      event.target.value = '';
+      return;
+    }
+
     setIsUploading(true);
     
     try {
-      for (const file of files) {
-        const novoArquivo = await arsenalService.uploadArquivo(file);
-        const arquivoFormatado = {
-          ...novoArquivo,
-          tamanho: formatFileSize(novoArquivo.tamanho_bytes),
-          dataUpload: novoArquivo.created_at
-        };
-        
-        setArquivos(prev => [...prev, arquivoFormatado]);
+      let errosUpload = [];
+      let sucessosUpload = 0;
+
+      for (const file of arquivosValidos) {
+        try {
+          console.log(`📤 Iniciando upload de: ${file.name}`);
+          
+          const novoArquivo = await arsenalService.uploadArquivo(file);
+          const arquivoFormatado = {
+            ...novoArquivo,
+            tamanho: formatFileSize(novoArquivo.tamanho_bytes),
+            dataUpload: novoArquivo.created_at
+          };
+          
+          setArquivos(prev => [...prev, arquivoFormatado]);
+          sucessosUpload++;
+          
+          console.log(`✅ Upload concluído: ${file.name}`);
+        } catch (fileError) {
+          console.error(`❌ Erro no upload de ${file.name}:`, fileError);
+          errosUpload.push({
+            nome: file.name,
+            erro: fileError.message
+          });
+        }
+      }
+
+      // Mostrar resultado do upload
+      if (sucessosUpload > 0 && errosUpload.length === 0) {
+        alert(`✅ ${sucessosUpload} arquivo(s) enviado(s) com sucesso!`);
+      } else if (sucessosUpload > 0 && errosUpload.length > 0) {
+        alert(`⚠️ ${sucessosUpload} arquivo(s) enviado(s), ${errosUpload.length} falharam.\n\nErros:\n${errosUpload.map(e => `• ${e.nome}: ${e.erro}`).join('\n')}`);
+      } else {
+        const mensagensErro = errosUpload.map(e => `• ${e.nome}: ${e.erro}`).join('\n');
+        alert(`❌ Falha no upload de todos os arquivos.\n\nErros:\n${mensagensErro}`);
       }
     } catch (error) {
-      console.error('Erro ao fazer upload:', error);
-      alert('Erro ao fazer upload dos arquivos. Tente novamente.');
+      console.error('💥 Erro geral no upload:', error);
+      alert(`❌ Erro inesperado: ${error.message}`);
     } finally {
       setIsUploading(false);
       event.target.value = '';

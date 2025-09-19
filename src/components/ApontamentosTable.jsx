@@ -22,6 +22,16 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
   const [showHistorico, setShowHistorico] = useState(null);
   const [historico, setHistorico] = useState([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
+  
+  // Estados dos filtros
+  const [filtros, setFiltros] = useState({
+    cidade: '',
+    dataInicio: '',
+    dataFim: '',
+    proprietario: '',
+    origem: '',
+    fase: ''
+  });
 
   // Opções dos comboboxes (mesmas do formulário)
   const tiposOportunidade = [
@@ -86,6 +96,54 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
     }
     return 0;
   });
+
+  // Aplicar filtros
+  const filteredApontamentos = sortedApontamentos.filter(apontamento => {
+    // Filtro por cidade
+    if (filtros.cidade && apontamento.cidade_atendimento !== filtros.cidade) {
+      return false;
+    }
+    
+    // Filtro por data
+    if (filtros.dataInicio || filtros.dataFim) {
+      const dataApontamento = new Date(apontamento.created_at);
+      if (filtros.dataInicio && dataApontamento < new Date(filtros.dataInicio)) {
+        return false;
+      }
+      if (filtros.dataFim && dataApontamento > new Date(filtros.dataFim + 'T23:59:59')) {
+        return false;
+      }
+    }
+    
+    // Filtro por proprietário
+    if (filtros.proprietario && apontamento.proprietario_relacionamento !== filtros.proprietario) {
+      return false;
+    }
+    
+    // Filtro por origem
+    if (filtros.origem && apontamento.origem_cliente !== filtros.origem) {
+      return false;
+    }
+    
+    // Filtro por fase
+    if (filtros.fase && apontamento.fase !== filtros.fase) {
+      return false;
+    }
+    
+    return true;
+  });
+
+  // Função para limpar filtros
+  const limparFiltros = () => {
+    setFiltros({
+      cidade: '',
+      dataInicio: '',
+      dataFim: '',
+      proprietario: '',
+      origem: '',
+      fase: ''
+    });
+  };
 
   // Função para formatar data
   const formatDate = (dateString) => {
@@ -272,10 +330,90 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
   return (
     <div className="mt-6">
       <div className="bg-white rounded-xl shadow-xl overflow-hidden">
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600">
+        <div className="px-6 py-4 bg-gradient-to-r from-blue-500 to-blue-600 flex justify-between items-center">
           <h2 className="text-xl font-bold text-white">
-            📊 Registros de Apontamentos ({apontamentos.length})
+            📊 Registros de Apontamentos ({filteredApontamentos.length})
           </h2>
+          
+          {/* Painel de Filtros */}
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              {/* Filtro Cidade */}
+              <select
+                value={filtros.cidade}
+                onChange={(e) => setFiltros(prev => ({ ...prev, cidade: e.target.value }))}
+                className="px-3 py-1 text-sm rounded border border-white/20 bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <option value="" className="text-gray-900">Todas as Cidades</option>
+                {cidades.map(cidade => (
+                  <option key={cidade} value={cidade} className="text-gray-900">{cidade}</option>
+                ))}
+              </select>
+
+              {/* Filtro Data Início */}
+              <input
+                type="date"
+                value={filtros.dataInicio}
+                onChange={(e) => setFiltros(prev => ({ ...prev, dataInicio: e.target.value }))}
+                className="px-3 py-1 text-sm rounded border border-white/20 bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50"
+                placeholder="Data início"
+              />
+
+              {/* Filtro Data Fim */}
+              <input
+                type="date"
+                value={filtros.dataFim}
+                onChange={(e) => setFiltros(prev => ({ ...prev, dataFim: e.target.value }))}
+                className="px-3 py-1 text-sm rounded border border-white/20 bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50"
+                placeholder="Data fim"
+              />
+
+              {/* Filtro Proprietário */}
+              <select
+                value={filtros.proprietario}
+                onChange={(e) => setFiltros(prev => ({ ...prev, proprietario: e.target.value }))}
+                className="px-3 py-1 text-sm rounded border border-white/20 bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <option value="" className="text-gray-900">Todos os Proprietários</option>
+                {proprietarios.map(prop => (
+                  <option key={prop} value={prop} className="text-gray-900">{prop}</option>
+                ))}
+              </select>
+
+              {/* Filtro Origem */}
+              <select
+                value={filtros.origem}
+                onChange={(e) => setFiltros(prev => ({ ...prev, origem: e.target.value }))}
+                className="px-3 py-1 text-sm rounded border border-white/20 bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <option value="" className="text-gray-900">Todas as Origens</option>
+                {origensCliente.map(origem => (
+                  <option key={origem} value={origem} className="text-gray-900">{origem}</option>
+                ))}
+              </select>
+
+              {/* Filtro Fase */}
+              <select
+                value={filtros.fase}
+                onChange={(e) => setFiltros(prev => ({ ...prev, fase: e.target.value }))}
+                className="px-3 py-1 text-sm rounded border border-white/20 bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50"
+              >
+                <option value="" className="text-gray-900">Todas as Fases</option>
+                {fases.map(fase => (
+                  <option key={fase} value={fase} className="text-gray-900">{fase}</option>
+                ))}
+              </select>
+
+              {/* Botão Limpar Filtros */}
+              <button
+                onClick={limparFiltros}
+                className="px-3 py-1 text-sm bg-white/20 hover:bg-white/30 text-white rounded border border-white/20 transition-colors"
+                title="Limpar todos os filtros"
+              >
+                Limpar
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Tabela Responsiva */}
@@ -355,7 +493,7 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sortedApontamentos.map((apontamento) => (
+              {filteredApontamentos.map((apontamento) => (
                 <tr key={apontamento.id} className="hover:bg-gray-50">
                   <td className="px-2 py-4 whitespace-nowrap text-sm">
                     {editingId === apontamento.id ? 
@@ -469,7 +607,7 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
           </table>
         </div>
 
-        {apontamentos.length === 0 && (
+        {filteredApontamentos.length === 0 && (
           <div className="text-center py-8">
             <p className="text-gray-500 text-lg">Nenhum apontamento encontrado.</p>
           </div>

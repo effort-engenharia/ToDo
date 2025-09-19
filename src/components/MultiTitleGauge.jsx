@@ -102,7 +102,7 @@ const MultiTitleGauge = ({
             offsetCenter: [0, '-35%'],
             valueAnimation: true,
             formatter: function (value) {
-              return Math.round(value) + unit;
+              return value.toFixed(3) + unit;
             },
             color: currentColor
           },
@@ -162,7 +162,7 @@ const MultiTitleGauge = ({
       {/* Informação adicional */}
       <div className="mt-4 text-center">
         <div className="text-2xl font-bold" style={{ color: currentColor }}>
-          {value}{unit} de {maxValue}{unit}
+          {value.toFixed(3)}{unit} de {maxValue}{unit}
         </div>
         <div className="text-sm text-gray-500">
           {percentage.toFixed(1)}% da meta mensal

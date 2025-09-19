@@ -53,7 +53,7 @@ const EditableMetricCard = ({
   };
 
   const formatValue = (val) => {
-    return (val / 1000).toFixed(1);
+    return (val / 1000).toFixed(3);
   };
 
   const percentage = metaValue > 0 ? ((value / metaValue) * 100).toFixed(1) : 0;

@@ -78,7 +78,7 @@ const ChartCard = ({
         ...baseOption,
         legend: {
           orient: 'horizontal',
-          bottom: '5%',
+          bottom: '0%',
           left: 'center'
         },
         series: [
@@ -86,7 +86,7 @@ const ChartCard = ({
             name: data.label || title,
             type: 'pie',
             radius: ['30%', '80%'],
-            center: ['50%', '45%'],
+            center: ['50%', '42%'],
             avoidLabelOverlap: false,
             itemStyle: {
               borderRadius: 10,

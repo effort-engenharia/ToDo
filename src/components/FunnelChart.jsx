@@ -27,43 +27,51 @@ const FunnelChart = ({ data, title = "Funil de Negociações" }) => {
     usingDefault: !data
   });
 
-  // Transformar dados em array e ordenar do maior para o menor
+  // Transformar dados em array com ordem lógica do funil (do maior para menor)
   const chartData = Object.entries(funnelData)
     .map(([key, value]) => {
       let name;
       let color;
+      let order; // Para ordenação lógica do funil
       
+      // Processar dados tradicionais do funil
       switch(key) {
         case 'qualificacao':
           name = 'Qualificação';
           color = '#06b6d4'; // cyan-500
-          break;
-        case 'canceladoPerca':
-          name = 'Cancelado/Perda';
-          color = '#ec4899'; // pink-500
+          order = 1;
           break;
         case 'negociacao':
           name = 'Negociação';
           color = '#f97316'; // orange-500
+          order = 2;
           break;
         case 'contratoVenda':
           name = 'Contrato/Venda';
           color = '#22c55e'; // green-500
+          order = 3;
+          break;
+        case 'canceladoPerca':
+          name = 'Cancelado/Perda';
+          color = '#ec4899'; // pink-500
+          order = 4;
           break;
         default:
-          name = key;
+          name = key.charAt(0).toUpperCase() + key.slice(1);
           color = '#6b7280'; // gray-500
+          order = 5;
       }
       
       return {
         name,
         value,
+        order,
         itemStyle: {
           color
         }
       };
     })
-    .sort((a, b) => b.value - a.value); // Ordenar do maior para o menor
+    .sort((a, b) => b.value - a.value); // Ordenar do maior para o menor valor
 
   const getEChartsOption = () => {
     return {

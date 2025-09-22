@@ -42,7 +42,7 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
     'LAUDOS', 'POSTE DE ENTRADA', 'AVCB E SISTEMA DE INCÊNDIO'
   ];
 
-  const fases = ['PROSPECÇÃO', 'NEGOCIAÇÃO', 'CONTRATO/VENDA', 'CANCELADO/PERCA'];
+  const fases = ['PROSPECÇÃO', 'QUALIFICAÇÃO', 'NEGOCIAÇÃO', 'CONTRATO/VENDA', 'CANCELADO/PERCA'];
   const origensCliente = ['PROSPECÇÃO', 'INDICAÇÃO', 'GOOGLE', 'CARTEIRA', 'ADM', 'OUTROS'];
   const proprietarios = ['PAMELLI', 'EDUARDA', 'FÁBIO', 'EDGAR'];
   const cidades = ['GUARUJÁ', 'BERTIOGA', 'SANTOS', 'SÃO VICENTE', 'PRAIA GRANDE', 'CUBATÃO', 'SÃO SEBASTIÃO', 'OUTRAS'];

@@ -450,7 +450,53 @@ function App() {
         {/* Grid principal */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {/* Funil de Negociações */}
-          <FunnelChart data={dashboardData?.funil || {}} />
+          <FunnelChart data={(() => {
+            // Usar dados do funil original, mas ajustar proporcionalmente ao total de clientes atendidos
+            const funnelOriginal = dashboardData?.funil || {};
+            const totalFunnelOriginal = Object.values(funnelOriginal).reduce((sum, val) => sum + (val || 0), 0);
+            
+            if (totalFunnelOriginal === 0) {
+              return funnelOriginal; // Retornar dados originais se não há dados
+            }
+            
+            // Calcular fator de ajuste baseado no total de clientes atendidos
+            const fatorAjuste = totalClientesAtendidos / totalFunnelOriginal;
+            
+            // Ajustar cada fase proporcionalmente, mas garantir que a soma seja exata
+            const fases = Object.keys(funnelOriginal);
+            const funnelAjustado = {};
+            let somaAjustada = 0;
+            
+            // Primeiro, calcular valores ajustados (sem arredondar ainda)
+            const valoresAjustados = {};
+            fases.forEach((fase) => {
+              valoresAjustados[fase] = (funnelOriginal[fase] || 0) * fatorAjuste;
+            });
+            
+            // Aplicar arredondamento inteligente para garantir soma exata
+            fases.forEach((fase, index) => {
+              if (index === fases.length - 1) {
+                // Última fase: ajustar para garantir soma exata
+                funnelAjustado[fase] = totalClientesAtendidos - somaAjustada;
+              } else {
+                // Demais fases: arredondar normalmente
+                funnelAjustado[fase] = Math.round(valoresAjustados[fase]);
+                somaAjustada += funnelAjustado[fase];
+              }
+            });
+            
+            console.log('🔧 Funil ajustado:', {
+              original: funnelOriginal,
+              totalOriginal: totalFunnelOriginal,
+              totalClientes: totalClientesAtendidos,
+              fatorAjuste: fatorAjuste,
+              valoresAjustados: valoresAjustados,
+              ajustado: funnelAjustado,
+              totalAjustado: Object.values(funnelAjustado).reduce((sum, val) => sum + val, 0)
+            });
+            
+            return funnelAjustado;
+          })()} />
 
           {/* Relacionamento */}
           <div className="bg-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-xl">
@@ -458,11 +504,18 @@ function App() {
               title="Quem está se relacionando mais?"
               type="doughnut"
               emoji="🔥"
-              data={{
-                labels: Object.keys(dashboardData?.relacionamento || {}).map(vendedor => vendedor.charAt(0).toUpperCase() + vendedor.slice(1)),
-                values: Object.values(dashboardData?.relacionamento || {}),
-                label: "Relacionamento"
-              }}
+              data={(() => {
+                const relacionamentoData = dashboardData?.clientesAtendidos || {};
+                // Criar array de pares [nome, valor] e ordenar por valor (maior para menor)
+                const sortedEntries = Object.entries(relacionamentoData)
+                  .sort(([,a], [,b]) => b - a);
+                
+                return {
+                  labels: sortedEntries.map(([nome]) => nome.charAt(0).toUpperCase() + nome.slice(1)),
+                  values: sortedEntries.map(([,valor]) => valor),
+                  label: "Relacionamento"
+                };
+              })()}
               delay={400}
             />
           </div>

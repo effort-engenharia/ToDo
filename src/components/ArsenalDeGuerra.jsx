@@ -15,6 +15,416 @@ import {
 } from 'react-icons/fa';
 import { arsenalService } from '../services/supabaseService';
 
+// Componente da tabela de links editável (Div 1) - movido para fora
+const LinksTable = ({ 
+  links, 
+  isAddingLink, 
+  setIsAddingLink, 
+  newLink, 
+  setNewLink, 
+  editingLinkId, 
+  setEditingLinkId, 
+  editingLinkData, 
+  setEditingLinkData, 
+  handleSaveLink, 
+  handleSaveEditLink, 
+  handleDeleteLinkClick 
+}) => (
+  <div className="bg-white rounded-xl shadow-xl p-6">
+    <div className="flex justify-between items-center mb-6">
+      <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+        <FaLink className="text-blue-500" />
+        Links Úteis
+      </h2>
+      <button
+        onClick={() => setIsAddingLink(true)}
+        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center gap-2"
+      >
+        <FaPlus /> Adicionar Link
+      </button>
+    </div>
+
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm text-left">
+        <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+          <tr>
+            <th className="px-6 py-3">Nome</th>
+            <th className="px-6 py-3">Link</th>
+            <th className="px-6 py-3">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isAddingLink && (
+            <tr className="bg-blue-50 border-b">
+              <td className="px-6 py-4">
+                <input
+                  type="text"
+                  value={newLink.nome}
+                  onChange={(e) => setNewLink({ ...newLink, nome: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="Nome do link"
+                />
+              </td>
+              <td className="px-6 py-4">
+                <input
+                  type="url"
+                  value={newLink.url}
+                  onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
+                  className="w-full p-2 border rounded"
+                  placeholder="https://..."
+                />
+              </td>
+              <td className="px-6 py-4">
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveLink}
+                    className="text-green-600 hover:text-green-800"
+                  >
+                    <FaSave />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsAddingLink(false);
+                      setNewLink({ nome: '', url: '' });
+                    }}
+                    className="text-red-600 hover:text-red-800"
+                  >
+                    <FaTimes />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          )}
+          {links.map((link) => (
+            <tr key={link.id} className="bg-white border-b hover:bg-gray-50">
+              <td className="px-6 py-4">
+                {editingLinkId === link.id ? (
+                  <input
+                    type="text"
+                    value={editingLinkData.nome}
+                    onChange={(e) => setEditingLinkData({ ...editingLinkData, nome: e.target.value })}
+                    className="w-full p-2 border rounded"
+                    autoFocus
+                  />
+                ) : (
+                  link.nome
+                )}
+              </td>
+              <td className="px-6 py-4">
+                {editingLinkId === link.id ? (
+                  <input
+                    type="url"
+                    value={editingLinkData.url}
+                    onChange={(e) => setEditingLinkData({ ...editingLinkData, url: e.target.value })}
+                    className="w-full p-2 border rounded"
+                  />
+                ) : (
+                  <a 
+                    href={link.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    {link.url}
+                  </a>
+                )}
+              </td>
+              <td className="px-6 py-4">
+                <div className="flex gap-2">
+                  {editingLinkId === link.id ? (
+                    <>
+                      <button
+                        onClick={() => handleSaveEditLink(link.id)}
+                        className="text-green-600 hover:text-green-800"
+                      >
+                        <FaSave />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingLinkId(null);
+                          setEditingLinkData({ nome: '', url: '' });
+                        }}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <FaTimes />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingLinkId(link.id);
+                          setEditingLinkData({ nome: link.nome, url: link.url });
+                        }}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteLinkClick(link)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <FaTrash />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
+// Componente da lista de arquivos (Div 2) - movido para fora
+const FilesList = ({ 
+  arquivos, 
+  isUploading, 
+  handleFileUpload, 
+  handleDownloadFile, 
+  handleDeleteFileClick 
+}) => (
+  <div className="bg-white rounded-xl shadow-xl p-6">
+    <div className="flex justify-between items-center mb-6">
+      <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+        <FaUpload className="text-green-500" />
+        Arquivos Importantes
+      </h2>
+      <div className="flex gap-2">
+        <input
+          type="file"
+          id="fileUpload"
+          multiple
+          onChange={handleFileUpload}
+          accept="*/*"
+          className="hidden"
+        />
+        <label
+          htmlFor="fileUpload"
+          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center gap-2 cursor-pointer"
+        >
+          {isUploading ? <FaSpinner className="animate-spin" /> : <FaUpload />}
+          Fazer Upload
+        </label>
+      </div>
+    </div>
+
+    <div className="space-y-3">
+      {arquivos.map((arquivo) => (
+        <div key={arquivo.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">📄</div>
+            <div>
+              <div className="font-medium text-gray-800">{arquivo.nome}</div>
+              <div className="text-sm text-gray-500">
+                {arquivo.tamanho} • {new Date(arquivo.dataUpload).toLocaleDateString('pt-BR')} às {new Date(arquivo.dataUpload).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleDownloadFile(arquivo)}
+              className="text-blue-600 hover:text-blue-800 p-2"
+              title="Download"
+            >
+              <FaDownload />
+            </button>
+            <button
+              onClick={() => handleDeleteFileClick(arquivo)}
+              className="text-red-600 hover:text-red-800 p-2"
+              title="Excluir"
+            >
+              <FaTrash />
+            </button>
+          </div>
+        </div>
+      ))}
+      {arquivos.length === 0 && (
+        <div className="text-center py-12 text-gray-500">
+          <FaUpload className="text-4xl mx-auto mb-4 opacity-50" />
+          <p>Nenhum arquivo enviado ainda</p>
+          <p className="text-sm">Clique em "Fazer Upload" para adicionar arquivos</p>
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+// Componente do roteiro de viagem - movido para fora
+const RoteiroViagem = ({ 
+  origem, 
+  setOrigem, 
+  destino, 
+  setDestino, 
+  paradas, 
+  setParadas, 
+  linkRota, 
+  setLinkRota, 
+  addNotification 
+}) => {
+  const adicionarParada = () => {
+    setParadas([...paradas, '']);
+  };
+
+  const removerParada = (index) => {
+    if (paradas.length > 1) {
+      setParadas(paradas.filter((_, i) => i !== index));
+    }
+  };
+
+  const atualizarParada = (index, valor) => {
+    const novasParadas = [...paradas];
+    novasParadas[index] = valor;
+    setParadas(novasParadas);
+  };
+
+  const gerarRota = () => {
+    if (!origem || !destino) {
+      addNotification('Origem e destino são obrigatórios!', 'error');
+      return;
+    }
+
+    let url = 'https://www.google.com/maps/dir/';
+    
+    // Adiciona origem
+    url += encodeURIComponent(origem) + '/';
+    
+    // Adiciona paradas intermediárias (apenas as preenchidas)
+    const paradasPreenchidas = paradas.filter(parada => parada.trim() !== '');
+    paradasPreenchidas.forEach(parada => {
+      url += encodeURIComponent(parada) + '/';
+    });
+    
+    // Adiciona destino
+    url += encodeURIComponent(destino);
+
+    setLinkRota(url);
+    addNotification('Rota gerada com sucesso!', 'success');
+  };
+
+  const limparRota = () => {
+    setOrigem('');
+    setDestino('');
+    setParadas(['']);
+    setLinkRota('');
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-xl p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+          🗺️ Roteiro de Viagem
+        </h2>
+        <button
+          onClick={limparRota}
+          className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center gap-2"
+        >
+          <FaTimes /> Limpar
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {/* Origem */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            📍 Origem
+          </label>
+          <input
+            type="text"
+            value={origem}
+            onChange={(e) => setOrigem(e.target.value)}
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Digite o endereço de origem"
+          />
+        </div>
+
+        {/* Paradas */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              🛑 Paradas Intermediárias
+            </label>
+            <button
+              onClick={adicionarParada}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg transition-all duration-300 flex items-center gap-1 text-sm"
+            >
+              <FaPlus /> Adicionar Parada
+            </button>
+          </div>
+          {paradas.map((parada, index) => (
+            <div key={index} className="flex gap-2 mb-2">
+              <input
+                type="text"
+                value={parada}
+                onChange={(e) => atualizarParada(index, e.target.value)}
+                className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={`Parada ${index + 1} (opcional)`}
+              />
+              {paradas.length > 1 && (
+                <button
+                  onClick={() => removerParada(index)}
+                  className="text-red-600 hover:text-red-800 p-3"
+                  title="Remover parada"
+                >
+                  <FaTrash />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Destino */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            🎯 Destino
+          </label>
+          <input
+            type="text"
+            value={destino}
+            onChange={(e) => setDestino(e.target.value)}
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Digite o endereço de destino"
+          />
+        </div>
+
+        {/* Botão Gerar Rota */}
+        <div className="pt-4">
+          <button
+            onClick={gerarRota}
+            disabled={!origem || !destino}
+            className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 font-medium"
+          >
+            🗺️ Gerar Rota no Google Maps
+          </button>
+        </div>
+
+        {/* Link da Rota Gerada */}
+        {linkRota && (
+          <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <h3 className="text-sm font-medium text-green-800 mb-2">
+              ✅ Rota Gerada com Sucesso!
+            </h3>
+            <a
+              href={linkRota}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 underline font-medium"
+            >
+              🗺️ Abrir Rota no Google Maps
+              <FaLink className="text-sm" />
+            </a>
+            <p className="text-xs text-gray-600 mt-2">
+              Clique no link acima para abrir a rota no Google Maps
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const ArsenalDeGuerra = ({ onVoltar }) => {
   // Estados para a tabela de links (Div 1)
   const [links, setLinks] = useState([]);
@@ -38,6 +448,12 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
 
   // Estados para notificações
   const [notifications, setNotifications] = useState([]);
+
+  // Estados para o roteiro de viagem
+  const [origem, setOrigem] = useState('');
+  const [destino, setDestino] = useState('');
+  const [paradas, setParadas] = useState(['']);
+  const [linkRota, setLinkRota] = useState('');
 
   // Carregar dados ao montar o componente
   useEffect(() => {
@@ -107,224 +523,6 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
-
-  // Componente da tabela de links editável (Div 1)
-  const LinksTable = () => (
-    <div className="bg-white rounded-xl shadow-xl p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-          <FaLink className="text-blue-500" />
-          Links Úteis
-        </h2>
-        <button
-          onClick={() => setIsAddingLink(true)}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center gap-2"
-        >
-          <FaPlus /> Adicionar Link
-        </button>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50">
-            <tr>
-              <th className="px-6 py-3">Nome</th>
-              <th className="px-6 py-3">Link</th>
-              <th className="px-6 py-3">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isAddingLink && (
-              <tr className="bg-blue-50 border-b">
-                <td className="px-6 py-4">
-                  <input
-                    type="text"
-                    value={newLink.nome}
-                    onChange={(e) => setNewLink({ ...newLink, nome: e.target.value })}
-                    className="w-full p-2 border rounded"
-                    placeholder="Nome do link"
-                  />
-                </td>
-                <td className="px-6 py-4">
-                  <input
-                    type="url"
-                    value={newLink.url}
-                    onChange={(e) => setNewLink({ ...newLink, url: e.target.value })}
-                    className="w-full p-2 border rounded"
-                    placeholder="https://..."
-                  />
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleSaveLink}
-                      className="text-green-600 hover:text-green-800"
-                    >
-                      <FaSave />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setIsAddingLink(false);
-                        setNewLink({ nome: '', url: '' });
-                      }}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      <FaTimes />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            )}
-            {links.map((link) => (
-              <tr key={link.id} className="bg-white border-b hover:bg-gray-50">
-                <td className="px-6 py-4">
-                  {editingLinkId === link.id ? (
-                    <input
-                      type="text"
-                      value={editingLinkData.nome}
-                      onChange={(e) => setEditingLinkData({ ...editingLinkData, nome: e.target.value })}
-                      className="w-full p-2 border rounded"
-                      autoFocus
-                    />
-                  ) : (
-                    link.nome
-                  )}
-                </td>
-                <td className="px-6 py-4">
-                  {editingLinkId === link.id ? (
-                    <input
-                      type="url"
-                      value={editingLinkData.url}
-                      onChange={(e) => setEditingLinkData({ ...editingLinkData, url: e.target.value })}
-                      className="w-full p-2 border rounded"
-                    />
-                  ) : (
-                    <a 
-                      href={link.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                    >
-                      {link.url}
-                    </a>
-                  )}
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    {editingLinkId === link.id ? (
-                      <>
-                        <button
-                          onClick={() => handleSaveEditLink(link.id)}
-                          className="text-green-600 hover:text-green-800"
-                        >
-                          <FaSave />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingLinkId(null);
-                            setEditingLinkData({ nome: '', url: '' });
-                          }}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <FaTimes />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => {
-                            setEditingLinkId(link.id);
-                            setEditingLinkData({ nome: link.nome, url: link.url });
-                          }}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteLinkClick(link)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <FaTrash />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-
-  // Componente da lista de arquivos (Div 2)
-  const FilesList = () => (
-    <div className="bg-white rounded-xl shadow-xl p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-          <FaUpload className="text-green-500" />
-          Arquivos Importantes
-        </h2>
-        <div className="flex gap-2">
-          <input
-            type="file"
-            id="fileUpload"
-            multiple
-            onChange={handleFileUpload}
-            accept="*/*"
-            className="hidden"
-          />
-          <label
-            htmlFor="fileUpload"
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-all duration-300 flex items-center gap-2 cursor-pointer"
-          >
-            {isUploading ? <FaSpinner className="animate-spin" /> : <FaUpload />}
-            Fazer Upload
-          </label>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {arquivos.map((arquivo) => (
-          <div key={arquivo.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
-            <div className="flex items-center gap-3">
-              <div className="text-2xl">📄</div>
-              <div>
-                <div className="font-medium text-gray-800">{arquivo.nome}</div>
-                <div className="text-sm text-gray-500">
-                  {arquivo.tamanho} • {new Date(arquivo.dataUpload).toLocaleDateString('pt-BR')} às {new Date(arquivo.dataUpload).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleDownloadFile(arquivo)}
-                className="text-blue-600 hover:text-blue-800 p-2"
-                title="Download"
-              >
-                <FaDownload />
-              </button>
-              <button
-                onClick={() => handleDeleteFileClick(arquivo)}
-                className="text-red-600 hover:text-red-800 p-2"
-                title="Excluir"
-              >
-                <FaTrash />
-              </button>
-            </div>
-          </div>
-        ))}
-        {arquivos.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            <FaUpload className="text-4xl mx-auto mb-4 opacity-50" />
-            <p>Nenhum arquivo enviado ainda</p>
-            <p className="text-sm">Clique em "Fazer Upload" para adicionar arquivos</p>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -679,12 +877,46 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
         ) : (
           <>
             {/* Grid responsiva com duas divs */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
               {/* Div 1: Tabela de Links */}
-              <LinksTable />
+              <LinksTable 
+                links={links}
+                isAddingLink={isAddingLink}
+                setIsAddingLink={setIsAddingLink}
+                newLink={newLink}
+                setNewLink={setNewLink}
+                editingLinkId={editingLinkId}
+                setEditingLinkId={setEditingLinkId}
+                editingLinkData={editingLinkData}
+                setEditingLinkData={setEditingLinkData}
+                handleSaveLink={handleSaveLink}
+                handleSaveEditLink={handleSaveEditLink}
+                handleDeleteLinkClick={handleDeleteLinkClick}
+              />
               
               {/* Div 2: Lista de Arquivos */}
-              <FilesList />
+              <FilesList 
+                arquivos={arquivos}
+                isUploading={isUploading}
+                handleFileUpload={handleFileUpload}
+                handleDownloadFile={handleDownloadFile}
+                handleDeleteFileClick={handleDeleteFileClick}
+              />
+            </div>
+
+            {/* Nova grid para o roteiro de viagem */}
+            <div className="grid grid-cols-1 gap-6">
+              <RoteiroViagem 
+                origem={origem}
+                setOrigem={setOrigem}
+                destino={destino}
+                setDestino={setDestino}
+                paradas={paradas}
+                setParadas={setParadas}
+                linkRota={linkRota}
+                setLinkRota={setLinkRota}
+                addNotification={addNotification}
+              />
             </div>
           </>
         )}

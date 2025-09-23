@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaTrophy, FaSync } from 'react-icons/fa';
+import { FaTrophy } from 'react-icons/fa';
 import PodiumCard from './PodiumCard';
 import { supabaseService } from '../services/supabaseService';
 
@@ -293,17 +293,6 @@ const SalesPodium = ({ vendedoresReais = [] }) => {
               Top 3 vendedores do mês
             </p>
           </div>
-        </div>
-        
-        <div className="flex gap-2">
-          <button
-            onClick={carregarVendedores}
-            disabled={loading}
-            className="flex items-center px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm"
-          >
-            <FaSync className={`mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Atualizar
-          </button>
         </div>
       </div>
 

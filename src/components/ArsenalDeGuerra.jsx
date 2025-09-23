@@ -14,6 +14,7 @@ import {
   FaExclamationTriangle
 } from 'react-icons/fa';
 import { arsenalService } from '../services/supabaseService';
+import AdministradorasTable from './AdministradorasTable';
 
 // Componente da tabela de links editável (Div 1) - movido para fora
 const LinksTable = ({ 
@@ -809,6 +810,22 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
   const [paradas, setParadas] = useState(['']);
   const [linkRota, setLinkRota] = useState('');
 
+  // Função para adicionar parada ao roteiro
+  const adicionarParadaRoteiro = (endereco) => {
+    // Encontrar primeira parada vazia ou adicionar nova
+    const indiceVazio = paradas.findIndex(parada => parada.trim() === '');
+    
+    if (indiceVazio !== -1) {
+      // Atualizar parada vazia existente
+      const novasParadas = [...paradas];
+      novasParadas[indiceVazio] = endereco;
+      setParadas(novasParadas);
+    } else {
+      // Adicionar nova parada
+      setParadas(prev => [...prev, endereco]);
+    }
+  };
+
   // Carregar dados ao montar o componente
   useEffect(() => {
     carregarDados();
@@ -1259,7 +1276,7 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
             </div>
 
             {/* Nova grid para o roteiro de viagem */}
-            <div className="grid grid-cols-1 gap-6">
+            <div className="grid grid-cols-1 gap-6 mb-6">
               <RoteiroViagem 
                 origem={origem}
                 setOrigem={setOrigem}
@@ -1269,6 +1286,14 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
                 setParadas={setParadas}
                 linkRota={linkRota}
                 setLinkRota={setLinkRota}
+                addNotification={addNotification}
+              />
+            </div>
+
+            {/* Grid para a tabela de administradoras */}
+            <div className="grid grid-cols-1 gap-6">
+              <AdministradorasTable 
+                adicionarParadaRoteiro={adicionarParadaRoteiro}
                 addNotification={addNotification}
               />
             </div>

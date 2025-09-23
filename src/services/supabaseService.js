@@ -693,3 +693,10 @@ export const arsenalService = {
     }
   }
 };
+
+// Exportar cliente para uso direto quando necessário
+export const supabaseService = {
+  client: supabase,
+  apontamentos: apontamentosService,
+  arsenal: arsenalService
+};

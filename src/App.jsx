@@ -28,6 +28,7 @@ import { getCurrentMetas, salvarMeta } from './config/metas';
 import MetasDebugPanel from './components/MetasDebugPanel';
 import ApontamentosComercial from './components/ApontamentosComercial';
 import ArsenalDeGuerra from './components/ArsenalDeGuerra';
+import SalesPodium from './components/SalesPodium';
 
 function App() {
   const [selectedMonth, setSelectedMonth] = useState('setembro');
@@ -682,6 +683,11 @@ function App() {
           <VendorSalesTable 
             vendorData={dashboardData?.vendedores}
           />
+        </div>
+
+        {/* Sexta linha - Podium dos Campeões */}
+        <div className="mb-6 sm:mb-8">
+          <SalesPodium vendedoresReais={dashboardData?.vendedores} />
         </div>
 
         {/* Status e última atualização */}

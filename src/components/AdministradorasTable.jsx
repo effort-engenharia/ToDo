@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { 
   FaMapMarkerAlt, 
   FaGlobe, 
-  FaEnvelope, 
   FaPhone, 
   FaWhatsapp, 
   FaCheck, 
@@ -230,14 +229,13 @@ const AdministradorasTable = ({ adicionarParadaRoteiro, addNotification }) => {
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+        <div className="overflow-x-auto max-h-96 overflow-y-auto border rounded-lg">
+          <table className="w-full text-sm text-left">{" "}
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-4 py-3">Nome</th>
                 <th className="px-4 py-3">Endereço</th>
                 <th className="px-4 py-3">Site</th>
-                <th className="px-4 py-3">E-mail</th>
                 <th className="px-4 py-3">Telefone</th>
                 <th className="px-4 py-3">WhatsApp</th>
                 <th className="px-4 py-3">Contato Realizado?</th>
@@ -290,21 +288,6 @@ const AdministradorasTable = ({ adicionarParadaRoteiro, addNotification }) => {
                       >
                         <FaGlobe className="text-sm" />
                         Site
-                      </a>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-
-                  {/* E-mail */}
-                  <td className="px-4 py-4">
-                    {admin.email ? (
-                      <a 
-                        href={`mailto:${admin.email}`}
-                        className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                      >
-                        <FaEnvelope className="text-sm" />
-                        {admin.email}
                       </a>
                     ) : (
                       <span className="text-gray-400">-</span>

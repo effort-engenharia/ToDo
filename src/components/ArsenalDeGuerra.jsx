@@ -658,7 +658,7 @@ const RoteiroViagem = ({
     <div className="bg-white rounded-xl shadow-xl p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-          🗺️ Roteiro de Viagem
+          🗺️ Montar um Roteiro de Prospecção
         </h2>
         <button
           onClick={limparRota}
@@ -1289,17 +1289,19 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
                 addNotification={addNotification}
               />
             </div>
-
-            {/* Grid para a tabela de administradoras */}
-            <div className="grid grid-cols-1 gap-6">
-              <AdministradorasTable 
-                adicionarParadaRoteiro={adicionarParadaRoteiro}
-                addNotification={addNotification}
-              />
-            </div>
           </>
         )}
       </div>
+      
+      {/* Tabela de administradoras em largura total da tela */}
+      {!loading && (
+        <div className="w-full px-4 sm:px-6 mb-6">
+          <AdministradorasTable 
+            adicionarParadaRoteiro={adicionarParadaRoteiro}
+            addNotification={addNotification}
+          />
+        </div>
+      )}
       
       {/* Modais de confirmação */}
       {renderDeleteLinkModal()}

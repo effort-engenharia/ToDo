@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   FaArrowLeft, 
   FaPlus,
@@ -252,6 +252,101 @@ const FilesList = ({
   </div>
 );
 
+// Componente de input com autocomplete - movido para fora
+const AddressInput = ({ 
+  value, 
+  onChange, 
+  placeholder, 
+  type, 
+  index = null,
+  label,
+  icon,
+  suggestions,
+  setSuggestions,
+  showSuggestions,
+  setShowSuggestions,
+  debouncedSearch,
+  isLoadingSuggestions
+}) => {
+  const currentSuggestions = index !== null 
+    ? suggestions[type]?.[index] || []
+    : suggestions[type] || [];
+  const isShowingSuggestions = index !== null
+    ? showSuggestions[type]?.[index] || false
+    : showSuggestions[type] || false;
+
+  const handleInputChange = (e) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+    debouncedSearch(newValue, type, index);
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    onChange(suggestion);
+    setSuggestions(prev => ({
+      ...prev,
+      [type]: index !== null ? { ...prev[type], [index]: [] } : []
+    }));
+    setShowSuggestions(prev => ({
+      ...prev,
+      [type]: index !== null ? { ...prev[type], [index]: false } : false
+    }));
+  };
+
+  const handleInputBlur = () => {
+    // Delay para permitir click na sugestão
+    setTimeout(() => {
+      setShowSuggestions(prev => ({
+        ...prev,
+        [type]: index !== null ? { ...prev[type], [index]: false } : false
+      }));
+    }, 200);
+  };
+
+  return (
+    <div className="relative">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {icon} {label}
+        </label>
+      )}
+      <input
+        type="text"
+        value={value}
+        onChange={handleInputChange}
+        onBlur={handleInputBlur}
+        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        placeholder={placeholder}
+      />
+      
+      {/* Lista de sugestões */}
+      {isShowingSuggestions && currentSuggestions.length > 0 && (
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {isLoadingSuggestions && (
+            <div className="p-3 text-center text-gray-500">
+              <FaSpinner className="animate-spin inline mr-2" />
+              Buscando sugestões...
+            </div>
+          )}
+          {currentSuggestions.map((suggestion, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleSuggestionClick(suggestion)}
+              className="w-full text-left p-3 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors duration-150"
+            >
+              <div className="flex items-center gap-2">
+                <div className="text-blue-500">📍</div>
+                <div className="text-gray-800">{suggestion}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Componente do roteiro de viagem - movido para fora
 const RoteiroViagem = ({ 
   origem, 
@@ -264,6 +359,242 @@ const RoteiroViagem = ({
   setLinkRota, 
   addNotification 
 }) => {
+  // Estados para autocomplete
+  const [suggestions, setSuggestions] = useState({
+    origem: [],
+    destino: [],
+    paradas: {}
+  });
+  
+  const [showSuggestions, setShowSuggestions] = useState({
+    origem: false,
+    destino: false,
+    paradas: {}
+  });
+
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+
+  // Debounce para evitar muitas requisições
+  const debounceTimer = useRef(null);
+
+  // Função para carregar Google Maps API dinamicamente
+  const loadGoogleMapsAPI = () => {
+    return new Promise((resolve, reject) => {
+      if (window.google && window.google.maps) {
+        resolve(window.google.maps);
+        return;
+      }
+      
+      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      if (!apiKey || apiKey === 'sua_chave_aqui') {
+        reject(new Error('API key não configurada'));
+        return;
+      }
+      
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=pt-BR&region=BR`;
+      script.async = true;
+      script.defer = true;
+      
+      script.onload = () => {
+        if (window.google && window.google.maps) {
+          resolve(window.google.maps);
+        } else {
+          reject(new Error('Google Maps API falhou ao carregar'));
+        }
+      };
+      
+      script.onerror = () => {
+        reject(new Error('Erro ao carregar Google Maps API'));
+      };
+      
+      document.head.appendChild(script);
+    });
+  };
+
+  // Função para buscar sugestões de endereço
+  const fetchAddressSuggestions = async (query, type, index = null) => {
+    if (!query || query.length < 3) {
+      setSuggestions(prev => ({
+        ...prev,
+        [type]: index !== null ? { ...prev[type], [index]: [] } : []
+      }));
+      setShowSuggestions(prev => ({
+        ...prev,
+        [type]: index !== null ? { ...prev[type], [index]: false } : false
+      }));
+      return;
+    }
+
+    try {
+      setIsLoadingSuggestions(true);
+      let suggestions = [];
+
+      try {
+        // Tentar carregar Google Maps API
+        const maps = await loadGoogleMapsAPI();
+        
+        // Usar AutocompleteService para buscar sugestões
+        const autocompleteService = new maps.places.AutocompleteService();
+        
+        const request = {
+          input: query,
+          componentRestrictions: { country: 'BR' },
+          language: 'pt-BR',
+          types: ['address']
+        };
+
+        // Promisificar a chamada do AutocompleteService
+        const predictions = await new Promise((resolve, reject) => {
+          autocompleteService.getPlacePredictions(request, (results, status) => {
+            if (status === maps.places.PlacesServiceStatus.OK && results) {
+              resolve(results);
+            } else if (status === maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+              resolve([]);
+            } else {
+              reject(new Error(`Places API error: ${status}`));
+            }
+          });
+        });
+
+        // Formatar as sugestões
+        suggestions = predictions.map(prediction => prediction.description).slice(0, 6);
+
+      } catch (apiError) {
+        console.warn('Google Maps API não disponível, usando fallback:', apiError.message);
+        // Usar sistema mockado como fallback
+        suggestions = generateMockSuggestions(query);
+      }
+
+      // Se não conseguiu sugestões da API, usar fallback
+      if (suggestions.length === 0) {
+        suggestions = generateMockSuggestions(query);
+      }
+      
+      setSuggestions(prev => ({
+        ...prev,
+        [type]: index !== null ? { ...prev[type], [index]: suggestions } : suggestions
+      }));
+      
+      setShowSuggestions(prev => ({
+        ...prev,
+        [type]: index !== null ? { ...prev[type], [index]: true } : true
+      }));
+    } catch (error) {
+      console.error('Erro ao buscar sugestões:', error);
+      // Em caso de erro, usar sistema mockado como fallback
+      const mockSuggestions = generateMockSuggestions(query);
+      setSuggestions(prev => ({
+        ...prev,
+        [type]: index !== null ? { ...prev[type], [index]: mockSuggestions } : mockSuggestions
+      }));
+      setShowSuggestions(prev => ({
+        ...prev,
+        [type]: index !== null ? { ...prev[type], [index]: true } : true
+      }));
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  // Função para gerar sugestões simuladas (fallback)
+  const generateMockSuggestions = (query) => {
+    const lowerQuery = query.toLowerCase();
+    
+    // Base de dados mais robusta para fallback
+    const addressDatabase = {
+      // Principais bairros de São Paulo
+      'sp': [
+        'Vila Madalena, São Paulo, SP, Brasil',
+        'Jardins, São Paulo, SP, Brasil',
+        'Itaim Bibi, São Paulo, SP, Brasil',
+        'Vila Olímpia, São Paulo, SP, Brasil',
+        'Pinheiros, São Paulo, SP, Brasil',
+        'Moema, São Paulo, SP, Brasil',
+        'Centro, São Paulo, SP, Brasil',
+        'Brooklin, São Paulo, SP, Brasil'
+      ],
+      // Principais bairros do Rio de Janeiro
+      'rj': [
+        'Ipanema, Rio de Janeiro, RJ, Brasil',
+        'Copacabana, Rio de Janeiro, RJ, Brasil',
+        'Leblon, Rio de Janeiro, RJ, Brasil',
+        'Botafogo, Rio de Janeiro, RJ, Brasil',
+        'Flamengo, Rio de Janeiro, RJ, Brasil',
+        'Centro, Rio de Janeiro, RJ, Brasil',
+        'Tijuca, Rio de Janeiro, RJ, Brasil',
+        'Barra da Tijuca, Rio de Janeiro, RJ, Brasil'
+      ],
+      // Principais bairros de Belo Horizonte
+      'bh': [
+        'Savassi, Belo Horizonte, MG, Brasil',
+        'Funcionários, Belo Horizonte, MG, Brasil',
+        'Centro, Belo Horizonte, MG, Brasil',
+        'Lourdes, Belo Horizonte, MG, Brasil',
+        'Serra, Belo Horizonte, MG, Brasil',
+        'Pampulha, Belo Horizonte, MG, Brasil'
+      ]
+    };
+
+    // Buscar por padrões específicos
+    let suggestions = [];
+
+    // Se a query contém nome de cidade/estado, priorizar bairros dessa região
+    if (lowerQuery.includes('são paulo') || lowerQuery.includes('sp')) {
+      suggestions.push(...addressDatabase.sp.filter(addr => 
+        addr.toLowerCase().includes(lowerQuery)
+      ));
+    }
+    
+    if (lowerQuery.includes('rio de janeiro') || lowerQuery.includes('rj')) {
+      suggestions.push(...addressDatabase.rj.filter(addr => 
+        addr.toLowerCase().includes(lowerQuery)
+      ));
+    }
+    
+    if (lowerQuery.includes('belo horizonte') || lowerQuery.includes('bh') || lowerQuery.includes('mg')) {
+      suggestions.push(...addressDatabase.bh.filter(addr => 
+        addr.toLowerCase().includes(lowerQuery)
+      ));
+    }
+
+    // Buscar em todos os bairros se não encontrou nada específico
+    if (suggestions.length === 0) {
+      Object.values(addressDatabase).flat().forEach(addr => {
+        if (addr.toLowerCase().includes(lowerQuery)) {
+          suggestions.push(addr);
+        }
+      });
+    }
+
+    // Adicionar sugestões personalizadas baseadas na query
+    const customSuggestions = [
+      `${query}, Centro, São Paulo, SP, Brasil`,
+      `Rua ${query}, Vila Madalena, São Paulo, SP, Brasil`,
+      `Avenida ${query}, Ipanema, Rio de Janeiro, RJ, Brasil`,
+      `${query}, Savassi, Belo Horizonte, MG, Brasil`,
+      `${query} - Centro, São Paulo, SP, Brasil`,
+      `${query}, Jardins, São Paulo, SP, Brasil`
+    ];
+
+    // Combinar resultados, removendo duplicatas
+    const allSuggestions = [...suggestions, ...customSuggestions];
+    const uniqueSuggestions = [...new Set(allSuggestions)];
+    
+    return uniqueSuggestions.slice(0, 6);
+  };
+
+  // Função debounced para buscar sugestões
+  const debouncedSearch = (query, type, index = null) => {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
+    
+    debounceTimer.current = setTimeout(() => {
+      fetchAddressSuggestions(query, type, index);
+    }, 300);
+  };
+
   const adicionarParada = () => {
     setParadas([...paradas, '']);
   };
@@ -271,6 +602,17 @@ const RoteiroViagem = ({
   const removerParada = (index) => {
     if (paradas.length > 1) {
       setParadas(paradas.filter((_, i) => i !== index));
+      // Limpar sugestões da parada removida
+      setSuggestions(prev => {
+        const newParadas = { ...prev.paradas };
+        delete newParadas[index];
+        return { ...prev, paradas: newParadas };
+      });
+      setShowSuggestions(prev => {
+        const newParadas = { ...prev.paradas };
+        delete newParadas[index];
+        return { ...prev, paradas: newParadas };
+      });
     }
   };
 
@@ -327,18 +669,20 @@ const RoteiroViagem = ({
 
       <div className="space-y-4">
         {/* Origem */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            📍 Origem
-          </label>
-          <input
-            type="text"
-            value={origem}
-            onChange={(e) => setOrigem(e.target.value)}
-            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Digite o endereço de origem"
-          />
-        </div>
+        <AddressInput
+          value={origem}
+          onChange={setOrigem}
+          placeholder="Digite o endereço de origem"
+          type="origem"
+          label="Origem"
+          icon="📍"
+          suggestions={suggestions}
+          setSuggestions={setSuggestions}
+          showSuggestions={showSuggestions}
+          setShowSuggestions={setShowSuggestions}
+          debouncedSearch={debouncedSearch}
+          isLoadingSuggestions={isLoadingSuggestions}
+        />
 
         {/* Paradas */}
         <div>
@@ -355,17 +699,25 @@ const RoteiroViagem = ({
           </div>
           {paradas.map((parada, index) => (
             <div key={index} className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={parada}
-                onChange={(e) => atualizarParada(index, e.target.value)}
-                className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder={`Parada ${index + 1} (opcional)`}
-              />
+              <div className="flex-1">
+                <AddressInput
+                  value={parada}
+                  onChange={(valor) => atualizarParada(index, valor)}
+                  placeholder={`Parada ${index + 1} (opcional)`}
+                  type="paradas"
+                  index={index}
+                  suggestions={suggestions}
+                  setSuggestions={setSuggestions}
+                  showSuggestions={showSuggestions}
+                  setShowSuggestions={setShowSuggestions}
+                  debouncedSearch={debouncedSearch}
+                  isLoadingSuggestions={isLoadingSuggestions}
+                />
+              </div>
               {paradas.length > 1 && (
                 <button
                   onClick={() => removerParada(index)}
-                  className="text-red-600 hover:text-red-800 p-3"
+                  className="text-red-600 hover:text-red-800 p-3 self-start mt-8"
                   title="Remover parada"
                 >
                   <FaTrash />
@@ -376,18 +728,20 @@ const RoteiroViagem = ({
         </div>
 
         {/* Destino */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            🎯 Destino
-          </label>
-          <input
-            type="text"
-            value={destino}
-            onChange={(e) => setDestino(e.target.value)}
-            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Digite o endereço de destino"
-          />
-        </div>
+        <AddressInput
+          value={destino}
+          onChange={setDestino}
+          placeholder="Digite o endereço de destino"
+          type="destino"
+          label="Destino"
+          icon="🎯"
+          suggestions={suggestions}
+          setSuggestions={setSuggestions}
+          showSuggestions={showSuggestions}
+          setShowSuggestions={setShowSuggestions}
+          debouncedSearch={debouncedSearch}
+          isLoadingSuggestions={isLoadingSuggestions}
+        />
 
         {/* Botão Gerar Rota */}
         <div className="pt-4">

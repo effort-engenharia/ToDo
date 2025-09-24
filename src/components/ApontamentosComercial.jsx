@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   FaArrowLeft, 
   FaSearch, 
@@ -11,7 +11,9 @@ import {
   FaUserTie,
   FaSpinner,
   FaEye,
-  FaEyeSlash
+  FaEyeSlash,
+  FaCheck,
+  FaTimes
 } from 'react-icons/fa';
 import { apontamentosService } from '../services/supabaseService';
 import ApontamentosTable from './ApontamentosTable';
@@ -36,12 +38,44 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
   // Estados para controlar os valores formatados dos inputs monetários
   const [displayValues, setDisplayValues] = useState({
     valorTotalServico: 'R$ 0,00',
     valorEntradaServico: 'R$ 0,00'
   });
+
+  // Função para mostrar toast
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: '' });
+    }, 4000);
+  };
+
+  // Componente Toast
+  const Toast = ({ show, message, type, onClose }) => {
+    if (!show) return null;
+
+    const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+    const icon = type === 'success' ? <FaCheck /> : <FaTimes />;
+
+    return (
+      <div className={`fixed top-4 right-4 ${bgColor} text-white px-6 py-4 rounded-lg shadow-lg z-50 flex items-center space-x-3 transform transition-all duration-300 ease-in-out`}>
+        <div className="flex items-center space-x-2">
+          {icon}
+          <span className="font-medium">{message}</span>
+        </div>
+        <button 
+          onClick={onClose}
+          className="ml-4 hover:bg-white/20 p-1 rounded"
+        >
+          <FaTimes size={14} />
+        </button>
+      </div>
+    );
+  };
 
   // Opções dos comboboxes
   const tiposOportunidade = [
@@ -69,6 +103,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
 
   const fases = [
     'PROSPECÇÃO',
+    'QUALIFICAÇÃO',
     'NEGOCIAÇÃO',
     'CONTRATO/VENDA',
     'CANCELADO/PERCA'
@@ -199,8 +234,8 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
       
       console.log('Apontamento salvo com sucesso:', novoApontamento);
       
-      // Mostrar mensagem de sucesso
-      alert('Apontamento salvo com sucesso!');
+      // Mostrar mensagem de sucesso via toast
+      showToast('🎉 Apontamento salvo com sucesso!', 'success');
       
       // Limpar formulário após salvar
       setFormData({
@@ -231,7 +266,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
       }
     } catch (error) {
       console.error('Erro ao salvar apontamento:', error);
-      alert('Erro ao salvar apontamento. Tente novamente.');
+      showToast('❌ Erro ao salvar apontamento. Tente novamente.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -239,6 +274,14 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Toast Component */}
+      <Toast 
+        show={toast.show} 
+        message={toast.message} 
+        type={toast.type} 
+        onClose={() => setToast({ show: false, message: '', type: '' })}
+      />
+
       {/* Header */}
       <div className="header-gradient shadow-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">

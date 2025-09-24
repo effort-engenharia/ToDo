@@ -2,44 +2,49 @@
 
 Este é um dashboard comercial interativo desenvolvido em React com Tailwind CSS para acompanhar métricas de vendas e engajar o time comercial através de gamificação.
 
-## ✅ Status do Projeto: CONCLUÍDO E OTIMIZADO
+## ✅ Status do Projeto: SISTEMA COMPLETO E PRODUTIVO
 
-O dashboard foi desenvolvido com sucesso, está totalmente funcional e passou por uma limpeza completa removendo arquivos desnecessários!
+O dashboard evoluiu para um sistema comercial completo com múltiplas funcionalidades integradas e arquitetura modular otimizada!
 
 ## 🚀 Tecnologias Utilizadas
-- React 19 com Vite
-- Tailwind CSS para estilização
-- Chart.js para gráficos interativos
-- Animações CSS nativas (substituindo Anime.js para compatibilidade)
-- React Icons para ícones modernos
-- Axios para requisições HTTP
-- Google Sheets API para integração de dados
-- **MCP browsermcp**: Model Context Protocol para automação de browser e testes de interface
+- **React 19** com Vite para desenvolvimento moderno
+- **Supabase** para banco de dados e backend
+- **Tailwind CSS** para estilização responsiva
+- **ECharts** para visualizações de dados avançadas
+- **React Icons** para ícones modernos
+- **Axios** para requisições HTTP
+- **Emoji Mart** para seleção de emojis
+- **MCP browsermcp** para automação de browser e testes
 
-## 📊 Funcionalidades Implementadas
+## 📊 Funcionalidades do Sistema
 
 ### 🏠 Dashboard Principal
 - Interface responsiva com layout adaptativo
-- Header com botão de atualização em tempo real
-- Status de conexão e última atualização
+- Header com navegação entre módulos
+- Status de conexão em tempo real
+- Métricas de negócio integradas
 - Tratamento de erros elegante
+- **Sistema de Navegação**: 3 módulos principais (Dashboard, Apontamentos, Arsenal)
 
-### 📈 Métricas de Negócio
+### 📋 Módulo de Apontamentos Comerciais
+- **Gestão Completa de Oportunidades**: Cadastro e acompanhamento
+- **Campos Detalhados**: Cliente, valor, fase, origem, vendedor responsável
+- **Tabela Dinâmica**: Busca, filtros e ordenação
+- **Integração Supabase**: Persistência em tempo real
+- **Interface Intuitiva**: Formulário expansível e validações
+
+### ⚔️ Arsenal de Guerra
+- **Gerenciamento de Links**: Recursos úteis para vendas
+- **Tabela de Administradoras**: Dados estruturados
+- **Upload/Download**: Importação e exportação de dados
+- **Interface Modular**: Organizacao em abas e seções
+
+### 📈 Métricas de Negócio (Dashboard)
 - **Receitas**: Recebido, A Receber, Atrasadas
 - **Despesas**: Pago, A Pagar, Atrasadas  
 - **Saldos**: Máximo, Mínimo, Média
 - **Clientes**: Total atendidos no período
-- **Metas**: Valor de entrada vs meta mensal
-
-### 🎮 Sistema de Gamificação
-- Ranking dinâmico de vendedores
-- Badges de conquista automáticas:
-  - 💰 Top Vendas (>R$ 100k)
-  - 🔥 Vendedor Ativo (>5 vendas)
-  - ⭐ Super Vendedor (>10 vendas)
-- Desafios mensais de equipe
-- Barras de progresso visuais
-- Cores diferentes por posição no ranking
+- **Metas**: Sistema de acompanhamento editável
 
 ### 📊 Visualizações de Dados
 - **Funil de Negociações** (Gráfico Donut)
@@ -48,6 +53,8 @@ O dashboard foi desenvolvido com sucesso, está totalmente funcional e passou po
 - **Serviços Negociados** (Gráfico de Barras)
 - **Relacionamento por Vendedor** (Gráfico Donut)
 - **Vendas por Região** (Gráfico de Barras)
+- **Clientes Atendidos** (Gráfico Temporal)
+- **Ganhos e Perdas** (Métricas Comparativas)
 
 ### 🎨 Interface e UX
 - Design moderno com glass effect
@@ -56,46 +63,92 @@ O dashboard foi desenvolvido com sucesso, está totalmente funcional e passou po
 - Animações suaves de entrada
 - Hover effects em cartões
 - Responsivo para mobile, tablet e desktop
+- Navegação intuitiva entre módulos
 
 ### 🔄 Integração de Dados
-- Conexão direta com Google Sheets via API
-- Botão de atualização manual
-- Dados de exemplo quando API não disponível
-- Processamento automático dos dados
+- **Supabase** como backend principal
+- **Google Sheets API** para dados complementares
+- Persistência em tempo real
+- Sincronização automática
+- Dados de exemplo para desenvolvimento
 - Formatação de números e moedas em pt-BR
 
-## 🏗️ Estrutura do Projeto (Atualizada - Setembro 2025)
+## 🏗️ Arquitetura do Projeto (Setembro 2025)
+
+### 📁 Estrutura Modular Organizada
 ```
 src/
-├── App.jsx                     # Componente principal
-├── main.jsx                    # Entry point React
-├── index.css                   # Estilos globais com Tailwind
-├── components/                 # 11 componentes utilizados
-│   ├── ChartCard.jsx          # Gráficos com Chart.js
-│   ├── EditableGauge.jsx      # Gauge editável para metas
-│   ├── EditableMetricCard.jsx # Cartões de métricas editáveis
-│   ├── FunnelChart.jsx        # Funil de negociações
-│   ├── LTVChart.jsx           # Gráfico de LTV
-│   ├── MetasDebugPanel.jsx    # Panel debug para metas
-│   ├── MetricCard.jsx         # Cartões de métricas
-│   ├── MultiTitleGauge.jsx    # Gauge com múltiplos títulos
-│   ├── OriginChart.jsx        # Origem dos clientes
-│   ├── SalesTable.jsx         # Tabela de vendas
-│   └── ServicesChart.jsx      # Gráfico de serviços
-├── hooks/                     # 2 hooks utilizados
-│   ├── useGoogleSheetsData.js # Hook para dados do Sheets
-│   └── useAnimations.js       # Hook para animações CSS
-├── utils/                     # 2 utils utilizados
-│   ├── codeUpdater.js         # Atualização de código/metas
-│   └── dataProcessing.js      # Processamento de dados
-└── config/                    # Configurações
-    └── metas.js               # Configuração de metas
+├── App.jsx                      # Componente raiz com navegação
+├── main.jsx                     # Entry point React
+├── index.css                    # Estilos globais Tailwind
+├── assets/                      # Recursos estáticos
+│   └── react.svg               # Logo React
+├── components/                  # 17 componentes base
+│   ├── AdministradorasTable.jsx     # Tabela de administradoras
+│   ├── ApontamentosComercial.jsx    # Módulo principal apontamentos
+│   ├── ApontamentosTable.jsx        # Tabela de apontamentos
+│   ├── ArsenalDeGuerra.jsx          # Módulo arsenal de guerra
+│   ├── ChartCard.jsx                # Wrapper de gráficos
+│   ├── EditableGauge.jsx            # Gauge editável
+│   ├── EditableMetricCard.jsx       # Cartões editáveis
+│   ├── FunnelChart.jsx              # Gráfico funil
+│   ├── MetasDebugPanel.jsx          # Debug de metas
+│   ├── MetricCard.jsx               # Cartões de métrica
+│   ├── MultiTitleGauge.jsx          # Gauge multi-título
+│   ├── OriginChart.jsx              # Gráfico origem
+│   ├── PodiumCard.jsx               # Pódio de vendedores
+│   ├── RegionSalesTable.jsx         # Tabela vendas região
+│   ├── SalesPodium.jsx              # Pódio de vendas
+│   ├── ServicesChart.jsx            # Gráfico serviços
+│   └── VendorSalesTable.jsx         # Tabela vendedores
+├── features/                    # Módulos por funcionalidade
+│   └── dashboard/               # Feature Dashboard
+│       ├── components/          # 13 componentes dashboard
+│       │   ├── ChartsFirstRow.jsx       # Primeira linha gráficos
+│       │   ├── ChartsSecondRow.jsx      # Segunda linha gráficos
+│       │   ├── ChartsThirdRow.jsx       # Terceira linha gráficos
+│       │   ├── ClientesAtendidosChart.jsx # Gráfico clientes
+│       │   ├── Dashboard.jsx            # Dashboard principal
+│       │   ├── DashboardHeader.jsx      # Cabeçalho dashboard
+│       │   ├── GanhosPerdas.jsx         # Métricas ganhos/perdas
+│       │   ├── MainMetrics.jsx          # Métricas principais
+│       │   ├── ModernMetricCard.jsx     # Cartão métrica moderno
+│       │   ├── RelacionamentoChart.jsx  # Gráfico relacionamento
+│       │   ├── SalesTables.jsx          # Tabelas de vendas
+│       │   ├── StatusFooter.jsx         # Rodapé status
+│       │   └── StatusIndicator.jsx      # Indicador de status
+│       └── hooks/               # 2 hooks específicos
+│           ├── useDashboardData.js      # Hook dados dashboard
+│           └── useMetaPersistence.js    # Hook persistência metas
+├── hooks/                       # 2 hooks globais
+│   ├── useAnimations.js         # Hook animações CSS
+│   └── useGoogleSheetsData.js   # Hook Google Sheets
+├── layouts/                     # Layouts (vazio - para expansão)
+├── services/                    # Camada de serviços
+│   ├── index.js                 # Exportações principais
+│   ├── supabaseService.js       # Compatibilidade (legacy)
+│   └── supabase/                # Serviços modulares
+│       ├── administradoras.js   # Serviços administradoras
+│       ├── apontamentos.js      # Serviços apontamentos
+│       ├── arsenal.js           # Serviços arsenal
+│       ├── config.js            # Configuração Supabase
+│       └── metas.js             # Serviços metas
+├── utils/                       # 5 utilitários
+│   ├── codeUpdater.js           # Atualizador de código
+│   ├── dataProcessing.js        # Processamento dados
+│   ├── extractors.js            # Extratores dados
+│   ├── formatters.js            # Formatadores
+│   └── processors.js            # Processadores
+└── config/                      # Configurações
+    └── metas.js                 # Configuração metas
 ```
 
-## 🧹 Limpeza Realizada (Setembro 2025)
-- ❌ Removidos 19 arquivos desnecessários (backups, testes, duplicatas)
-- ✅ Mantidos apenas arquivos efetivamente utilizados
-- ✅ Estrutura otimizada e organizada
+### 🎯 Padrões Arquiteturais
+- **Separação por Features**: Dashboard modularizado
+- **Hooks Customizados**: Reutilização de lógica
+- **Serviços Modulares**: Supabase organizado por domínio
+- **Utils Especializados**: Processamento e formatação
+- **Componentes Reutilizáveis**: DRY principle
 
 ## 🚀 Como Executar
 1. `npm install` - Instalar dependências
@@ -114,9 +167,10 @@ src/
 - **Hot Reload**: Ativo
 - **Build Otimizado**: Pronto para produção
 
-## 🎯 Próximos Passos (Opcionais)
-- Integrar com dados reais do Google Sheets
-- Adicionar filtros por período
-- Implementar notificações push
-- Criar dashboard mobile dedicado
-- Adicionar exportação para PDF/Excel
+## 🎯 Próximos Passos (Roadmap)
+- **Filtros Temporais**: Implementar filtros por período no dashboard
+- **Notificações Push**: Sistema de alertas em tempo real
+- **Dashboard Mobile**: Versão otimizada para dispositivos móveis
+- **Exportação Avançada**: PDF/Excel com relatórios customizados
+- **Analytics Avançados**: KPIs e insights automáticos
+- **Integração CRM**: Conexão com sistemas externos

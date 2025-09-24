@@ -282,15 +282,33 @@ export const extractServicos = (data) => {
 };
 
 export const extractFunil = (data) => {
+  console.log('🔧 extractFunil - Iniciando processamento com', data?.length, 'registros');
+  console.log('🔧 extractFunil - Primeiros 3 registros:', data?.slice(0, 3)?.map(item => ({
+    nome: item.nome_cliente,
+    fase: item.fase,
+    created_at: item.created_at
+  })));
+
   const funil = {
     qualificacao: 0,
     canceladoPerca: 0,
     negociacao: 0,
-    contratoVenda: 0
+    contratoVenda: 0,
+    prospeccao: 0  // Adicionada fase que estava faltando
   };
   
-  data.forEach(item => {
+  data.forEach((item, index) => {
     const fase = item.fase;
+    
+    // Log dos primeiros registros para debug
+    if (index < 5) {
+      console.log(`🔧 extractFunil - Item ${index}:`, {
+        cliente: item.nome_cliente,
+        fase: fase,
+        proprietario: item.proprietario_relacionamento
+      });
+    }
+    
     switch(fase) {
       case 'QUALIFICAÇÃO':
         funil.qualificacao += 1;
@@ -304,18 +322,40 @@ export const extractFunil = (data) => {
       case 'CONTRATO/VENDA':
         funil.contratoVenda += 1;
         break;
+      case 'PROSPECÇÃO':
+        funil.prospeccao += 1;
+        break;
+      default:
+        console.log('⚠️ extractFunil - Fase não reconhecida:', fase, 'para item:', item.nome_cliente);
     }
   });
-  
+
+  console.log('✅ extractFunil - Resultado final:', funil);
   return funil;
 };
 
 export const extractRelacionamento = (data) => {
+  console.log('🔧 extractRelacionamento - Iniciando processamento com', data?.length, 'registros');
+
   const relacionamentoMap = {};
   
-  data.forEach(item => {
+  data.forEach((item, index) => {
     const vendedor = item.proprietario_relacionamento;
-    if (!vendedor) return;
+    
+    // Log dos primeiros registros para debug
+    if (index < 5) {
+      console.log(`🔧 extractRelacionamento - Item ${index}:`, {
+        vendedor: vendedor,
+        cliente: item.nome_cliente
+      });
+    }
+    
+    if (!vendedor) {
+      if (index < 5) {
+        console.log('⚠️ extractRelacionamento - Vendedor não encontrado para:', item.nome_cliente);
+      }
+      return;
+    }
     
     if (!relacionamentoMap[vendedor]) {
       relacionamentoMap[vendedor] = 0;
@@ -323,17 +363,34 @@ export const extractRelacionamento = (data) => {
     relacionamentoMap[vendedor] += 1;
   });
   
+  console.log('✅ extractRelacionamento - Resultado final:', relacionamentoMap);
   return relacionamentoMap;
 };
 
 export const extractClientesAtendidos = (data) => {
+  console.log('🔧 extractClientesAtendidos - Iniciando processamento com', data?.length, 'registros');
+
   const clientesPorVendedor = {};
   
-  data.forEach(item => {
+  data.forEach((item, index) => {
     const vendedor = item.proprietario_relacionamento;
     const cliente = item.nome_cliente;
     
-    if (!vendedor || !cliente || !cliente.trim()) return;
+    // Log dos primeiros registros para debug
+    if (index < 5) {
+      console.log(`🔧 extractClientesAtendidos - Item ${index}:`, {
+        vendedor: vendedor,
+        cliente: cliente,
+        clienteValid: cliente && cliente.trim()
+      });
+    }
+    
+    if (!vendedor || !cliente || !cliente.trim()) {
+      if (index < 5) {
+        console.log('⚠️ extractClientesAtendidos - Item inválido:', { vendedor, cliente });
+      }
+      return;
+    }
     
     if (!clientesPorVendedor[vendedor]) {
       clientesPorVendedor[vendedor] = new Set();
@@ -348,6 +405,7 @@ export const extractClientesAtendidos = (data) => {
     resultado[vendedor] = clientesPorVendedor[vendedor].size;
   });
   
+  console.log('✅ extractClientesAtendidos - Resultado final:', resultado);
   return resultado;
 };
 

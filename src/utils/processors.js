@@ -80,7 +80,7 @@ export const processSheetData = (rawData, metaPersonalizada = 50000) => {
         quadrosDePainel: 6,
         outros: 3
       },
-      funil: { qualificacao: 23, canceladoPerca: 4, negociacao: 18, contratoVenda: 16 },
+      funil: { prospeccao: 9, qualificacao: 23, canceladoPerca: 4, negociacao: 18, contratoVenda: 16 },
       relacionamento: { pamelli: 35, edgar: 28, eduarda: 31 },
       clientesAtendidos: { pamelli: 8, edgar: 6, eduarda: 9 },
       ganhosPerdas: {

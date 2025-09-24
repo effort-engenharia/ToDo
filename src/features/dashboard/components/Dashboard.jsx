@@ -56,7 +56,37 @@ const Dashboard = ({ setCurrentPage }) => {
   );
   
   // Carregar dados do Google Sheets
-  const { data, allData, loading, error, lastUpdated, refreshData } = useGoogleSheetsData(selectedMonth, selectedYear);
+  const { data, allData, loading, error, lastUpdated, refreshData, forceRefresh } = useGoogleSheetsData(selectedMonth, selectedYear);
+  
+  // Listener para eventos de atualização de dados
+  useEffect(() => {
+    const handleDataUpdate = () => {
+      console.log('🔄 Evento de atualização de dados recebido, forçando refresh...');
+      if (forceRefresh) {
+        forceRefresh();
+      } else {
+        refreshData();
+      }
+    };
+
+    // Adicionar listener para evento customizado
+    window.addEventListener('apontamento-created', handleDataUpdate);
+    window.addEventListener('apontamento-updated', handleDataUpdate);
+    
+    // Auto-refresh a cada 30 segundos para garantir dados atualizados
+    const autoRefreshInterval = setInterval(() => {
+      console.log('⏰ Auto-refresh executado');
+      if (forceRefresh) {
+        forceRefresh();
+      }
+    }, 30000);
+    
+    return () => {
+      window.removeEventListener('apontamento-created', handleDataUpdate);
+      window.removeEventListener('apontamento-updated', handleDataUpdate);
+      clearInterval(autoRefreshInterval);
+    };
+  }, [forceRefresh, refreshData]);
   
   // Processar dados do dashboard usando hook customizado
   const {

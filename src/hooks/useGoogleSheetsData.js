@@ -8,16 +8,19 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  const fetchData = async () => {
+  const fetchData = async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
       
       console.log('🔍 Buscando dados do Supabase... (timestamp:', new Date().toLocaleTimeString(), ')');
+      console.log('🚀 Force refresh:', forceRefresh);
       
-      // Buscar todos os dados do Supabase com cache busting
+      // Buscar todos os dados do Supabase com cache busting mais agressivo
       const response = await apontamentosService.buscarApontamentos({
-        _t: Date.now() // Cache busting parameter
+        _t: Date.now(), // Cache busting parameter
+        _r: Math.random(), // Random parameter para garantir nova requisição
+        force: forceRefresh // Parâmetro de força
       });
       
       console.log('🔍 Resposta do Supabase recebida:', {
@@ -30,8 +33,11 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
           fase: item.fase,
           valor_total: item.valor_total_servico,
           valor_entrada: item.valor_entrada_servico,
-          created: item.created_at
-        }))
+          created: item.created_at,
+          proprietario: item.proprietario_relacionamento
+        })),
+        allFases: response ? [...new Set(response.map(item => item.fase))] : [],
+        allProprietarios: response ? [...new Set(response.map(item => item.proprietario_relacionamento).filter(Boolean))] : []
       });
       
       // Armazenar todos os dados
@@ -136,6 +142,7 @@ export const useGoogleSheetsData = (selectedMonth = null, selectedYear = null) =
     loading,
     error,
     lastUpdated,
-    refreshData: fetchData
+    refreshData: fetchData,
+    forceRefresh: () => fetchData(true)
   };
 };

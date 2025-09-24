@@ -28,7 +28,10 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
       allDataLength: allData?.length,
       hasProcessedRegioes: !!processedData?.regioes?.length,
       hasProcessedVendedores: !!processedData?.vendedores?.length,
-      processedOrigemClientes: processedData?.origemClientes
+      processedOrigemClientes: processedData?.origemClientes,
+      processedFunil: processedData?.funil,
+      processedClientesAtendidos: processedData?.clientesAtendidos,
+      timestamp: new Date().toLocaleTimeString()
     });
     
     // MELHORIA: Priorizar sempre dados filtrados se existirem, mesmo que poucos
@@ -41,6 +44,7 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
     }
     
     console.log('✅ Usando dados filtrados para o período:', selectedMonth, selectedYear);
+    console.log('🎯 Funil final que será usado:', processedData?.funil);
     return processedData;
   }, [processedData, allProcessedData, selectedMonth, selectedYear, data, allData]);
 

@@ -14,6 +14,7 @@ const FunnelChart = ({ data, title = "Funil de Negociações" }) => {
 
   // Dados padrão caso não sejam fornecidos
   const defaultData = {
+    prospeccao: 5,
     qualificacao: 13,
     canceladoPerca: 3,
     negociacao: 20,
@@ -36,6 +37,11 @@ const FunnelChart = ({ data, title = "Funil de Negociações" }) => {
       
       // Processar dados tradicionais do funil
       switch(key) {
+        case 'prospeccao':
+          name = 'Prospecção';
+          color = '#8b5cf6'; // violet-500
+          order = 0;
+          break;
         case 'qualificacao':
           name = 'Qualificação';
           color = '#06b6d4'; // cyan-500

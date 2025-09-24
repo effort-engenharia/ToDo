@@ -8,43 +8,42 @@ const ChartsFirstRow = ({
   totalClientesAtendidos, 
   clientesAtendidos 
 }) => {
-  // Ajusta o funil proporcionalmente ao total de clientes atendidos
+  // Log detalhado dos dados recebidos
+  console.log('📊 ChartsFirstRow - Props recebidas:', {
+    funil: funil,
+    totalClientesAtendidos: totalClientesAtendidos,
+    clientesAtendidos: clientesAtendidos,
+    timestamp: new Date().toLocaleTimeString()
+  });
+  // Ajustar apenas a fase de negociação proporcionalmente ao total de clientes atendidos
   const adjustedFunnelData = (() => {
-    // Usar dados do funil original, mas ajustar proporcionalmente ao total de clientes atendidos
-    const funnelOriginal = funil || {};
-    const totalFunnelOriginal = Object.values(funnelOriginal).reduce((sum, val) => sum + (val || 0), 0);
+    console.log('🔧 ChartsFirstRow - Processando funil:', { funil, totalClientesAtendidos });
     
-    if (totalFunnelOriginal === 0) {
-      return funnelOriginal; // Retornar dados originais se não há dados
+    // Usar dados do funil original
+    const funnelOriginal = funil || {};
+    const originalData = { ...funnelOriginal };
+    
+    console.log('🔧 ChartsFirstRow - Funil original:', funnelOriginal);
+    
+    if (totalClientesAtendidos > 0 && funnelOriginal.negociacao) {
+      // Calcular ajuste apenas para negociação baseado no total de clientes atendidos
+      const totalFunnelOriginal = Object.values(funnelOriginal).reduce((sum, val) => sum + (val || 0), 0);
+      
+      if (totalFunnelOriginal > 0) {
+        // Aplicar ajuste apenas na negociação
+        const fatorAjuste = totalClientesAtendidos / totalFunnelOriginal;
+        originalData.negociacao = Math.round(funnelOriginal.negociacao * fatorAjuste);
+        
+        console.log('🔧 ChartsFirstRow - Ajuste aplicado apenas na negociação:', {
+          negociacaoOriginal: funnelOriginal.negociacao,
+          negociacaoAjustada: originalData.negociacao,
+          fatorAjuste: fatorAjuste
+        });
+      }
     }
     
-    // Calcular fator de ajuste baseado no total de clientes atendidos
-    const fatorAjuste = totalClientesAtendidos / totalFunnelOriginal;
-    
-    // Ajustar cada fase proporcionalmente, mas garantir que a soma seja exata
-    const fases = Object.keys(funnelOriginal);
-    const funnelAjustado = {};
-    let somaAjustada = 0;
-    
-    // Primeiro, calcular valores ajustados (sem arredondar ainda)
-    const valoresAjustados = {};
-    fases.forEach((fase) => {
-      valoresAjustados[fase] = (funnelOriginal[fase] || 0) * fatorAjuste;
-    });
-    
-    // Aplicar arredondamento inteligente para garantir soma exata
-    fases.forEach((fase, index) => {
-      if (index === fases.length - 1) {
-        // Última fase: ajustar para garantir soma exata
-        funnelAjustado[fase] = totalClientesAtendidos - somaAjustada;
-      } else {
-        // Demais fases: arredondar normalmente
-        funnelAjustado[fase] = Math.round(valoresAjustados[fase]);
-        somaAjustada += funnelAjustado[fase];
-      }
-    });
-    
-    return funnelAjustado;
+    console.log('✅ ChartsFirstRow - Funil final:', originalData);
+    return originalData;
   })();
 
   return (

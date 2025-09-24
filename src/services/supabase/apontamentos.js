@@ -27,6 +27,12 @@ export const apontamentosService = {
         throw error;
       }
 
+      // Disparar evento de atualização para o dashboard
+      console.log('📤 Disparando evento apontamento-created para forçar atualização do dashboard');
+      window.dispatchEvent(new CustomEvent('apontamento-created', { 
+        detail: data[0] 
+      }));
+
       return data[0];
     } catch (error) {
       console.error('Erro no serviço de criação de apontamento:', error);
@@ -165,6 +171,12 @@ export const apontamentosService = {
           // Não falhar a operação por causa do histórico
         }
       }
+
+      // Disparar evento de atualização para o dashboard
+      console.log('📤 Disparando evento apontamento-updated para forçar atualização do dashboard');
+      window.dispatchEvent(new CustomEvent('apontamento-updated', { 
+        detail: data[0] 
+      }));
 
       return data[0];
     } catch (error) {

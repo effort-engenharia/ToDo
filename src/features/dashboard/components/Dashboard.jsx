@@ -73,18 +73,9 @@ const Dashboard = ({ setCurrentPage }) => {
     window.addEventListener('apontamento-created', handleDataUpdate);
     window.addEventListener('apontamento-updated', handleDataUpdate);
     
-    // Auto-refresh a cada 30 segundos para garantir dados atualizados
-    const autoRefreshInterval = setInterval(() => {
-      console.log('⏰ Auto-refresh executado');
-      if (forceRefresh) {
-        forceRefresh();
-      }
-    }, 30000);
-    
     return () => {
       window.removeEventListener('apontamento-created', handleDataUpdate);
       window.removeEventListener('apontamento-updated', handleDataUpdate);
-      clearInterval(autoRefreshInterval);
     };
   }, [forceRefresh, refreshData]);
   

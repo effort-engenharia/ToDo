@@ -270,10 +270,7 @@ export const adminService = {
 
       return {
         success: true,
-        usuarios: data.map(user => {
-          const { senha_hash, ...userSemSenha } = user;
-          return userSemSenha;
-        })
+        usuarios: data
       };
     } catch (error) {
       console.error('Erro ao listar usuários:', error);
@@ -287,17 +284,77 @@ export const adminService = {
   // Criar novo usuário (admin)
   async criarUsuario(dadosUsuario, nivelAcessoId) {
     try {
-      // TEMPORÁRIO: Sem hash para teste
-      const senhaHash = dadosUsuario.senha;
+      console.log('👤 Criando usuário via admin:', dadosUsuario.email);
 
+      // Validar dados obrigatórios
+      if (!dadosUsuario.email || !dadosUsuario.senha || !dadosUsuario.nomeCompleto) {
+        throw new Error('Todos os campos são obrigatórios');
+      }
+
+      // Verificar se o email já existe na tabela usuarios
+      const { data: existingUser, error: checkError } = await supabase
+        .from('usuarios')
+        .select('email')
+        .eq('email', dadosUsuario.email)
+        .single();
+
+      if (existingUser) {
+        throw new Error('Este email já está cadastrado no sistema');
+      }
+
+      // Removi a pré-validação problemática - deixar o Supabase Auth lidar com duplicatas
+      console.log('✅ Prosseguindo com criação do usuário...');
+
+      // Criar usuário no Supabase Auth usando signUp
+      console.log('📝 Criando usuário no Supabase Auth...');
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: dadosUsuario.email,
+        password: dadosUsuario.senha,
+        options: {
+          data: {
+            full_name: dadosUsuario.nomeCompleto
+          },
+          emailRedirectTo: undefined // Desabilitar confirmação por email
+        }
+      });
+
+      if (authError) {
+        console.log('❌ Erro no Supabase Auth:', authError.message);
+        
+        // Tratar erros específicos do Supabase Auth
+        if (authError.message.includes('already registered') || 
+            authError.message.includes('invalid') ||
+            authError.message.includes('Unable to validate email')) {
+          throw new Error('Este email já está cadastrado ou é inválido');
+        }
+        
+        throw new Error(`Erro de autenticação: ${authError.message}`);
+      }
+
+      console.log('✅ Usuário criado no Supabase Auth');
+
+      // Confirmar automaticamente o email do usuário (para evitar problemas de "Email not confirmed")
+      if (authData?.user?.id) {
+        try {
+          await supabase.auth.admin.updateUserById(authData.user.id, {
+            email_confirm: true
+          });
+          console.log('✅ Email confirmado automaticamente');
+        } catch (confirmError) {
+          console.log('⚠️ Erro ao confirmar email automaticamente:', confirmError);
+          // Não falhar a criação por causa disso
+        }
+      }
+
+      // Criar entrada na tabela usuarios personalizada
       const { data, error } = await supabase
         .from('usuarios')
         .insert([{
           email: dadosUsuario.email,
-          senha_hash: senhaHash,
           nome_completo: dadosUsuario.nomeCompleto,
           nivel_acesso_id: nivelAcessoId,
-          ativo: true
+          ativo: true,
+          auth_user_id: authData.user?.id || null
         }])
         .select(`
           *,
@@ -305,16 +362,30 @@ export const adminService = {
         `);
 
       if (error) {
-        if (error.code === '23505') {
-          throw new Error('Email já cadastrado no sistema');
+        console.error('❌ Erro ao inserir na tabela usuarios:', error);
+        
+        // Se houver erro, tentar remover o usuário do Supabase Auth
+        if (authData?.user?.id) {
+          try {
+            await supabase.auth.admin.deleteUser(authData.user.id);
+            console.log('🧹 Usuário removido do Supabase Auth após erro');
+          } catch (cleanupError) {
+            console.error('Erro ao limpar usuário do Auth:', cleanupError);
+          }
         }
-        throw error;
+        
+        // Tratar erros específicos de banco de dados
+        if (error.code === '23505') {
+          throw new Error('Este email já está cadastrado no sistema');
+        }
+        
+        throw new Error(`Erro ao criar usuário: ${error.message}`);
       }
 
-      const { senha_hash, ...usuarioLimpo } = data[0];
+      console.log('✅ Usuário criado com sucesso');
       return {
         success: true,
-        usuario: usuarioLimpo
+        usuario: data[0]
       };
     } catch (error) {
       console.error('Erro ao criar usuário:', error);

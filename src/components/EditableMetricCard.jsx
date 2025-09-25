@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
 import { useAnimations } from '../hooks/useAnimations';
+import { useAuth } from '../contexts/AuthContext';
 
 const EditableMetricCard = ({ 
   title, 
@@ -15,6 +16,7 @@ const EditableMetricCard = ({
   const [tempMeta, setTempMeta] = useState(metaValue);
   const cardRef = useRef(null);
   const { animateIn } = useAnimations();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     if (cardRef.current) {
@@ -69,11 +71,11 @@ const EditableMetricCard = ({
           {Icon && <Icon className="text-lg sm:text-xl" />}
           <h3 className="text-sm sm:text-base font-medium">{title}</h3>
         </div>
-        {!isEditing && (
+        {!isEditing && isAdmin() && (
           <button
             onClick={handleEdit}
             className="p-1 rounded-full hover:bg-white/20 transition-colors duration-200"
-            title="Editar meta"
+            title="Editar meta (Apenas Administradores)"
           >
             <FaEdit className="text-sm" />
           </button>

@@ -4,6 +4,7 @@ import { FaEdit, FaCheck, FaTimes } from 'react-icons/fa';
 import { useAnimations } from '../hooks/useAnimations';
 import { updateMetaInCode } from '../utils/codeUpdater';
 import { salvarMeta } from '../config/metas';
+import { useAuth } from '../contexts/AuthContext';
 
 const EditableGauge = ({ 
   title, 
@@ -19,6 +20,7 @@ const EditableGauge = ({
   const [tempMeta, setTempMeta] = useState(maxValue);
   const cardRef = useRef(null);
   const { animateIn } = useAnimations();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     if (cardRef.current) {
@@ -225,13 +227,15 @@ const EditableGauge = ({
               <div className="text-2xl font-bold" style={{ color: currentColor }}>
                 {value}{unit} de {maxValue}{unit}
               </div>
-              <button
-                onClick={handleEdit}
-                className="p-1 rounded-full hover:bg-gray-100 transition-colors duration-200 group"
-                title="Clique para editar a meta"
-              >
-                <FaEdit className="text-sm text-gray-500 group-hover:text-blue-600 transition-colors" />
-              </button>
+              {isAdmin() && (
+                <button
+                  onClick={handleEdit}
+                  className="p-1 rounded-full hover:bg-gray-100 transition-colors duration-200 group"
+                  title="Clique para editar a meta (Apenas Administradores)"
+                >
+                  <FaEdit className="text-sm text-gray-500 group-hover:text-blue-600 transition-colors" />
+                </button>
+              )}
             </div>
             <div className="text-sm text-gray-500 mt-1">
               {percentage.toFixed(1)}% da meta mensal

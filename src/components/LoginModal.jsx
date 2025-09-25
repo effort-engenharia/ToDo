@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FaUser, FaLock, FaEye, FaEyeSlash, FaSpinner, FaTimes } from 'react-icons/fa';
 
-const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading }) => {
+const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessage, statusType }) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -66,14 +66,20 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading }) => {
     
     if (!validateForm()) return;
 
-    if (isLoginMode) {
-      await onLogin(formData.email, formData.senha);
-    } else {
-      await onRegister({
-        email: formData.email,
-        senha: formData.senha,
-        nomeCompleto: formData.nomeCompleto
-      });
+    try {
+      if (isLoginMode) {
+        await onLogin(formData.email, formData.senha);
+      } else {
+        console.log('🚀 Tentando registrar usuário:', formData.email);
+        await onRegister({
+          email: formData.email,
+          senha: formData.senha,
+          nomeCompleto: formData.nomeCompleto
+        });
+      }
+    } catch (error) {
+      console.error('💥 Erro no formulário:', error);
+      // O erro será tratado pelos componentes pai (AuthGuard/AuthContext)
     }
   };
 
@@ -116,6 +122,24 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading }) => {
 
         {/* Form */}
         <div className="p-6">
+          {/* Status Message */}
+          {statusMessage && (
+            <div className={`mb-4 p-3 rounded-lg text-sm ${
+              statusType === 'error' 
+                ? 'bg-red-50 text-red-700 border border-red-200' 
+                : statusType === 'success'
+                ? 'bg-green-50 text-green-700 border border-green-200'
+                : 'bg-blue-50 text-blue-700 border border-blue-200'
+            }`}>
+              <div className="flex items-center space-x-2">
+                <span>
+                  {statusType === 'error' ? '❌' : statusType === 'success' ? '✅' : 'ℹ️'}
+                </span>
+                <span>{statusMessage}</span>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Nome Completo (apenas no registro) */}
             {!isLoginMode && (

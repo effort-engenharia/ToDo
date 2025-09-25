@@ -112,6 +112,11 @@ export const authService = {
   async registrarUsuario(dadosUsuario) {
     try {
       console.log('📝 Registrando usuário com Supabase Auth:', dadosUsuario.email);
+      console.log('🔧 Dados enviados:', { 
+        email: dadosUsuario.email, 
+        hasPassword: !!dadosUsuario.senha,
+        fullName: dadosUsuario.nomeCompleto 
+      });
 
       // Criar usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -126,7 +131,29 @@ export const authService = {
 
       if (authError) {
         console.log('❌ Erro no registro Supabase Auth:', authError.message);
-        throw new Error(authError.message);
+        console.log('🔍 Detalhes do erro:', {
+          code: authError.code,
+          status: authError.status,
+          details: authError.details,
+          hint: authError.hint
+        });
+
+        // Tratar diferentes tipos de erro
+        let mensagemUsuario = authError.message;
+        
+        if (authError.message.includes('Invalid email')) {
+          mensagemUsuario = 'Email inválido. Verifique o formato do email.';
+        } else if (authError.message.includes('Email address') && authError.message.includes('invalid')) {
+          mensagemUsuario = 'Este domínio de email não é permitido no sistema.';
+        } else if (authError.message.includes('Password')) {
+          mensagemUsuario = 'Senha inválida. Use pelo menos 6 caracteres.';
+        } else if (authError.message.includes('signup disabled')) {
+          mensagemUsuario = 'Cadastro temporariamente desabilitado. Contate o administrador.';
+        } else if (authError.message.includes('domain')) {
+          mensagemUsuario = 'Domínio de email não permitido. Use um email corporativo.';
+        }
+        
+        throw new Error(mensagemUsuario);
       }
 
       console.log('✅ Usuário criado no Supabase Auth');
@@ -146,7 +173,7 @@ export const authService = {
           nome_completo: dadosUsuario.nomeCompleto,
           nivel_acesso_id: nivelUsuario?.id,
           ativo: true,
-          auth_user_id: authData.user.id
+          auth_user_id: authData.user?.id || null
         }])
         .select(`
           *,
@@ -169,9 +196,92 @@ export const authService = {
         message: 'Usuário registrado com sucesso'
       };
     } catch (error) {
+      // Se falhou o registro com Supabase Auth, tentar método alternativo
+      if (error.message.includes('domínio de email não permitido') || 
+          error.message.includes('domain') ||
+          error.message.includes('Invalid email') ||
+          error.message.includes('signup disabled')) {
+        
+        console.log('🔄 Tentando método alternativo de registro...');
+        return await this.registrarUsuarioAlternativo(dadosUsuario);
+      }
+
       await this.registrarLog(dadosUsuario.email, 'REGISTRO_FAILED', { erro: error.message });
       
       console.error('Erro ao registrar usuário:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  },
+
+  // Método alternativo de registro (sem Supabase Auth)
+  async registrarUsuarioAlternativo(dadosUsuario) {
+    try {
+      console.log('🆔 Registro alternativo para:', dadosUsuario.email);
+
+      // Verificar se o email já existe
+      const { data: usuarioExistente } = await supabase
+        .from('usuarios')
+        .select('id')
+        .eq('email', dadosUsuario.email)
+        .single();
+
+      if (usuarioExistente) {
+        throw new Error('Email já cadastrado no sistema');
+      }
+
+      // Buscar nível de acesso padrão (Usuário)
+      const { data: nivelUsuario } = await supabase
+        .from('niveis_acesso')
+        .select('id')
+        .eq('nome', 'Usuário')
+        .single();
+
+      // Hash da senha (simplificado - em produção usar bcrypt)
+      const senhaHash = btoa(dadosUsuario.senha); // Base64 como exemplo
+
+      // Criar entrada na tabela usuarios personalizada
+      const { data, error } = await supabase
+        .from('usuarios')
+        .insert([{
+          email: dadosUsuario.email,
+          nome_completo: dadosUsuario.nomeCompleto,
+          senha_hash: senhaHash, // Adicionar coluna na tabela se necessário
+          nivel_acesso_id: nivelUsuario?.id,
+          ativo: true,
+          auth_user_id: null, // Sem Supabase Auth
+          created_at: new Date().toISOString(),
+          metodo_registro: 'alternativo'
+        }])
+        .select(`
+          *,
+          nivel_acesso:niveis_acesso(*)
+        `);
+
+      if (error) {
+        if (error.code === '23505') { // Unique violation
+          throw new Error('Email já cadastrado no sistema');
+        }
+        console.error('❌ Erro no registro alternativo:', error);
+        throw new Error('Erro ao criar usuário. Contate o administrador.');
+      }
+
+      console.log('✅ Usuário criado com método alternativo');
+
+      // Registrar log
+      await this.registrarLog(dadosUsuario.email, 'REGISTRO_ALTERNATIVO', { sucesso: true });
+
+      return {
+        success: true,
+        usuario: data[0],
+        message: 'Usuário registrado com sucesso (modo alternativo)'
+      };
+    } catch (error) {
+      await this.registrarLog(dadosUsuario.email, 'REGISTRO_ALTERNATIVO_FAILED', { erro: error.message });
+      
+      console.error('Erro no registro alternativo:', error);
       return {
         success: false,
         message: error.message

@@ -125,6 +125,8 @@ const AuthGuard = ({ children, onOpenAdmin }) => {
         onLogin={handleLogin}
         onRegister={handleRegister}
         loading={loginLoading}
+        statusMessage={message.text}
+        statusType={message.type}
       />
     </div>
   );

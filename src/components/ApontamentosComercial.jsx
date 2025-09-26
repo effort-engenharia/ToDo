@@ -17,10 +17,14 @@ import {
 } from 'react-icons/fa';
 import { apontamentosService } from '../services/supabaseService';
 import ApontamentosTable from './ApontamentosTable';
+import ProfileButton from './ProfileButton';
+import { useAuth } from '../contexts/AuthContext';
 
 const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
+  const { usuario, temPermissao } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormVisible, setIsFormVisible] = useState(false); // Estado inicial oculto
+  const [hasBackButton, setHasBackButton] = useState(true);
   const [formData, setFormData] = useState({
     tipoOportunidade: '',
     nomeCliente: '',
@@ -45,6 +49,29 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
     valorTotalServico: 'R$ 0,00',
     valorEntradaServico: 'R$ 0,00'
   });
+
+  // Verificar se usuário tem acesso ao dashboard para mostrar botão voltar
+  useEffect(() => {
+    const checkDashboardAccess = async () => {
+      if (!usuario?.id) return;
+
+      // Administradores sempre têm acesso
+      if (usuario.nivel_acesso?.nome === 'Administrador') {
+        setHasBackButton(true);
+        return;
+      }
+
+      try {
+        const hasDashboardAccess = await temPermissao('dashboard');
+        setHasBackButton(hasDashboardAccess);
+      } catch (error) {
+        console.error('Erro ao verificar permissão dashboard:', error);
+        setHasBackButton(false);
+      }
+    };
+
+    checkDashboardAccess();
+  }, [usuario, temPermissao]);
 
   // Função para mostrar toast
   const showToast = (message, type = 'success') => {
@@ -287,12 +314,14 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
             <div className="flex items-center space-x-4">
-              <button
-                onClick={onVoltar}
-                className="bg-white/20 hover:bg-white/30 text-white p-2 sm:p-3 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
-              >
-                <FaArrowLeft className="text-lg sm:text-xl" />
-              </button>
+              {hasBackButton && (
+                <button
+                  onClick={onVoltar}
+                  className="bg-white/20 hover:bg-white/30 text-white p-2 sm:p-3 rounded-lg sm:rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  <FaArrowLeft className="text-lg sm:text-xl" />
+                </button>
+              )}
               
               <div className="text-center lg:text-left">
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
@@ -327,6 +356,9 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                   {isFormVisible ? "Ocultar Formulário de Cadastro" : "Mostrar Formulário de Cadastro"}
                 </span>
               </button>
+              
+              {/* Profile Button */}
+              <ProfileButton />
             </div>
           </div>
         </div>

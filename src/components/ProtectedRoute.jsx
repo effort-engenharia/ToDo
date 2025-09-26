@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import SmartRedirect from './SmartRedirect';
 
-const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null }) => {
+const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null, onRedirect = null }) => {
   const { usuario, temPermissao } = useAuth();
   const [hasPermission, setHasPermission] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,12 +49,18 @@ const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null }) =
     );
   }
 
-  // Se não tem permissão, mostrar fallback ou mensagem de erro
+  // Se não tem permissão, mostrar fallback ou redirecionamento inteligente
   if (!hasPermission) {
     if (fallbackComponent) {
       return fallbackComponent;
     }
 
+    // Se há função de redirecionamento, usar SmartRedirect
+    if (onRedirect) {
+      return <SmartRedirect onRedirect={onRedirect} />;
+    }
+
+    // Fallback padrão para acesso negado
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50">
         <div className="text-center max-w-md mx-auto p-8">

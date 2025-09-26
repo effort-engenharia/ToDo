@@ -139,6 +139,34 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Obter todas as páginas que o usuário tem acesso
+  const obterPaginasPermitidas = async () => {
+    if (!usuario?.id) return [];
+    
+    try {
+      const paginas = ['dashboard', 'apontamentos', 'arsenal'];
+      const paginasPermitidas = [];
+      
+      // Administradores têm acesso a tudo
+      if (usuario?.nivel_acesso?.nome === 'Administrador') {
+        return paginas;
+      }
+      
+      // Verificar permissão para cada página
+      for (const pagina of paginas) {
+        const temAcesso = await authService.verificarPermissao(usuario.id, pagina);
+        if (temAcesso) {
+          paginasPermitidas.push(pagina);
+        }
+      }
+      
+      return paginasPermitidas;
+    } catch (error) {
+      console.error('Erro ao obter páginas permitidas:', error);
+      return [];
+    }
+  };
+
   // Verificar se o usuário é administrador
   const isAdmin = () => {
     return usuario?.nivel_acesso?.nome === 'Administrador';
@@ -152,6 +180,7 @@ export const AuthProvider = ({ children }) => {
     registrar,
     logout,
     temPermissao,
+    obterPaginasPermitidas,
     isAdmin
   };
 

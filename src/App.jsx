@@ -1,17 +1,78 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Dashboard from './features/dashboard/components/Dashboard';
 import ApontamentosComercial from './components/ApontamentosComercial';
 import ArsenalDeGuerra from './components/ArsenalDeGuerra';
 import AuthGuard from './components/AuthGuard';
 import AdminPanel from './components/AdminPanel';
 import ProtectedRoute from './components/ProtectedRoute';
-import { AuthProvider } from './contexts/AuthContext';
+import SmartRedirect from './components/SmartRedirect';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useGoogleSheetsData } from './hooks/useGoogleSheetsData';
 
 function AppContent() {
-  const [currentPage, setCurrentPage] = useState('dashboard'); // 'dashboard', 'apontamentos' ou 'arsenal'
+  const [currentPage, setCurrentPage] = useState(null); // null inicialmente para determinar automaticamente
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(true);
   const { refreshData } = useGoogleSheetsData();
+  const { usuario, obterPaginasPermitidas, isAuthenticated } = useAuth();
+
+  // Determinar página inicial baseada nas permissões
+  useEffect(() => {
+    const determinarPaginaInicial = async () => {
+      if (!isAuthenticated || !usuario) {
+        setIsRedirecting(false);
+        return;
+      }
+
+      try {
+        const paginasPermitidas = await obterPaginasPermitidas();
+        
+        if (paginasPermitidas.length === 0) {
+          console.error('Usuário não tem acesso a nenhuma página');
+          setCurrentPage('dashboard'); // fallback
+          setIsRedirecting(false);
+          return;
+        }
+
+        // Ordem de preferência: dashboard > apontamentos > arsenal
+        const ordemPreferencia = ['dashboard', 'apontamentos', 'arsenal'];
+        let paginaInicial = paginasPermitidas[0]; // fallback para primeira permitida
+        
+        for (const pagina of ordemPreferencia) {
+          if (paginasPermitidas.includes(pagina)) {
+            paginaInicial = pagina;
+            break;
+          }
+        }
+
+        console.log('Redirecionando para:', paginaInicial, 'Páginas permitidas:', paginasPermitidas);
+        setCurrentPage(paginaInicial);
+      } catch (error) {
+        console.error('Erro ao determinar página inicial:', error);
+        setCurrentPage('dashboard'); // fallback
+      } finally {
+        setIsRedirecting(false);
+      }
+    };
+
+    if (isAuthenticated && usuario && currentPage === null) {
+      determinarPaginaInicial();
+    } else if (!isAuthenticated) {
+      setIsRedirecting(false);
+    }
+  }, [isAuthenticated, usuario, obterPaginasPermitidas, currentPage]);
+
+  // Mostrar loading enquanto determina a página inicial
+  if (isRedirecting || currentPage === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando Dashboard Comercial...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Renderizar página de apontamentos se selecionada
   if (currentPage === 'apontamentos') {
@@ -20,7 +81,7 @@ function AppContent() {
         <ProtectedRoute 
           requiredRoute="apontamentos"
           fallbackComponent={
-            <Dashboard setCurrentPage={setCurrentPage} />
+            <SmartRedirect onRedirect={setCurrentPage} />
           }
         >
           <ApontamentosComercial 
@@ -46,7 +107,7 @@ function AppContent() {
         <ProtectedRoute 
           requiredRoute="arsenal"
           fallbackComponent={
-            <Dashboard setCurrentPage={setCurrentPage} />
+            <SmartRedirect onRedirect={setCurrentPage} />
           }
         >
           <ArsenalDeGuerra onVoltar={() => setCurrentPage('dashboard')} />
@@ -62,7 +123,10 @@ function AppContent() {
   // Renderizar o Dashboard principal
   return (
     <AuthGuard onOpenAdmin={() => setShowAdminPanel(true)}>
-      <ProtectedRoute requiredRoute="dashboard">
+      <ProtectedRoute 
+        requiredRoute="dashboard" 
+        onRedirect={setCurrentPage}
+      >
         <Dashboard setCurrentPage={setCurrentPage} />
       </ProtectedRoute>
       <AdminPanel 

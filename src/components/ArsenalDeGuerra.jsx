@@ -15,6 +15,8 @@ import {
 } from 'react-icons/fa';
 import { arsenalService } from '../services/supabaseService';
 import AdministradorasTable from './AdministradorasTable';
+import ProfileButton from './ProfileButton';
+import { useAuth } from '../contexts/AuthContext';
 
 // Componente da tabela de links editável (Div 1) - movido para fora
 const LinksTable = ({ 
@@ -781,9 +783,12 @@ const RoteiroViagem = ({
 };
 
 const ArsenalDeGuerra = ({ onVoltar }) => {
+  const { usuario, temPermissao } = useAuth();
+  
   // Estados para a tabela de links (Div 1)
   const [links, setLinks] = useState([]);
   const [isAddingLink, setIsAddingLink] = useState(false);
+  const [hasBackButton, setHasBackButton] = useState(true);
   const [editingLinkId, setEditingLinkId] = useState(null);
   const [newLink, setNewLink] = useState({ nome: '', url: '' });
   const [editingLinkData, setEditingLinkData] = useState({ nome: '', url: '' });
@@ -825,6 +830,29 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
       setParadas(prev => [...prev, endereco]);
     }
   };
+
+  // Verificar se usuário tem acesso ao dashboard para mostrar botão voltar
+  useEffect(() => {
+    const checkDashboardAccess = async () => {
+      if (!usuario?.id) return;
+
+      // Administradores sempre têm acesso
+      if (usuario.nivel_acesso?.nome === 'Administrador') {
+        setHasBackButton(true);
+        return;
+      }
+
+      try {
+        const hasDashboardAccess = await temPermissao('dashboard');
+        setHasBackButton(hasDashboardAccess);
+      } catch (error) {
+        console.error('Erro ao verificar permissão dashboard:', error);
+        setHasBackButton(false);
+      }
+    };
+
+    checkDashboardAccess();
+  }, [usuario, temPermissao]);
 
   // Carregar dados ao montar o componente
   useEffect(() => {
@@ -875,12 +903,14 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
         {/* Primeira linha: Título com botão de voltar */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 mb-4">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={onVoltar}
-              className="bg-white/20 hover:bg-white/30 text-white p-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
-            >
-              <FaArrowLeft className="text-xl" />
-            </button>
+            {hasBackButton && (
+              <button 
+                onClick={onVoltar}
+                className="bg-white/20 hover:bg-white/30 text-white p-3 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
+              >
+                <FaArrowLeft className="text-xl" />
+              </button>
+            )}
             <div className="text-center lg:text-left">
               <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-white leading-tight">
                 ⚔️ Arsenal de Guerra
@@ -892,6 +922,11 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
                 <span className="font-semibold text-yellow-300">- Sun Tzu</span>
               </p>
             </div>
+          </div>
+          
+          {/* Profile Button no lado direito */}
+          <div className="flex justify-end">
+            <ProfileButton />
           </div>
         </div>
       </div>

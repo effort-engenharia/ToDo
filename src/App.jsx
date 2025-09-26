@@ -20,6 +20,7 @@ function AppContent() {
   useEffect(() => {
     const determinarPaginaInicial = async () => {
       if (!isAuthenticated || !usuario) {
+        setCurrentPage('dashboard'); // fallback para não autenticados
         setIsRedirecting(false);
         return;
       }
@@ -55,12 +56,11 @@ function AppContent() {
       }
     };
 
-    if (isAuthenticated && usuario && currentPage === null) {
+    // Só executar se ainda estamos redirecionando e currentPage é null
+    if (currentPage === null && isRedirecting) {
       determinarPaginaInicial();
-    } else if (!isAuthenticated) {
-      setIsRedirecting(false);
     }
-  }, [isAuthenticated, usuario, obterPaginasPermitidas, currentPage]);
+  }, [isAuthenticated, usuario, obterPaginasPermitidas, currentPage, isRedirecting]);
 
   // Mostrar loading enquanto determina a página inicial
   if (isRedirecting || currentPage === null) {

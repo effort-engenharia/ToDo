@@ -333,15 +333,96 @@ export const authService = {
     }
   },
 
-  // Obter IP do usuário (simulado - em produção usar real IP)
+  // Obter IP real do usuário
   async obterIP() {
     try {
-      // Em desenvolvimento, retorna IP local
-      // Em produção, implementar detecção real de IP
+      // Tentar múltiplas APIs para obter o IP real
+      const ipApis = [
+        'https://api.ipify.org?format=json',
+        'https://ipapi.co/json/',
+        'https://ipinfo.io/json',
+        'https://api.my-ip.io/ip.json'
+      ];
+
+      for (const apiUrl of ipApis) {
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'GET',
+            timeout: 5000 // Timeout de 5 segundos
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            
+            // Diferentes APIs retornam o IP em campos diferentes
+            const ip = data.ip || data.query || data.IPv4 || data.ipAddress;
+            
+            if (ip && this.isValidIP(ip)) {
+              console.log(`✅ IP obtido via ${apiUrl}: ${ip}`);
+              return ip;
+            }
+          }
+        } catch (apiError) {
+          console.warn(`⚠️ Falha na API ${apiUrl}:`, apiError.message);
+          continue; // Tenta a próxima API
+        }
+      }
+
+      // Se todas as APIs falharam, tentar obter através do WebRTC
+      const webRtcIp = await this.obterIPWebRTC();
+      if (webRtcIp && this.isValidIP(webRtcIp)) {
+        console.log(`✅ IP obtido via WebRTC: ${webRtcIp}`);
+        return webRtcIp;
+      }
+
+      // Fallback: retorna IP local como indicador
+      console.warn('⚠️ Não foi possível obter IP real, usando fallback');
       return '127.0.0.1';
     } catch (error) {
+      console.error('❌ Erro ao obter IP:', error);
       return 'unknown';
     }
+  },
+
+  // Validar se o IP está em formato válido
+  isValidIP(ip) {
+    const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+    return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+  },
+
+  // Método alternativo usando WebRTC para obter IP local/público
+  async obterIPWebRTC() {
+    return new Promise((resolve) => {
+      try {
+        const pc = new RTCPeerConnection({
+          iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        });
+        
+        pc.createDataChannel('');
+        pc.createOffer().then(offer => pc.setLocalDescription(offer));
+        
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            const candidate = event.candidate.candidate;
+            const ipMatch = candidate.match(/\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/);
+            if (ipMatch && !ipMatch[0].startsWith('127.') && !ipMatch[0].startsWith('192.168.')) {
+              pc.close();
+              resolve(ipMatch[0]);
+            }
+          }
+        };
+        
+        // Timeout de 3 segundos para WebRTC
+        setTimeout(() => {
+          pc.close();
+          resolve(null);
+        }, 3000);
+      } catch (error) {
+        console.warn('WebRTC IP detection failed:', error);
+        resolve(null);
+      }
+    });
   },
 
   // Registrar log de acesso
@@ -349,13 +430,22 @@ export const authService = {
     try {
       const ip = await this.obterIP();
       
+      // Adicionar informações adicionais nos detalhes
+      const detalhesCompletos = {
+        ...detalhes,
+        user_agent: navigator?.userAgent || 'unknown',
+        timestamp_local: new Date().toISOString(),
+        ip_tipo: ip === '127.0.0.1' ? 'local_fallback' : 
+               ip === 'unknown' ? 'unknown' : 'public'
+      };
+      
       await supabase
         .from('logs_acesso')
         .insert([{
           usuario_email: email,
           ip_address: ip,
           acao: acao,
-          detalhes: detalhes
+          detalhes: detalhesCompletos
         }]);
     } catch (error) {
       console.error('Erro ao registrar log:', error);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FaChevronDown, FaSignOutAlt, FaUserCircle } from 'react-icons/fa';
 import { useAuth } from '../../../contexts/AuthContext';
 
@@ -15,7 +15,48 @@ const DashboardHeader = ({
   setSelectedYear,
   setCurrentPage
 }) => {
-  const { usuario, logout } = useAuth();
+  const { usuario, logout, temPermissao } = useAuth();
+  const [permissoes, setPermissoes] = useState({
+    apontamentos: false,
+    arsenal: false
+  });
+
+  // Verificar permissões quando o usuário muda
+  useEffect(() => {
+    const verificarPermissoes = async () => {
+      if (!usuario?.id) return;
+
+      // Administradores têm acesso total
+      if (usuario.nivel_acesso?.nome === 'Administrador') {
+        setPermissoes({
+          apontamentos: true,
+          arsenal: true
+        });
+        return;
+      }
+
+      // Verificar permissões específicas para usuários normais
+      try {
+        const [apontamentosPermitido, arsenalPermitido] = await Promise.all([
+          temPermissao('apontamentos'),
+          temPermissao('arsenal')
+        ]);
+
+        setPermissoes({
+          apontamentos: apontamentosPermitido,
+          arsenal: arsenalPermitido
+        });
+      } catch (error) {
+        console.error('Erro ao verificar permissões:', error);
+        setPermissoes({
+          apontamentos: false,
+          arsenal: false
+        });
+      }
+    };
+
+    verificarPermissoes();
+  }, [usuario, temPermissao]);
 
   const handleLogout = async () => {
     if (confirm('Tem certeza que deseja sair do sistema?')) {
@@ -113,21 +154,27 @@ const DashboardHeader = ({
           </div>
         </div>
         
-        {/* Segunda linha: Botões APONTAMENTOS COMERCIAL e ARSENAL DE GUERRA */}
-        <div className="flex justify-end gap-3">
-          <button 
-            onClick={() => setCurrentPage('apontamentos')}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-4 sm:px-6 py-2 sm:py-3 rounded-md transition-all duration-300 shadow-lg hover:shadow-xl text-xs sm:text-sm transform hover:-translate-y-1"
-          >
-            📝 APONTAMENTOS COMERCIAL
-          </button>
-          <button 
-            onClick={() => setCurrentPage('arsenal')}
-            className="arsenal-guerra-btn text-white font-bold px-4 sm:px-6 py-2 sm:py-3 rounded-md transition-all duration-300 shadow-lg hover:shadow-xl text-xs sm:text-sm transform hover:-translate-y-1"
-          >
-            ⚔️ ARSENAL DE GUERRA
-          </button>
-        </div>
+        {/* Segunda linha: Botões APONTAMENTOS COMERCIAL e ARSENAL DE GUERRA (apenas se tiver permissão) */}
+        {(permissoes.apontamentos || permissoes.arsenal) && (
+          <div className="flex justify-end gap-3">
+            {permissoes.apontamentos && (
+              <button 
+                onClick={() => setCurrentPage('apontamentos')}
+                className="bg-blue-500 hover:bg-blue-600 text-white font-bold px-4 sm:px-6 py-2 sm:py-3 rounded-md transition-all duration-300 shadow-lg hover:shadow-xl text-xs sm:text-sm transform hover:-translate-y-1"
+              >
+                📝 APONTAMENTOS COMERCIAL
+              </button>
+            )}
+            {permissoes.arsenal && (
+              <button 
+                onClick={() => setCurrentPage('arsenal')}
+                className="arsenal-guerra-btn text-white font-bold px-4 sm:px-6 py-2 sm:py-3 rounded-md transition-all duration-300 shadow-lg hover:shadow-xl text-xs sm:text-sm transform hover:-translate-y-1"
+              >
+                ⚔️ ARSENAL DE GUERRA
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

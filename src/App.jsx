@@ -4,6 +4,7 @@ import ApontamentosComercial from './components/ApontamentosComercial';
 import ArsenalDeGuerra from './components/ArsenalDeGuerra';
 import AuthGuard from './components/AuthGuard';
 import AdminPanel from './components/AdminPanel';
+import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './contexts/AuthContext';
 import { useGoogleSheetsData } from './hooks/useGoogleSheetsData';
 
@@ -16,13 +17,20 @@ function AppContent() {
   if (currentPage === 'apontamentos') {
     return (
       <AuthGuard onOpenAdmin={() => setShowAdminPanel(true)}>
-        <ApontamentosComercial 
-          onVoltar={() => {
-            refreshData(); // Atualizar dados quando voltar
-            setCurrentPage('dashboard');
-          }} 
-          onDataUpdate={refreshData} // Função para atualizar dados
-        />
+        <ProtectedRoute 
+          requiredRoute="apontamentos"
+          fallbackComponent={
+            <Dashboard setCurrentPage={setCurrentPage} />
+          }
+        >
+          <ApontamentosComercial 
+            onVoltar={() => {
+              refreshData(); // Atualizar dados quando voltar
+              setCurrentPage('dashboard');
+            }} 
+            onDataUpdate={refreshData} // Função para atualizar dados
+          />
+        </ProtectedRoute>
         <AdminPanel 
           isOpen={showAdminPanel} 
           onClose={() => setShowAdminPanel(false)} 
@@ -35,7 +43,14 @@ function AppContent() {
   if (currentPage === 'arsenal') {
     return (
       <AuthGuard onOpenAdmin={() => setShowAdminPanel(true)}>
-        <ArsenalDeGuerra onVoltar={() => setCurrentPage('dashboard')} />
+        <ProtectedRoute 
+          requiredRoute="arsenal"
+          fallbackComponent={
+            <Dashboard setCurrentPage={setCurrentPage} />
+          }
+        >
+          <ArsenalDeGuerra onVoltar={() => setCurrentPage('dashboard')} />
+        </ProtectedRoute>
         <AdminPanel 
           isOpen={showAdminPanel} 
           onClose={() => setShowAdminPanel(false)} 
@@ -47,7 +62,9 @@ function AppContent() {
   // Renderizar o Dashboard principal
   return (
     <AuthGuard onOpenAdmin={() => setShowAdminPanel(true)}>
-      <Dashboard setCurrentPage={setCurrentPage} />
+      <ProtectedRoute requiredRoute="dashboard">
+        <Dashboard setCurrentPage={setCurrentPage} />
+      </ProtectedRoute>
       <AdminPanel 
         isOpen={showAdminPanel} 
         onClose={() => setShowAdminPanel(false)} 

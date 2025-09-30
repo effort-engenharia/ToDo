@@ -30,6 +30,7 @@ const FunnelChart = ({ data, title = "Funil de Negociações" }) => {
 
   // Transformar dados em array com ordem lógica do funil (do maior para menor)
   const chartData = Object.entries(funnelData)
+    .filter(([key]) => key !== 'prospeccao' && key !== 'canceladoPerca') // Filtrar prospecção e cancelado/perda
     .map(([key, value]) => {
       let name;
       let color;
@@ -37,11 +38,6 @@ const FunnelChart = ({ data, title = "Funil de Negociações" }) => {
       
       // Processar dados tradicionais do funil
       switch(key) {
-        case 'prospeccao':
-          name = 'Prospecção';
-          color = '#8b5cf6'; // violet-500
-          order = 0;
-          break;
         case 'qualificacao':
           name = 'Qualificação';
           color = '#06b6d4'; // cyan-500
@@ -56,11 +52,6 @@ const FunnelChart = ({ data, title = "Funil de Negociações" }) => {
           name = 'Contrato/Venda';
           color = '#22c55e'; // green-500
           order = 3;
-          break;
-        case 'canceladoPerca':
-          name = 'Cancelado/Perda';
-          color = '#ec4899'; // pink-500
-          order = 4;
           break;
         default:
           name = key.charAt(0).toUpperCase() + key.slice(1);

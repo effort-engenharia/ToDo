@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { FaUser, FaLock, FaEye, FaEyeSlash, FaSpinner, FaTimes } from 'react-icons/fa';
+import { authService, resetPassword } from '../services/supabase/auth.js';
 
 const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessage, statusType }) => {
   const [isLoginMode, setIsLoginMode] = useState(true);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     senha: '',
@@ -85,6 +88,7 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
 
   const switchMode = () => {
     setIsLoginMode(!isLoginMode);
+    setIsRecoveryMode(false);
     setFormData({
       email: '',
       senha: '',
@@ -92,6 +96,39 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
       confirmarSenha: ''
     });
     setErrors({});
+  };
+
+  const handleForgotPassword = async () => {
+    if (!formData.email) {
+      setErrors({ email: 'Digite seu email para recuperar a senha' });
+      return;
+    }
+
+    if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      setErrors({ email: 'Email inválido' });
+      return;
+    }
+
+    setRecoveryLoading(true);
+    setErrors({});
+
+    try {
+      const result = await resetPassword(formData.email);
+      
+      if (result.success) {
+        // Volta para o modo de login e mostra mensagem de sucesso
+        setIsRecoveryMode(false);
+        // A mensagem será exibida via statusMessage do componente pai
+        console.log('✅ Email de recuperação enviado:', result.message);
+      } else {
+        setErrors({ email: result.message || 'Erro ao enviar email de recuperação' });
+      }
+    } catch (error) {
+      console.error('💥 Erro na recuperação de senha:', error);
+      setErrors({ email: 'Erro ao enviar email de recuperação. Tente novamente.' });
+    } finally {
+      setRecoveryLoading(false);
+    }
   };
 
   return (
@@ -109,10 +146,17 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
           
           <div className="text-center">
             <h2 className="text-2xl font-bold mb-2">
-              {isLoginMode ? '🔐 Fazer Login' : '📝 Criar Conta'}
+              {isRecoveryMode 
+                ? '🔑 Recuperar Senha' 
+                : isLoginMode 
+                ? '🔐 Fazer Login' 
+                : '📝 Criar Conta'
+              }
             </h2>
             <p className="text-white/80 text-sm">
-              {isLoginMode 
+              {isRecoveryMode 
+                ? 'Digite seu email para receber o link de recuperação'
+                : isLoginMode 
                 ? 'Acesse o Dashboard Comercial' 
                 : 'Junte-se ao Dashboard Comercial'
               }
@@ -146,7 +190,7 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Nome Completo (apenas no registro) */}
-            {!isLoginMode && (
+            {!isLoginMode && !isRecoveryMode && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nome Completo
@@ -190,7 +234,7 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                       : 'border-gray-300 focus:ring-blue-200'
                   }`}
                   placeholder="Digite seu email"
-                  disabled={loading}
+                  disabled={loading || recoveryLoading}
                 />
                 <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               </div>
@@ -199,46 +243,48 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
               )}
             </div>
 
-            {/* Senha */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Senha
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="senha"
-                  value={formData.senha}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 pl-10 pr-10 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                    errors.senha 
-                      ? 'border-red-300 focus:ring-red-200' 
-                      : 'border-gray-300 focus:ring-blue-200'
-                  }`}
-                  placeholder="Digite sua senha"
-                  disabled={loading}
-                />
-                <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  disabled={loading}
-                >
-                  {showPassword ? (
-                    <FaEyeSlash className="w-4 h-4" />
-                  ) : (
-                    <FaEye className="w-4 h-4" />
-                  )}
-                </button>
+            {/* Senha (não mostrar no modo de recuperação) */}
+            {!isRecoveryMode && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Senha
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="senha"
+                    value={formData.senha}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 pl-10 pr-10 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                      errors.senha 
+                        ? 'border-red-300 focus:ring-red-200' 
+                        : 'border-gray-300 focus:ring-blue-200'
+                    }`}
+                    placeholder="Digite sua senha"
+                    disabled={loading}
+                  />
+                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    disabled={loading}
+                  >
+                    {showPassword ? (
+                      <FaEyeSlash className="w-4 h-4" />
+                    ) : (
+                      <FaEye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+                {errors.senha && (
+                  <p className="text-red-500 text-xs mt-1">{errors.senha}</p>
+                )}
               </div>
-              {errors.senha && (
-                <p className="text-red-500 text-xs mt-1">{errors.senha}</p>
-              )}
-            </div>
+            )}
 
             {/* Confirmar Senha (apenas no registro) */}
-            {!isLoginMode && (
+            {!isLoginMode && !isRecoveryMode && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Confirmar Senha
@@ -267,36 +313,75 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
 
             {/* Botão de Submit */}
             <button
-              type="submit"
-              disabled={loading}
+              type={isRecoveryMode ? 'button' : 'submit'}
+              onClick={isRecoveryMode ? handleForgotPassword : undefined}
+              disabled={loading || recoveryLoading}
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
             >
-              {loading ? (
+              {loading || recoveryLoading ? (
                 <>
                   <FaSpinner className="w-4 h-4 animate-spin" />
                   <span>Processando...</span>
                 </>
               ) : (
                 <span>
-                  {isLoginMode ? '🚀 Entrar' : '✨ Criar Conta'}
+                  {isRecoveryMode 
+                    ? '📧 Enviar Link de Recuperação'
+                    : isLoginMode 
+                    ? '🚀 Entrar' 
+                    : '✨ Criar Conta'
+                  }
                 </span>
               )}
             </button>
           </form>
 
-          {/* Switch Mode */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              {isLoginMode ? 'Não tem uma conta?' : 'Já tem uma conta?'}
-              <button
-                type="button"
-                onClick={switchMode}
-                className="ml-1 text-blue-600 hover:text-blue-700 font-medium transition-colors"
-                disabled={loading}
-              >
-                {isLoginMode ? 'Cadastre-se' : 'Faça login'}
-              </button>
-            </p>
+          {/* Switch Mode e Esqueci a senha */}
+          <div className="mt-6 text-center space-y-3">
+            {/* Botão Esqueci a senha (apenas no modo login) */}
+            {isLoginMode && !isRecoveryMode && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setIsRecoveryMode(true)}
+                  className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                  disabled={loading}
+                >
+                  🔑 Esqueci minha senha
+                </button>
+              </div>
+            )}
+
+            {/* Voltar do modo recuperação */}
+            {isRecoveryMode && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setIsRecoveryMode(false)}
+                  className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                  disabled={recoveryLoading}
+                >
+                  ← Voltar ao login
+                </button>
+              </div>
+            )}
+
+            {/* Switch entre login e registro (não mostrar no modo recuperação) */}
+            {!isRecoveryMode && (
+              <div>
+                <p className="text-sm text-gray-600">
+                  {isLoginMode ? 'Não tem uma conta?' : 'Já tem uma conta?'}
+                  <button
+                    type="button"
+                    onClick={switchMode}
+                    className="ml-1 text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                    disabled={loading}
+                  >
+                    {isLoginMode ? 'Cadastre-se' : 'Faça login'}
+                  </button>
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

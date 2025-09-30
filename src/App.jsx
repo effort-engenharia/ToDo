@@ -6,10 +6,19 @@ import AuthGuard from './components/AuthGuard';
 import AdminPanel from './components/AdminPanel';
 import ProtectedRoute from './components/ProtectedRoute';
 import SmartRedirect from './components/SmartRedirect';
+import ResetPasswordPage from './components/ResetPasswordPage';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useGoogleSheetsData } from './hooks/useGoogleSheetsData';
 
 function AppContent() {
+  // Verificar se estamos na página de reset de senha
+  const isResetPasswordPage = window.location.pathname === '/reset-password';
+  
+  // Se for página de reset, renderizar apenas ela
+  if (isResetPasswordPage) {
+    return <ResetPasswordPage />;
+  }
+
   const [currentPage, setCurrentPage] = useState(null); // null inicialmente para determinar automaticamente
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(true);

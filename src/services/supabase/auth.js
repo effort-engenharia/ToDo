@@ -34,7 +34,7 @@ export const authService = {
             console.log('✅ Usuário ativo encontrado, permitindo login mesmo sem confirmação de email');
             
             // Registrar log de acesso bem-sucedido (com observação sobre confirmação)
-            await this.registrarLog(email, 'LOGIN', { 
+            await authService.registrarLog(email, 'LOGIN', { 
               sucesso: true, 
               observacao: 'Login sem confirmação de email (usuário ativo)' 
             });
@@ -47,16 +47,16 @@ export const authService = {
             };
           } else if (usuarioLocal && !usuarioLocal.ativo) {
             console.log('🔒 Usuário encontrado mas inativo');
-            await this.registrarLog(email, 'LOGIN_FAILED', { erro: 'Conta inativa' });
+            await authService.registrarLog(email, 'LOGIN_FAILED', { erro: 'Conta inativa' });
             throw new Error('Sua conta está pendente de ativação pelo administrador. Entre em contato para liberar o acesso.');
           } else {
             console.log('❌ Usuário não encontrado na tabela local');
-            await this.registrarLog(email, 'LOGIN_FAILED', { erro: 'Usuário não encontrado' });
+            await authService.registrarLog(email, 'LOGIN_FAILED', { erro: 'Usuário não encontrado' });
             throw new Error('Usuário não encontrado');
           }
         } else {
           // Outros erros de autenticação
-          await this.registrarLog(email, 'LOGIN_FAILED', { erro: authError.message });
+          await authService.registrarLog(email, 'LOGIN_FAILED', { erro: authError.message });
           throw new Error('Email ou senha inválidos');
         }
       }
@@ -76,7 +76,7 @@ export const authService = {
       // Verificar se usuário existe mas está inativo
       if (usuario && !usuario.ativo) {
         console.log('🔒 Usuário encontrado mas está inativo:', email);
-        await this.registrarLog(email, 'LOGIN_FAILED', { erro: 'Conta inativa' });
+        await authService.registrarLog(email, 'LOGIN_FAILED', { erro: 'Conta inativa' });
         throw new Error('Sua conta está pendente de ativação pelo administrador. Entre em contato para liberar o acesso.');
       }
 
@@ -130,7 +130,7 @@ export const authService = {
       }
 
       // Registrar log de acesso bem-sucedido
-      await this.registrarLog(email, 'LOGIN', { sucesso: true });
+      await authService.registrarLog(email, 'LOGIN', { sucesso: true });
 
       // Retornar dados do usuário
       console.log('🎉 Login bem-sucedido para:', email);
@@ -142,7 +142,7 @@ export const authService = {
     } catch (error) {
       // Registrar log de falha se não foi registrado antes
       if (!error.message.includes('Email ou senha inválidos')) {
-        await this.registrarLog(email, 'LOGIN_FAILED', { erro: error.message });
+        await authService.registrarLog(email, 'LOGIN_FAILED', { erro: error.message });
       }
       
       console.error('💥 Erro ao fazer login:', error);
@@ -237,7 +237,7 @@ export const authService = {
       }
 
       // Registrar log
-      await this.registrarLog(dadosUsuario.email, 'REGISTRO', { sucesso: true });
+      await authService.registrarLog(dadosUsuario.email, 'REGISTRO', { sucesso: true });
 
       const usuarioCriado = data[0];
 
@@ -260,7 +260,7 @@ export const authService = {
         return await this.registrarUsuarioAlternativo(dadosUsuario);
       }
 
-      await this.registrarLog(dadosUsuario.email, 'REGISTRO_FAILED', { erro: error.message });
+      await authService.registrarLog(dadosUsuario.email, 'REGISTRO_FAILED', { erro: error.message });
       
       console.error('Erro ao registrar usuário:', error);
       return {
@@ -325,7 +325,7 @@ export const authService = {
       console.log('✅ Usuário criado com método alternativo');
 
       // Registrar log
-      await this.registrarLog(dadosUsuario.email, 'REGISTRO_ALTERNATIVO', { sucesso: true });
+      await authService.registrarLog(dadosUsuario.email, 'REGISTRO_ALTERNATIVO', { sucesso: true });
 
       return {
         success: true,
@@ -333,7 +333,7 @@ export const authService = {
         message: 'Usuário registrado com sucesso (modo alternativo)'
       };
     } catch (error) {
-      await this.registrarLog(dadosUsuario.email, 'REGISTRO_ALTERNATIVO_FAILED', { erro: error.message });
+      await authService.registrarLog(dadosUsuario.email, 'REGISTRO_ALTERNATIVO_FAILED', { erro: error.message });
       
       console.error('Erro no registro alternativo:', error);
       return {
@@ -722,7 +722,7 @@ export const adminService = {
       }
 
       // Registrar log da ativação
-      await this.registrarLog(usuario.email, 'USUARIO_ATIVADO', { 
+      await authService.registrarLog(usuario.email, 'USUARIO_ATIVADO', { 
         usuarioId: usuarioId,
         admin: true
       });
@@ -892,5 +892,149 @@ export const adminService = {
         message: error.message
       };
     }
+  },
+
+  // Enviar email de recuperação de senha
+  async resetPassword(email) {
+    try {
+      console.log('🔄 Enviando email de recuperação de senha para:', email);
+      
+      // Verificar se o email existe na nossa base de usuários
+      const { data: usuario, error: userError } = await supabase
+        .from('usuarios')
+        .select('email, ativo')
+        .eq('email', email)
+        .single();
+
+      if (userError && userError.code !== 'PGRST116') {
+        throw userError;
+      }
+
+      if (!usuario) {
+        console.log('❌ Email não encontrado na base de usuários');
+        // Por segurança, não revelar se o email existe ou não
+        return {
+          success: true,
+          message: 'Se o email existir em nossa base, você receberá as instruções para redefinir sua senha.'
+        };
+      }
+
+      if (!usuario.ativo) {
+        console.log('🔒 Usuário inativo tentando recuperar senha');
+        return {
+          success: false,
+          message: 'Conta inativa. Entre em contato com o administrador.'
+        };
+      }
+
+      // Usar Supabase Auth para enviar email de recuperação
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+
+      if (resetError) {
+        console.error('❌ Erro ao enviar email de recuperação:', resetError);
+        throw resetError;
+      }
+
+      // Registrar log da tentativa de recuperação
+      await authService.registrarLog(email, 'PASSWORD_RESET_REQUEST', { 
+        sucesso: true,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log('✅ Email de recuperação enviado com sucesso');
+      
+      return {
+        success: true,
+        message: 'Email de recuperação enviado! Verifique sua caixa de entrada e spam.'
+      };
+
+    } catch (error) {
+      console.error('💥 Erro na recuperação de senha:', error);
+      
+      // Registrar log do erro
+      await authService.registrarLog(email, 'PASSWORD_RESET_ERROR', { 
+        erro: error.message,
+        timestamp: new Date().toISOString()
+      });
+
+      return {
+        success: false,
+        message: 'Erro ao enviar email de recuperação. Tente novamente mais tarde.'
+      };
+    }
+  }
+};
+
+// Função separada para recuperação de senha (para resolver problema de contexto)
+export const resetPassword = async (email) => {
+  try {
+    console.log('🔄 Enviando email de recuperação de senha para:', email);
+    
+    // Verificar se o email existe na nossa base de usuários
+    const { data: usuario, error: userError } = await supabase
+      .from('usuarios')
+      .select('email, ativo')
+      .eq('email', email)
+      .single();
+
+    if (userError && userError.code !== 'PGRST116') {
+      throw userError;
+    }
+
+    if (!usuario) {
+      console.log('❌ Email não encontrado na base de usuários');
+      // Por segurança, não revelar se o email existe ou não
+      return {
+        success: true,
+        message: 'Se o email existir em nossa base, você receberá as instruções para redefinir sua senha.'
+      };
+    }
+
+    if (!usuario.ativo) {
+      console.log('🔒 Usuário inativo tentando recuperar senha');
+      return {
+        success: false,
+        message: 'Conta inativa. Entre em contato com o administrador.'
+      };
+    }
+
+    // Usar Supabase Auth para enviar email de recuperação
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`
+    });
+
+    if (resetError) {
+      console.error('❌ Erro ao enviar email de recuperação:', resetError);
+      throw resetError;
+    }
+
+    // Registrar log da tentativa de recuperação
+    await authService.registrarLog(email, 'PASSWORD_RESET_REQUEST', { 
+      sucesso: true,
+      timestamp: new Date().toISOString()
+    });
+
+    console.log('✅ Email de recuperação enviado com sucesso');
+    
+    return {
+      success: true,
+      message: 'Email de recuperação enviado! Verifique sua caixa de entrada e spam.'
+    };
+
+  } catch (error) {
+    console.error('💥 Erro na recuperação de senha:', error);
+    
+    // Registrar log do erro
+    await authService.registrarLog(email, 'PASSWORD_RESET_ERROR', { 
+      erro: error.message,
+      timestamp: new Date().toISOString()
+    });
+
+    return {
+      success: false,
+      message: 'Erro ao enviar email de recuperação. Tente novamente mais tarde.'
+    };
   }
 };

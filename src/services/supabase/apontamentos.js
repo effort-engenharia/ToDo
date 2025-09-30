@@ -45,7 +45,7 @@ export const apontamentosService = {
     try {
       let query = supabase
         .from('apontamentos_comerciais')
-        .select('*')
+        .select('*, ultimo_alinhamento_realizado')
         .order('created_at', { ascending: false });
 
       // Aplicar filtros se fornecidos
@@ -72,7 +72,17 @@ export const apontamentosService = {
         throw error;
       }
 
-      return data;
+      // Calcular se pode realizar alinhamento para cada registro
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+
+      const dataComStatus = data.map(apontamento => ({
+        ...apontamento,
+        pode_realizar_alinhamento: !apontamento.ultimo_alinhamento_realizado || 
+          new Date(apontamento.ultimo_alinhamento_realizado).setHours(0, 0, 0, 0) !== hoje.getTime()
+      }));
+
+      return dataComStatus;
     } catch (error) {
       console.error('Erro no serviço de busca de apontamentos:', error);
       throw error;
@@ -222,6 +232,79 @@ export const apontamentosService = {
       return true;
     } catch (error) {
       console.error('Erro no serviço de exclusão de apontamento:', error);
+      throw error;
+    }
+  },
+
+  // Registrar alinhamento realizado
+  async registrarAlinhamento(apontamentoId) {
+    try {
+      const agora = new Date();
+      
+      // Verificar se já foi realizado alinhamento hoje
+      const { data: registroAtual, error: errorBusca } = await supabase
+        .from('apontamentos_comerciais')
+        .select('ultimo_alinhamento_realizado')
+        .eq('id', apontamentoId)
+        .single();
+
+      if (errorBusca) {
+        console.error('Erro ao buscar registro atual:', errorBusca);
+        throw errorBusca;
+      }
+
+      // Verificar se já foi realizado alinhamento hoje
+      if (registroAtual.ultimo_alinhamento_realizado) {
+        const ultimoAlinhamento = new Date(registroAtual.ultimo_alinhamento_realizado);
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0);
+        ultimoAlinhamento.setHours(0, 0, 0, 0);
+        
+        if (ultimoAlinhamento.getTime() === hoje.getTime()) {
+          throw new Error('Alinhamento já foi realizado hoje para este apontamento');
+        }
+      }
+
+      // Atualizar o campo de último alinhamento e updated_at
+      const { data, error } = await supabase
+        .from('apontamentos_comerciais')
+        .update({
+          ultimo_alinhamento_realizado: agora.toISOString(),
+          updated_at: agora.toISOString()
+        })
+        .eq('id', apontamentoId)
+        .select();
+
+      if (error) {
+        console.error('Erro ao registrar alinhamento:', error);
+        throw error;
+      }
+
+      // Registrar no histórico de alterações
+      const { error: errorHistorico } = await supabase
+        .from('historico_alteracoes_apontamentos')
+        .insert({
+          apontamento_id: apontamentoId,
+          campo_alterado: 'alinhamento_realizado',
+          valor_anterior: 'Não realizado',
+          valor_novo: `Realizado em ${agora.toLocaleString('pt-BR')}`,
+          data_alteracao: agora.toISOString()
+        });
+
+      if (errorHistorico) {
+        console.error('Erro ao salvar histórico de alinhamento:', errorHistorico);
+        // Não falhar a operação por causa do histórico
+      }
+
+      // Disparar evento de atualização para o dashboard
+      console.log('📤 Disparando evento apontamento-alignment para forçar atualização');
+      window.dispatchEvent(new CustomEvent('apontamento-alignment', { 
+        detail: data[0] 
+      }));
+
+      return data[0];
+    } catch (error) {
+      console.error('Erro no serviço de alinhamento:', error);
       throw error;
     }
   },

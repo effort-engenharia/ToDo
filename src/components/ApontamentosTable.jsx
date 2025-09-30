@@ -9,7 +9,9 @@ import {
   FaSortUp,
   FaSortDown,
   FaHistory,
-  FaSpinner
+  FaSpinner,
+  FaHandshake,
+  FaCheck
 } from 'react-icons/fa';
 import { apontamentosService } from '../services/supabaseService';
 
@@ -22,6 +24,8 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
   const [showHistorico, setShowHistorico] = useState(null);
   const [historico, setHistorico] = useState([]);
   const [loadingHistorico, setLoadingHistorico] = useState(false);
+  const [processandoAlinhamento, setProcessandoAlinhamento] = useState({});
+  const [toast, setToast] = useState({ show: false, message: '', type: '' });
   
   // Estados dos filtros
   const [filtros, setFiltros] = useState({
@@ -32,6 +36,37 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
     origem: '',
     fase: ''
   });
+
+  // Função para mostrar toast
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: '' });
+    }, 4000);
+  };
+
+  // Componente Toast
+  const Toast = ({ show, message, type, onClose }) => {
+    if (!show) return null;
+
+    const bgColor = type === 'success' ? 'bg-green-500' : type === 'warning' ? 'bg-yellow-500' : 'bg-red-500';
+    const icon = type === 'success' ? <FaCheck /> : type === 'warning' ? <FaSpinner /> : <FaTimes />;
+
+    return (
+      <div className={`fixed top-4 right-4 ${bgColor} text-white px-6 py-4 rounded-lg shadow-lg z-50 flex items-center space-x-3 transform transition-all duration-300 ease-in-out`}>
+        <div className="flex items-center space-x-2">
+          {icon}
+          <span className="font-medium">{message}</span>
+        </div>
+        <button 
+          onClick={onClose}
+          className="ml-4 hover:bg-white/20 p-1 rounded"
+        >
+          <FaTimes size={14} />
+        </button>
+      </div>
+    );
+  };
 
   // Opções dos comboboxes (mesmas do formulário)
   const tiposOportunidade = [
@@ -65,6 +100,41 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
       console.error('Erro ao carregar apontamentos:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Realizar alinhamento
+  const realizarAlinhamento = async (apontamentoId) => {
+    setProcessandoAlinhamento(prev => ({ ...prev, [apontamentoId]: true }));
+    
+    try {
+      await apontamentosService.registrarAlinhamento(apontamentoId);
+      
+      // Atualizar apenas o registro específico localmente (otimização)
+      setApontamentos(prev => 
+        prev.map(apontamento => 
+          apontamento.id === apontamentoId 
+            ? { 
+                ...apontamento, 
+                ultimo_alinhamento_realizado: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                pode_realizar_alinhamento: false 
+              }
+            : apontamento
+        )
+      );
+      
+      // Mostrar feedback visual via toast
+      showToast('✅ Alinhamento realizado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao realizar alinhamento:', error);
+      if (error.message.includes('já foi realizado hoje')) {
+        showToast('⚠️ O alinhamento já foi realizado hoje para este apontamento.', 'warning');
+      } else {
+        showToast('❌ Erro ao realizar alinhamento. Tente novamente.', 'error');
+      }
+    } finally {
+      setProcessandoAlinhamento(prev => ({ ...prev, [apontamentoId]: false }));
     }
   };
 
@@ -188,13 +258,23 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
   // Salvar edição
   const saveEdit = async () => {
     try {
-      await apontamentosService.atualizarApontamento(editingId, editData);
+      const updatedRecord = await apontamentosService.atualizarApontamento(editingId, editData);
+      
+      // Atualizar apenas o registro específico localmente
+      setApontamentos(prev => 
+        prev.map(apontamento => 
+          apontamento.id === editingId 
+            ? { ...updatedRecord, pode_realizar_alinhamento: apontamento.pode_realizar_alinhamento }
+            : apontamento
+        )
+      );
+      
       setEditingId(null);
       setEditData({});
-      carregarApontamentos();
+      showToast('✅ Alterações salvas com sucesso!', 'success');
     } catch (error) {
       console.error('Erro ao salvar edição:', error);
-      alert('Erro ao salvar alterações');
+      showToast('❌ Erro ao salvar alterações. Tente novamente.', 'error');
     }
   };
 
@@ -225,7 +305,8 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
       'valor_entrada_servico': 'Valor de Entrada',
       'quantidade_parcelas': 'Parcelas',
       'cidade_atendimento': 'Cidade',
-      'cidade_outras': 'Cidade (Outras)'
+      'cidade_outras': 'Cidade (Outras)',
+      'alinhamento_realizado': 'Alinhamento Realizado'
     };
     return labels[fieldName] || fieldName;
   };
@@ -597,6 +678,22 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
                           >
                             <FaHistory />
                           </button>
+                          <button
+                            onClick={() => realizarAlinhamento(apontamento.id)}
+                            disabled={!apontamento.pode_realizar_alinhamento || processandoAlinhamento[apontamento.id]}
+                            className={`p-1 rounded transition-all duration-200 ${
+                              apontamento.pode_realizar_alinhamento && !processandoAlinhamento[apontamento.id]
+                                ? 'text-green-600 hover:text-green-900 hover:bg-green-100 cursor-pointer'
+                                : 'text-gray-400 cursor-not-allowed opacity-50'
+                            }`}
+                            title="Alinhamento Realizado"
+                          >
+                            {processandoAlinhamento[apontamento.id] ? (
+                              <FaSpinner className="animate-spin" />
+                            ) : (
+                              <FaHandshake />
+                            )}
+                          </button>
                         </>
                       )}
                     </div>
@@ -667,6 +764,14 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
           </div>
         </div>
       )}
+
+      {/* Toast Component */}
+      <Toast 
+        show={toast.show} 
+        message={toast.message} 
+        type={toast.type} 
+        onClose={() => setToast({ show: false, message: '', type: '' })}
+      />
     </div>
   );
 };

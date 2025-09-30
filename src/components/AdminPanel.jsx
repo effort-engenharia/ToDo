@@ -274,6 +274,43 @@ const AdminPanel = ({ isOpen, onClose }) => {
                 </button>
               </div>
 
+              {/* Estatísticas de Usuários */}
+              {usuarios.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <div className="flex items-center">
+                      <FaUsers className="text-blue-600 w-6 h-6 mr-3" />
+                      <div>
+                        <p className="text-sm text-blue-600 font-medium">Total de Usuários</p>
+                        <p className="text-2xl font-bold text-blue-800">{usuarios.length}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <div className="flex items-center">
+                      <FaUserCheck className="text-green-600 w-6 h-6 mr-3" />
+                      <div>
+                        <p className="text-sm text-green-600 font-medium">Usuários Ativos</p>
+                        <p className="text-2xl font-bold text-green-800">
+                          {usuarios.filter(u => u.ativo).length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                    <div className="flex items-center">
+                      <FaUserTimes className="text-orange-600 w-6 h-6 mr-3" />
+                      <div>
+                        <p className="text-sm text-orange-600 font-medium">Pendentes Ativação</p>
+                        <p className="text-2xl font-bold text-orange-800">
+                          {usuarios.filter(u => !u.ativo).length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Form de Novo Usuário */}
               {showUserForm && (
                 <div className="bg-gray-50 p-4 rounded-lg mb-6">
@@ -401,9 +438,9 @@ const AdminPanel = ({ isOpen, onClose }) => {
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                             user.ativo 
                               ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
+                              : 'bg-orange-100 text-orange-800'
                           }`}>
-                            {user.ativo ? 'Ativo' : 'Inativo'}
+                            {user.ativo ? '✅ Ativo' : '⏳ Pendente'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -422,12 +459,12 @@ const AdminPanel = ({ isOpen, onClose }) => {
                             {user.ativo ? (
                               <>
                                 <FaEyeSlash className="w-3 h-3 mr-1" />
-                                Inativar
+                                Desativar
                               </>
                             ) : (
                               <>
-                                <FaEye className="w-3 h-3 mr-1" />
-                                Ativar
+                                <FaUserCheck className="w-3 h-3 mr-1" />
+                                Ativar Conta
                               </>
                             )}
                           </button>

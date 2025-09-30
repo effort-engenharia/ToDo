@@ -73,6 +73,16 @@ export const AuthProvider = ({ children }) => {
       const resultado = await authService.registrarUsuario(dadosUsuario);
       
       if (resultado.success) {
+        // Se a conta está pendente de ativação, NÃO fazer login automático
+        if (resultado.pendingActivation) {
+          return {
+            success: true,
+            pendingActivation: true,
+            message: resultado.message
+          };
+        }
+        
+        // Apenas fazer login automático se for admin principal
         setUsuario(resultado.usuario);
         setIsAuthenticated(true);
         
@@ -81,7 +91,7 @@ export const AuthProvider = ({ children }) => {
         
         return {
           success: true,
-          message: 'Cadastro realizado com sucesso!'
+          message: resultado.message
         };
       } else {
         return {

@@ -49,11 +49,21 @@ const AuthGuard = ({ children, onOpenAdmin }) => {
       const resultado = await registrar(dadosUsuario);
       
       if (resultado.success) {
-        setMessage({ type: 'success', text: resultado.message });
-        setTimeout(() => {
-          setShowLoginModal(false);
-          setMessage({ type: '', text: '' });
-        }, 1000);
+        if (resultado.pendingActivation) {
+          // Conta criada mas pendente de ativação
+          setMessage({ 
+            type: 'info', 
+            text: resultado.message + ' Entre em contato com o administrador para ativar sua conta.'
+          });
+          // Não fechar o modal, permitir que o usuário faça login quando ativado
+        } else {
+          // Admin principal - login automático
+          setMessage({ type: 'success', text: resultado.message });
+          setTimeout(() => {
+            setShowLoginModal(false);
+            setMessage({ type: '', text: '' });
+          }, 1000);
+        }
       } else {
         setMessage({ type: 'error', text: resultado.message });
       }

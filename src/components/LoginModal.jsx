@@ -129,13 +129,17 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                 ? 'bg-red-50 text-red-700 border border-red-200' 
                 : statusType === 'success'
                 ? 'bg-green-50 text-green-700 border border-green-200'
-                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                : statusType === 'info'
+                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                : 'bg-gray-50 text-gray-700 border border-gray-200'
             }`}>
-              <div className="flex items-center space-x-2">
-                <span>
-                  {statusType === 'error' ? '❌' : statusType === 'success' ? '✅' : 'ℹ️'}
+              <div className="flex items-start space-x-2">
+                <span className="flex-shrink-0 mt-0.5">
+                  {statusType === 'error' ? '❌' : 
+                   statusType === 'success' ? '✅' : 
+                   statusType === 'info' ? 'ℹ️' : '📝'}
                 </span>
-                <span>{statusMessage}</span>
+                <span className="flex-1">{statusMessage}</span>
               </div>
             </div>
           )}

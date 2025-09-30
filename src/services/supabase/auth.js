@@ -16,10 +16,49 @@ export const authService = {
       if (authError) {
         console.log('❌ Erro de autenticação:', authError.message);
         
-        // Registrar log de falha
-        await this.registrarLog(email, 'LOGIN_FAILED', { erro: authError.message });
-        
-        throw new Error('Email ou senha inválidos');
+        // Se for erro de email não confirmado, verificar se usuário está ativo na nossa tabela
+        if (authError.message.includes('Email not confirmed')) {
+          console.log('📧 Email não confirmado, verificando se usuário está ativo...');
+          
+          // Buscar usuário na nossa tabela
+          const { data: usuarioLocal, error: localError } = await supabase
+            .from('usuarios')
+            .select(`
+              *,
+              nivel_acesso:niveis_acesso(*)
+            `)
+            .eq('email', email)
+            .single();
+
+          if (usuarioLocal && usuarioLocal.ativo) {
+            console.log('✅ Usuário ativo encontrado, permitindo login mesmo sem confirmação de email');
+            
+            // Registrar log de acesso bem-sucedido (com observação sobre confirmação)
+            await this.registrarLog(email, 'LOGIN', { 
+              sucesso: true, 
+              observacao: 'Login sem confirmação de email (usuário ativo)' 
+            });
+
+            // Retornar dados do usuário mesmo sem confirmação de email
+            return {
+              success: true,
+              usuario: usuarioLocal,
+              session: null // Sem sessão do Supabase Auth, mas permitir acesso
+            };
+          } else if (usuarioLocal && !usuarioLocal.ativo) {
+            console.log('🔒 Usuário encontrado mas inativo');
+            await this.registrarLog(email, 'LOGIN_FAILED', { erro: 'Conta inativa' });
+            throw new Error('Sua conta está pendente de ativação pelo administrador. Entre em contato para liberar o acesso.');
+          } else {
+            console.log('❌ Usuário não encontrado na tabela local');
+            await this.registrarLog(email, 'LOGIN_FAILED', { erro: 'Usuário não encontrado' });
+            throw new Error('Usuário não encontrado');
+          }
+        } else {
+          // Outros erros de autenticação
+          await this.registrarLog(email, 'LOGIN_FAILED', { erro: authError.message });
+          throw new Error('Email ou senha inválidos');
+        }
       }
 
       console.log('✅ Autenticação Supabase bem-sucedida');
@@ -32,10 +71,16 @@ export const authService = {
           nivel_acesso:niveis_acesso(*)
         `)
         .eq('email', email)
-        .eq('ativo', true)
         .single();
 
-      // Se não encontrou na tabela customizada, criar entrada
+      // Verificar se usuário existe mas está inativo
+      if (usuario && !usuario.ativo) {
+        console.log('🔒 Usuário encontrado mas está inativo:', email);
+        await this.registrarLog(email, 'LOGIN_FAILED', { erro: 'Conta inativa' });
+        throw new Error('Sua conta está pendente de ativação pelo administrador. Entre em contato para liberar o acesso.');
+      }
+
+      // Se não encontrou na tabela customizada, criar entrada (compatibilidade)
       if (userError && userError.code === 'PGRST116') {
         console.log('👤 Criando entrada na tabela usuarios para:', email);
         
@@ -125,7 +170,8 @@ export const authService = {
         options: {
           data: {
             full_name: dadosUsuario.nomeCompleto
-          }
+          },
+          emailRedirectTo: undefined // Tentar desabilitar confirmação por email
         }
       });
 
@@ -166,13 +212,16 @@ export const authService = {
         .single();
 
       // Criar entrada na tabela usuarios personalizada
+      // Usuários ficam inativos por padrão, exceto admin principal
+      const isAdminPrincipal = dadosUsuario.email === 'effort.engenharia.eletrica@gmail.com';
+      
       const { data, error } = await supabase
         .from('usuarios')
         .insert([{
           email: dadosUsuario.email,
           nome_completo: dadosUsuario.nomeCompleto,
           nivel_acesso_id: nivelUsuario?.id,
-          ativo: true,
+          ativo: isAdminPrincipal, // Apenas admin principal fica ativo imediatamente
           auth_user_id: authData.user?.id || null
         }])
         .select(`
@@ -190,10 +239,15 @@ export const authService = {
       // Registrar log
       await this.registrarLog(dadosUsuario.email, 'REGISTRO', { sucesso: true });
 
+      const usuarioCriado = data[0];
+
       return {
         success: true,
-        usuario: data[0],
-        message: 'Usuário registrado com sucesso'
+        usuario: usuarioCriado,
+        pendingActivation: !isAdminPrincipal, // Indica se precisa de ativação
+        message: isAdminPrincipal 
+          ? 'Usuário registrado com sucesso!' 
+          : 'Conta criada com sucesso! Aguardando ativação pelo administrador.'
       };
     } catch (error) {
       // Se falhou o registro com Supabase Auth, tentar método alternativo
@@ -623,6 +677,16 @@ export const adminService = {
   // Ativar usuário
   async ativarUsuario(usuarioId) {
     try {
+      // Primeiro, buscar dados do usuário
+      const { data: usuario, error: userError } = await supabase
+        .from('usuarios')
+        .select('email, auth_user_id')
+        .eq('id', usuarioId)
+        .single();
+
+      if (userError) throw userError;
+
+      // Ativar na tabela usuarios
       const { data, error } = await supabase
         .from('usuarios')
         .update({ ativo: true })
@@ -630,6 +694,38 @@ export const adminService = {
         .select();
 
       if (error) throw error;
+
+      // Se tem auth_user_id, confirmar email no Supabase Auth também
+      if (usuario.auth_user_id) {
+        try {
+          console.log('🔐 Confirmando email no Supabase Auth para:', usuario.email);
+          
+          // Confirmar email no Supabase Auth usando Admin API
+          const { error: confirmError } = await supabase.auth.admin.updateUserById(
+            usuario.auth_user_id,
+            { 
+              email_confirm: true,
+              updated_at: new Date().toISOString()
+            }
+          );
+
+          if (confirmError) {
+            console.warn('⚠️ Erro ao confirmar email:', confirmError.message);
+            // Não falhar a ativação por causa disso, apenas registrar log
+          } else {
+            console.log('✅ Email confirmado no Supabase Auth');
+          }
+        } catch (authError) {
+          console.warn('⚠️ Erro na confirmação do email:', authError.message);
+          // Continuar com a ativação mesmo se falhar aqui
+        }
+      }
+
+      // Registrar log da ativação
+      await this.registrarLog(usuario.email, 'USUARIO_ATIVADO', { 
+        usuarioId: usuarioId,
+        admin: true
+      });
 
       return {
         success: true,

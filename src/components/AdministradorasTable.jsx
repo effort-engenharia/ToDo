@@ -17,6 +17,7 @@ const AdministradorasTable = ({ adicionarParadaRoteiro, addNotification }) => {
   const [administradoras, setAdministradoras] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cidadeSelecionada, setCidadeSelecionada] = useState('');
+  const [termoBusca, setTermoBusca] = useState('');
   const [atualizandoGoogle, setAtualizandoGoogle] = useState(false);
   const [atualizandoContato, setAtualizandoContato] = useState({});
 
@@ -134,8 +135,26 @@ const AdministradorasTable = ({ adicionarParadaRoteiro, addNotification }) => {
   };
 
   const filtrarPorCidade = () => {
-    if (!cidadeSelecionada) return administradoras;
-    return administradoras.filter(admin => admin.cidade === cidadeSelecionada);
+    let dados = administradoras;
+    
+    // Filtrar por cidade
+    if (cidadeSelecionada) {
+      dados = dados.filter(admin => admin.cidade === cidadeSelecionada);
+    }
+    
+    // Filtrar por termo de busca
+    if (termoBusca) {
+      const termo = termoBusca.toLowerCase();
+      dados = dados.filter(admin => 
+        admin.nome?.toLowerCase().includes(termo) ||
+        admin.endereco?.toLowerCase().includes(termo) ||
+        admin.telefone?.includes(termo) ||
+        admin.whatsapp?.includes(termo) ||
+        admin.site?.toLowerCase().includes(termo)
+      );
+    }
+    
+    return dados;
   };
 
   const dadosFiltrados = filtrarPorCidade();
@@ -149,6 +168,15 @@ const AdministradorasTable = ({ adicionarParadaRoteiro, addNotification }) => {
         </h2>
         
         <div className="flex flex-col sm:flex-row gap-3">
+          {/* Campo de busca */}
+          <input
+            type="text"
+            placeholder="Buscar por nome, endereço, telefone..."
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-w-64"
+          />
+
           {/* Filtro de cidade */}
           <select
             value={cidadeSelecionada}

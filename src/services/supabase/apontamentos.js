@@ -8,6 +8,14 @@ export const apontamentosService = {
       const { data, error } = await supabase
         .from('apontamentos_comerciais')
         .insert([{
+          cnpj_cliente: dadosApontamento.cnpjCliente,
+          razao_social: dadosApontamento.razaoSocial,
+          nome_fantasia: dadosApontamento.nomeFantasia,
+          logradouro: dadosApontamento.logradouro,
+          bairro: dadosApontamento.bairro,
+          municipio: dadosApontamento.municipio,
+          uf: dadosApontamento.uf,
+          cep: dadosApontamento.cep,
           tipo_oportunidade: dadosApontamento.tipoOportunidade,
           nome_cliente: dadosApontamento.nomeCliente,
           fase: dadosApontamento.fase,
@@ -18,7 +26,9 @@ export const apontamentosService = {
           valor_entrada_servico: dadosApontamento.valorEntradaServico,
           quantidade_parcelas: parseInt(dadosApontamento.quantidadeParcelas),
           cidade_atendimento: dadosApontamento.cidadeAtendimento,
-          cidade_outras: dadosApontamento.cidadeOutras
+          cidade_outras: dadosApontamento.cidadeOutras,
+          cronograma_data_inicio: dadosApontamento.cronogramaDataInicio,
+          cronograma_data_termino: dadosApontamento.cronogramaDataTermino
         }])
         .select();
 
@@ -45,7 +55,20 @@ export const apontamentosService = {
     try {
       let query = supabase
         .from('apontamentos_comerciais')
-        .select('*, ultimo_alinhamento_realizado')
+        .select(`
+          *, 
+          ultimo_alinhamento_realizado,
+          cnpj_cliente,
+          razao_social,
+          nome_fantasia,
+          logradouro,
+          bairro,
+          municipio,
+          uf,
+          cep,
+          cronograma_data_inicio,
+          cronograma_data_termino
+        `)
         .order('created_at', { ascending: false });
 
       // Aplicar filtros se fornecidos
@@ -116,7 +139,9 @@ export const apontamentosService = {
         'valor_entrada_servico': 'valorEntradaServico',
         'quantidade_parcelas': 'quantidadeParcelas',
         'cidade_atendimento': 'cidadeAtendimento',
-        'cidade_outras': 'cidadeOutras'
+        'cidade_outras': 'cidadeOutras',
+        'cronograma_data_inicio': 'cronogramaDataInicio',
+        'cronograma_data_termino': 'cronogramaDataTermino'
       };
 
       // Preparar alterações para histórico
@@ -160,7 +185,9 @@ export const apontamentosService = {
           valor_entrada_servico: dadosAtualizacao.valorEntradaServico,
           quantidade_parcelas: parseInt(dadosAtualizacao.quantidadeParcelas),
           cidade_atendimento: dadosAtualizacao.cidadeAtendimento,
-          cidade_outras: dadosAtualizacao.cidadeOutras
+          cidade_outras: dadosAtualizacao.cidadeOutras,
+          cronograma_data_inicio: dadosAtualizacao.cronogramaDataInicio,
+          cronograma_data_termino: dadosAtualizacao.cronogramaDataTermino
         })
         .eq('id', id)
         .select();

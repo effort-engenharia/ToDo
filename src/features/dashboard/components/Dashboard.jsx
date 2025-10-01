@@ -17,7 +17,18 @@ import SalesTables from './SalesTables';
 import StatusFooter from './StatusFooter';
 
 const Dashboard = ({ setCurrentPage }) => {
-  const [selectedMonth, setSelectedMonth] = useState('setembro');
+  // Função para obter o mês atual em português - FIXED 
+  const getCurrentMonth = () => {
+    const meses = [
+      'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+      'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+    ];
+    const agora = new Date();
+    const mesAtual = meses[agora.getMonth()];
+    return mesAtual;
+  };
+
+  const [selectedMonth, setSelectedMonth] = useState(() => getCurrentMonth());
   const [selectedYear, setSelectedYear] = useState('2025');
   const [isDataChanging, setIsDataChanging] = useState(false);
   
@@ -61,7 +72,6 @@ const Dashboard = ({ setCurrentPage }) => {
   // Listener para eventos de atualização de dados
   useEffect(() => {
     const handleDataUpdate = () => {
-      console.log('🔄 Evento de atualização de dados recebido, forçando refresh...');
       if (forceRefresh) {
         forceRefresh();
       } else {
@@ -98,14 +108,12 @@ const Dashboard = ({ setCurrentPage }) => {
   // Validar e ajustar seleções quando dados mudarem
   useEffect(() => {
     if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
-      console.log('🔄 Ajustando ano selecionado para o mais recente disponível:', availableYears[0]);
       setSelectedYear(availableYears[0]);
     }
   }, [availableYears, selectedYear]);
 
   useEffect(() => {
     if (availableMonths.length > 0 && !availableMonths.includes(selectedMonth)) {
-      console.log('🔄 Ajustando mês selecionado para o primeiro disponível:', availableMonths[0]);
       setSelectedMonth(availableMonths[0]);
     }
   }, [availableMonths, selectedMonth]);

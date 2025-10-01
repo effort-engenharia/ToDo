@@ -22,29 +22,14 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
 
   // Decidir quais dados usar (filtrados ou completos)
   const dashboardData = useMemo(() => {
-    console.log('📈 Dashboard data sendo recalculado para:', selectedMonth, selectedYear);
-    console.log('📊 Dados processados filtrados:', {
-      processedDataLength: data?.length,
-      allDataLength: allData?.length,
-      hasProcessedRegioes: !!processedData?.regioes?.length,
-      hasProcessedVendedores: !!processedData?.vendedores?.length,
-      processedOrigemClientes: processedData?.origemClientes,
-      processedFunil: processedData?.funil,
-      processedClientesAtendidos: processedData?.clientesAtendidos,
-      timestamp: new Date().toLocaleTimeString()
-    });
-    
     // MELHORIA: Priorizar sempre dados filtrados se existirem, mesmo que poucos
     // Só usar fallback se realmente não há dados para o período
     const hasValidFilteredData = processedData && data && data.length > 0;
     
     if (!hasValidFilteredData && allProcessedData && allData && allData.length > 0) {
-      console.log('🔄 Dados filtrados insuficientes, usando dados completos como fallback');
       return allProcessedData;
     }
     
-    console.log('✅ Usando dados filtrados para o período:', selectedMonth, selectedYear);
-    console.log('🎯 Funil final que será usado:', processedData?.funil);
     return processedData;
   }, [processedData, allProcessedData, selectedMonth, selectedYear, data, allData]);
 
@@ -71,10 +56,19 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
   
   // Extrair anos e meses disponíveis dos dados
   const { availableYears, availableMonths } = useMemo(() => {
+    // Função para obter mês atual
+    const getCurrentMonthFallback = () => {
+      const monthNames = [
+        'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+        'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+      ];
+      return monthNames[new Date().getMonth()];
+    };
+
     if (!allData || !Array.isArray(allData)) {
       return {
         availableYears: ['2025'], // fallback
-        availableMonths: ['setembro'] // fallback
+        availableMonths: [getCurrentMonthFallback()] // fallback com mês atual
       };
     }
 
@@ -112,7 +106,21 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
 
     // Se não encontrou dados, usar fallbacks
     const finalYears = years.length > 0 ? years : ['2025'];
-    const finalMonths = months.length > 0 ? months : ['setembro'];
+    let finalMonths = months.length > 0 ? months : [getCurrentMonthFallback()];
+    
+    // Sempre incluir o mês atual na lista se não estiver presente
+    const getCurrentMonth = () => {
+      const agora = new Date();
+      return monthNames[agora.getMonth()];
+    };
+    
+    const currentMonth = getCurrentMonth();
+    
+    if (!finalMonths.includes(currentMonth)) {
+      finalMonths = [...finalMonths, currentMonth].sort((a, b) => {
+        return monthNames.indexOf(a) - monthNames.indexOf(b);
+      });
+    }
 
     return {
       availableYears: finalYears,

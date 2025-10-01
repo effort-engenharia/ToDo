@@ -21,28 +21,11 @@ const SalesPodium = ({ vendedoresReais = [] }) => {
         return;
       }
       
-      const { data, error: supabaseError } = await supabaseService.client
-        .from('vendedores')
-        .select('*')
-        .eq('ativo', true)
-        .order('total_vendas_mes', { ascending: false })
-        .limit(3);
-
-      if (supabaseError) throw supabaseError;
-
-      // Se não houver vendedores, criar alguns de exemplo
-      if (!data || data.length === 0) {
-        await criarVendedoresExemplo();
-        return;
-      }
-
-      // Atualizar posições no ranking
-      const vendedoresComPosicao = data.map((vendedor, index) => ({
-        ...vendedor,
-        posicao_ranking: index + 1
-      }));
-
-      setVendedores(vendedoresComPosicao);
+      // Se não há dados reais da planilha, significa que não há dados para o período
+      // Exibir estado vazio em vez de criar dados de exemplo ou buscar dados antigos
+      console.log('📊 Sem dados de vendedores para o período atual - exibindo estado vazio');
+      setVendedores([]);
+      
     } catch (err) {
       console.error('Erro ao carregar vendedores:', err);
       setError('Erro ao carregar dados dos vendedores');
@@ -133,47 +116,6 @@ const SalesPodium = ({ vendedoresReais = [] }) => {
     
     console.log('📊 Usando dados da planilha diretamente:', vendedoresPlanilha);
     setVendedores(vendedoresPlanilha);
-  };
-
-  // Criar vendedores de exemplo se não existirem
-  const criarVendedoresExemplo = async () => {
-    try {
-      const vendedoresExemplo = [
-        {
-          nome: 'João Silva',
-          email: 'joao@exemplo.com',
-          total_vendas_mes: 125000.00,
-          comissao_mes: 1250.00,
-          posicao_ranking: 1
-        },
-        {
-          nome: 'Maria Santos',
-          email: 'maria@exemplo.com',
-          total_vendas_mes: 98000.00,
-          comissao_mes: 980.00,
-          posicao_ranking: 2
-        },
-        {
-          nome: 'Pedro Costa',
-          email: 'pedro@exemplo.com',
-          total_vendas_mes: 87500.00,
-          comissao_mes: 875.00,
-          posicao_ranking: 3
-        }
-      ];
-
-      const { data, error } = await supabaseService.client
-        .from('vendedores')
-        .insert(vendedoresExemplo)
-        .select();
-
-      if (error) throw error;
-      
-      setVendedores(data);
-    } catch (err) {
-      console.error('Erro ao criar vendedores de exemplo:', err);
-      setError('Erro ao criar vendedores de exemplo');
-    }
   };
 
   // Upload de foto
@@ -311,50 +253,67 @@ const SalesPodium = ({ vendedoresReais = [] }) => {
         </div>
       )}
 
-      {/* Podium Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl mx-auto items-end">
-        {/* 2º Lugar - Esquerda */}
-        <div className="flex flex-col items-center order-2 lg:order-1">
-          {vendedores[1] && (
-            <div className="lg:mt-8">
-              <PodiumCard
-                key={vendedores[1].id}
-                vendedor={vendedores[1]}
-                posicao={2}
-                onFotoUpload={handleFotoUpload}
-              />
-            </div>
-          )}
+      {/* Podium Cards ou Mensagem Sem Dados */}
+      {vendedores.length === 0 ? (
+        /* Mensagem quando não há dados */
+        <div className="flex flex-col items-center justify-center py-12 px-6">
+          <div className="text-center">
+            <div className="text-6xl mb-4">📊</div>
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">
+              Sem dados disponíveis
+            </h3>
+            <p className="text-gray-500 text-sm max-w-md mx-auto">
+              Não há vendas registradas para o período atual. 
+              Vendas aparecerão aqui quando houver apontamentos com fase "CONTRATO/VENDA".
+            </p>
+          </div>
         </div>
-        
-        {/* 1º Lugar - Centro (Destacado) */}
-        <div className="flex flex-col items-center order-1 lg:order-2">
-          {vendedores[0] && (
-            <div className="transform lg:scale-105">
-              <PodiumCard
-                key={vendedores[0].id}
-                vendedor={vendedores[0]}
-                posicao={1}
-                onFotoUpload={handleFotoUpload}
-              />
-            </div>
-          )}
+      ) : (
+        /* Podium normal quando há dados */
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl mx-auto items-end">
+          {/* 2º Lugar - Esquerda */}
+          <div className="flex flex-col items-center order-2 lg:order-1">
+            {vendedores[1] && (
+              <div className="lg:mt-8">
+                <PodiumCard
+                  key={vendedores[1].id}
+                  vendedor={vendedores[1]}
+                  posicao={2}
+                  onFotoUpload={handleFotoUpload}
+                />
+              </div>
+            )}
+          </div>
+          
+          {/* 1º Lugar - Centro (Destacado) */}
+          <div className="flex flex-col items-center order-1 lg:order-2">
+            {vendedores[0] && (
+              <div className="transform lg:scale-105">
+                <PodiumCard
+                  key={vendedores[0].id}
+                  vendedor={vendedores[0]}
+                  posicao={1}
+                  onFotoUpload={handleFotoUpload}
+                />
+              </div>
+            )}
+          </div>
+          
+          {/* 3º Lugar - Direita */}
+          <div className="flex flex-col items-center order-3">
+            {vendedores[2] && (
+              <div className="lg:mt-16">
+                <PodiumCard
+                  key={vendedores[2].id}
+                  vendedor={vendedores[2]}
+                  posicao={3}
+                  onFotoUpload={handleFotoUpload}
+                />
+              </div>
+            )}
+          </div>
         </div>
-        
-        {/* 3º Lugar - Direita */}
-        <div className="flex flex-col items-center order-3">
-          {vendedores[2] && (
-            <div className="lg:mt-16">
-              <PodiumCard
-                key={vendedores[2].id}
-                vendedor={vendedores[2]}
-                posicao={3}
-                onFotoUpload={handleFotoUpload}
-              />
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 };

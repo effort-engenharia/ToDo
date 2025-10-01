@@ -20,15 +20,18 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
     return processSheetData(allData, metaPersonalizada);
   }, [allData, metaPersonalizada]);
 
-  // Decidir quais dados usar (filtrados ou completos)
+  // Decidir quais dados usar (sempre respeitar filtro por período)
   const dashboardData = useMemo(() => {
-    // MELHORIA: Priorizar sempre dados filtrados se existirem, mesmo que poucos
-    // Só usar fallback se realmente não há dados para o período
-    const hasValidFilteredData = processedData && data && data.length > 0;
-    
-    if (!hasValidFilteredData && allProcessedData && allData && allData.length > 0) {
-      return allProcessedData;
-    }
+    // CORREÇÃO: Sempre usar dados filtrados, mesmo que vazios
+    // Não fazer fallback para dados completos quando um período específico foi selecionado
+    // Isso garante que o dashboard mostre "sem dados" quando não há dados para o período
+    console.log('🎯 useDashboardData - Decidindo dados a usar:', {
+      processedDataLength: processedData?.vendedores?.length || 0,
+      dataLength: data?.length || 0,
+      allDataLength: allData?.length || 0,
+      selectedMonth,
+      selectedYear
+    });
     
     return processedData;
   }, [processedData, allProcessedData, selectedMonth, selectedYear, data, allData]);

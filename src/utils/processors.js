@@ -52,65 +52,49 @@ export const processSheetData = (rawData, metaPersonalizada = 50000) => {
   });
 
   if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
-    console.log('❌ Dados inválidos ou vazios - retornando dados de exemplo para desenvolvimento');
-    // Retornar dados de exemplo para desenvolvimento
+    console.log('❌ Dados inválidos ou vazios - retornando estrutura vazia respeitando filtro por período');
+    // Retornar estrutura vazia quando não há dados para o período selecionado
+    // Isso garante que o dashboard mostre "sem dados" em vez de dados fictícios
     return {
-      receitas: { recebido: 156750, aReceber: 89320, atrasadas: 23100 },
-      despesas: { pago: 45600, aPagar: 28900, atrasadas: 8750 },
-      saldos: { maximo: 180000, minimo: 45000, media: 112500 },
-      vendedores: [
-        { vendedor: 'Pamelli', valor: 85600, valorEntrada: 45600, vendas: 8 },
-        { vendedor: 'Edgar', valor: 72300, valorEntrada: 38200, vendas: 6 },
-        { vendedor: 'Eduarda', valor: 98750, valorEntrada: 52100, vendas: 9 }
-      ],
-      regioes: [
-        { posicao: 1, proprietario: 'Pamelli', cidade: 'Santos', vendas: 12, valor: 95000 },
-        { posicao: 2, proprietario: 'Eduarda', cidade: 'São Vicente', vendas: 8, valor: 67500 },
-        { posicao: 3, proprietario: 'Edgar', cidade: 'Cubatão', vendas: 6, valor: 52300 }
-      ],
-      servicos: [
-        { nome: 'Adequação Elétrica', valor: 156000, quantidade: 18 },
-        { nome: 'Medição Ôhmica', valor: 89500, quantidade: 14 },
-        { nome: 'SPDA', valor: 67200, quantidade: 11 }
-      ],
+      receitas: { recebido: 0, aReceber: 0, atrasadas: 0 },
+      despesas: { pago: 0, aPagar: 0, atrasadas: 0 },
+      saldos: { maximo: 0, minimo: 0, media: 0 },
+      vendedores: [], // Array vazio para não mostrar vendedores fictícios
+      regioes: [], // Array vazio para não mostrar regiões fictícias
+      servicos: [], // Array vazio
       servicosObject: {
-        adequacaoEletrica: 18,
-        medicaoOhmica: 14,
-        spda: 11,
-        quadrosDePainel: 6,
-        outros: 3
+        adequacaoEletrica: 0,
+        medicaoOhmica: 0,
+        spda: 0,
+        quadrosDePainel: 0,
+        outros: 0
       },
-      funil: { prospeccao: 9, qualificacao: 23, canceladoPerca: 4, negociacao: 18, contratoVenda: 16 },
-      relacionamento: { pamelli: 35, edgar: 28, eduarda: 31 },
-      clientesAtendidos: { pamelli: 8, edgar: 6, eduarda: 9 },
+      funil: { prospeccao: 0, qualificacao: 0, canceladoPerca: 0, negociacao: 0, contratoVenda: 0 },
+      relacionamento: {},
+      clientesAtendidos: {},
       ganhosPerdas: {
-        contratoVenda: { quantidade: 16, valor: 256800 },
-        canceladoPerca: { quantidade: 4, valor: 89200 }
+        contratoVenda: { quantidade: 0, valor: 0 },
+        canceladoPerca: { quantidade: 0, valor: 0 }
       },
-      metaEntrada: { valor: 45600, meta: metaPersonalizada },
+      metaEntrada: { valor: 0, meta: metaPersonalizada },
       origemClientes: {
-        carteira: 12,
-        adm: 8,
-        indicacao: 6,
-        prospeccao: 4,
-        google: 3,
-        outros: 2
+        carteira: 0,
+        adm: 0,
+        indicacao: 0,
+        prospeccao: 0,
+        google: 0,
+        outros: 0
       },
       servicosFechadosPorOrigem: {
-        carteira: 7,
-        adm: 4,
-        indicacao: 3,
-        prospeccao: 1,
-        google: 1,
+        carteira: 0,
+        adm: 0,
+        indicacao: 0,
+        prospeccao: 0,
+        google: 0,
         outros: 0
       },
       timeline: [],
-      distributionData: [
-        { name: 'Qualificação', value: 23, color: '#3B82F6' },
-        { name: 'Negociação', value: 18, color: '#10B981' },
-        { name: 'Contratos/Vendas', value: 16, color: '#8B5CF6' },
-        { name: 'Cancelados/Perdas', value: 4, color: '#EF4444' }
-      ]
+      distributionData: []
     };
   }
   

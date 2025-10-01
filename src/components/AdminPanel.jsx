@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   FaTimes, FaUser, FaUserPlus, FaUserCheck, FaUserTimes, 
   FaTrash, FaEye, FaEyeSlash, FaCog, FaShieldAlt, FaHistory,
-  FaUsers, FaKey, FaClipboardList
+  FaUsers, FaKey, FaClipboardList, FaEdit, FaPlus
 } from 'react-icons/fa';
 import { adminService } from '../services/supabase/auth.js';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,6 +29,19 @@ const AdminPanel = ({ isOpen, onClose }) => {
   const [selectedNivel, setSelectedNivel] = useState('');
   const [permissoes, setPermissoes] = useState([]);
   const [selectedPaginas, setSelectedPaginas] = useState([]);
+
+  // Estados para criação de níveis
+  const [showNivelForm, setShowNivelForm] = useState(false);
+  const [nivelFormData, setNivelFormData] = useState({
+    nome: '',
+    descricao: ''
+  });
+
+  // Estados para edição de usuários
+  const [editingUser, setEditingUser] = useState(null);
+  const [editUserData, setEditUserData] = useState({
+    nivel_acesso_id: ''
+  });
 
   // Estados para logs
   const [logs, setLogs] = useState([]);
@@ -178,6 +191,58 @@ const AdminPanel = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       showMessage('error', 'Erro ao atualizar permissões');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNivelSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const resultado = await adminService.criarNivelAcesso(nivelFormData.nome, nivelFormData.descricao);
+      
+      if (resultado.success) {
+        showMessage('success', 'Nível de acesso criado com sucesso!');
+        setShowNivelForm(false);
+        setNivelFormData({ nome: '', descricao: '' });
+        await loadNiveisAcesso();
+      } else {
+        showMessage('error', resultado.message);
+      }
+    } catch (error) {
+      showMessage('error', 'Erro ao criar nível de acesso');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditUser = (user) => {
+    setEditingUser(user);
+    setEditUserData({
+      nivel_acesso_id: user.nivel_acesso_id || ''
+    });
+  };
+
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setLoading(true);
+    try {
+      const resultado = await adminService.editarUsuario(editingUser.id, editUserData);
+      
+      if (resultado.success) {
+        showMessage('success', 'Usuário atualizado com sucesso!');
+        setEditingUser(null);
+        setEditUserData({ nivel_acesso_id: '' });
+        await loadUsuarios();
+      } else {
+        showMessage('error', resultado.message);
+      }
+    } catch (error) {
+      showMessage('error', 'Erro ao atualizar usuário');
     } finally {
       setLoading(false);
     }
@@ -394,6 +459,55 @@ const AdminPanel = ({ isOpen, onClose }) => {
                 </div>
               )}
 
+              {/* Modal de Edição de Usuário */}
+              {editingUser && (
+                <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-200">
+                  <h4 className="font-medium text-blue-800 mb-4 flex items-center">
+                    <FaEdit className="mr-2" />
+                    Editar Usuário: {editingUser.nome_completo}
+                  </h4>
+                  <form onSubmit={handleUpdateUser} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nível de Acesso
+                      </label>
+                      <select
+                        value={editUserData.nivel_acesso_id}
+                        onChange={(e) => setEditUserData({...editUserData, nivel_acesso_id: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Selecionar nível</option>
+                        {niveisAcesso.map(nivel => (
+                          <option key={nivel.id} value={nivel.id}>
+                            {nivel.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingUser(null);
+                          setEditUserData({ nivel_acesso_id: '' });
+                        }}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors disabled:opacity-50"
+                      >
+                        Salvar Alterações
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+
               {/* Lista de Usuários */}
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -448,6 +562,14 @@ const AdminPanel = ({ isOpen, onClose }) => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                           <button
+                            onClick={() => handleEditUser(user)}
+                            className="inline-flex items-center px-2 py-1 rounded text-xs bg-blue-100 text-blue-800 hover:bg-blue-200"
+                            disabled={loading}
+                          >
+                            <FaEdit className="w-3 h-3 mr-1" />
+                            Editar
+                          </button>
+                          <button
                             onClick={() => handleToggleUser(user.id, user.ativo)}
                             className={`inline-flex items-center px-2 py-1 rounded text-xs ${
                               user.ativo
@@ -489,7 +611,70 @@ const AdminPanel = ({ isOpen, onClose }) => {
           {/* Tab Permissões */}
           {activeTab === 'permissoes' && (
             <div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-6">Gestão de Permissões</h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold text-gray-800">Gestão de Permissões</h3>
+                <button
+                  onClick={() => setShowNivelForm(true)}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  <FaPlus className="w-4 h-4" />
+                  <span>Criar Nível</span>
+                </button>
+              </div>
+
+              {/* Form de Novo Nível */}
+              {showNivelForm && (
+                <div className="bg-green-50 p-4 rounded-lg mb-6 border border-green-200">
+                  <h4 className="font-medium text-green-800 mb-4">Novo Nível de Acesso</h4>
+                  <form onSubmit={handleNivelSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nome
+                      </label>
+                      <input
+                        type="text"
+                        value={nivelFormData.nome}
+                        onChange={(e) => setNivelFormData({...nivelFormData, nome: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        required
+                        placeholder="Ex: Comercial"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Descrição
+                      </label>
+                      <input
+                        type="text"
+                        value={nivelFormData.descricao}
+                        onChange={(e) => setNivelFormData({...nivelFormData, descricao: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        required
+                        placeholder="Descrição do nível de acesso"
+                      />
+                    </div>
+                    <div className="md:col-span-2 flex justify-end space-x-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowNivelForm(false);
+                          setNivelFormData({ nome: '', descricao: '' });
+                        }}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors disabled:opacity-50"
+                      >
+                        Criar Nível
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div>

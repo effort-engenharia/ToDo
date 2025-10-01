@@ -894,6 +894,61 @@ export const adminService = {
     }
   },
 
+  // Criar novo nível de acesso
+  async criarNivelAcesso(nome, descricao) {
+    try {
+      const { data, error } = await supabase
+        .from('niveis_acesso')
+        .insert([{
+          nome: nome,
+          descricao: descricao
+        }])
+        .select();
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        nivel: data[0],
+        message: 'Nível de acesso criado com sucesso'
+      };
+    } catch (error) {
+      console.error('Erro ao criar nível de acesso:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  },
+
+  // Editar usuário (alterar nível de acesso)
+  async editarUsuario(usuarioId, dadosAtualizacao) {
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .update(dadosAtualizacao)
+        .eq('id', usuarioId)
+        .select(`
+          *,
+          nivel_acesso:niveis_acesso(*)
+        `);
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        usuario: data[0],
+        message: 'Usuário atualizado com sucesso'
+      };
+    } catch (error) {
+      console.error('Erro ao editar usuário:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  },
+
   // Enviar email de recuperação de senha
   async resetPassword(email) {
     try {

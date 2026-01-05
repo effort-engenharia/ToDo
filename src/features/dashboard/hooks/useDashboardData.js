@@ -70,13 +70,13 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
 
     if (!allData || !Array.isArray(allData)) {
       return {
-        availableYears: ['2025'], // fallback
+        availableYears: [new Date().getFullYear().toString()], // fallback com ano atual
         availableMonths: [getCurrentMonthFallback()] // fallback com mês atual
       };
     }
 
     const yearsSet = new Set();
-    const monthsSet = new Set();
+    const monthsByYear = {}; // Armazena meses por ano
     
     // Mapeamento de números de mês para nomes
     const monthNames = [
@@ -84,16 +84,22 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
       'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
     ];
 
+    // Extrair anos e meses agrupados por ano
     allData.forEach(item => {
       if (item.created_at) {
         try {
           const date = new Date(item.created_at);
           if (!isNaN(date.getTime())) {
-            const year = date.getFullYear();
+            const year = date.getFullYear().toString();
             const month = date.getMonth(); // 0-based
             
-            yearsSet.add(year.toString());
-            monthsSet.add(monthNames[month]);
+            yearsSet.add(year);
+            
+            // Agrupar meses por ano
+            if (!monthsByYear[year]) {
+              monthsByYear[year] = new Set();
+            }
+            monthsByYear[year].add(monthNames[month]);
           }
         } catch (error) {
           // Ignorar datas inválidas
@@ -101,35 +107,49 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
       }
     });
 
-    // Converter para arrays e ordenar
+    // Converter anos para array e ordenar
     const years = Array.from(yearsSet).sort((a, b) => parseInt(b) - parseInt(a)); // Mais recente primeiro
-    const months = Array.from(monthsSet).sort((a, b) => {
-      return monthNames.indexOf(a) - monthNames.indexOf(b);
-    });
 
-    // Se não encontrou dados, usar fallbacks
-    const finalYears = years.length > 0 ? years : ['2025'];
-    let finalMonths = months.length > 0 ? months : [getCurrentMonthFallback()];
+    // Se não encontrou dados, usar fallback
+    const finalYears = years.length > 0 ? years : [new Date().getFullYear().toString()];
     
-    // Sempre incluir o mês atual na lista se não estiver presente
+    // Extrair meses APENAS do ano selecionado
+    const monthsForSelectedYear = monthsByYear[selectedYear] 
+      ? Array.from(monthsByYear[selectedYear]).sort((a, b) => {
+          return monthNames.indexOf(a) - monthNames.indexOf(b);
+        })
+      : [];
+    
+    let finalMonths = monthsForSelectedYear.length > 0 
+      ? monthsForSelectedYear 
+      : [getCurrentMonthFallback()];
+    
+    // Se o ano selecionado for o ano atual, sempre incluir o mês atual
     const getCurrentMonth = () => {
       const agora = new Date();
       return monthNames[agora.getMonth()];
     };
     
+    const currentYear = new Date().getFullYear().toString();
     const currentMonth = getCurrentMonth();
     
-    if (!finalMonths.includes(currentMonth)) {
+    if (selectedYear === currentYear && !finalMonths.includes(currentMonth)) {
       finalMonths = [...finalMonths, currentMonth].sort((a, b) => {
         return monthNames.indexOf(a) - monthNames.indexOf(b);
       });
+    }
+
+    // Sempre incluir o ano atual na lista se não estiver presente
+    if (!finalYears.includes(currentYear)) {
+      finalYears.push(currentYear);
+      finalYears.sort((a, b) => parseInt(b) - parseInt(a)); // Reordenar com ano atual
     }
 
     return {
       availableYears: finalYears,
       availableMonths: finalMonths
     };
-  }, [allData]);
+  }, [allData, selectedYear]);
 
   return {
     dashboardData,

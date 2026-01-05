@@ -29,7 +29,7 @@ const Dashboard = ({ setCurrentPage }) => {
   };
 
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentMonth());
-  const [selectedYear, setSelectedYear] = useState('2025');
+  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear().toString());
   const [isDataChanging, setIsDataChanging] = useState(false);
   
   // Meta editável pelo usuário com persistência no localStorage

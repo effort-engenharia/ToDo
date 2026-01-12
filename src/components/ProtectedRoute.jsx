@@ -16,14 +16,38 @@ const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null, onR
       }
 
       try {
-        // Administradores têm acesso a tudo
+        // Administradores têm acesso a tudo (páginas comerciais)
         if (usuario.nivel_acesso?.nome === 'Administrador') {
-          setHasPermission(true);
+          // Verificar se a rota é do módulo execução
+          if (requiredRoute.startsWith('execucao')) {
+            setHasPermission(false);
+          } else {
+            setHasPermission(true);
+          }
+          setLoading(false);
+          return;
+        }
+        
+        // ADMIN_EXECUCAO tem acesso a todas as páginas de execução
+        if (usuario.nivel_acesso?.nome === 'ADMIN_EXECUCAO') {
+          if (requiredRoute.startsWith('execucao')) {
+            setHasPermission(true);
+          } else {
+            setHasPermission(false);
+          }
+          setLoading(false);
+          return;
+        }
+        
+        // TECNICO tem acesso limitado às páginas de execução
+        if (usuario.nivel_acesso?.nome === 'TECNICO') {
+          const paginasTecnico = ['execucao', 'execucao/minhas-atividades', 'execucao/pops'];
+          setHasPermission(paginasTecnico.includes(requiredRoute));
           setLoading(false);
           return;
         }
 
-        // Verificar permissão específica
+        // Verificar permissão específica para outros níveis
         const permission = await temPermissao(requiredRoute);
         setHasPermission(permission);
       } catch (error) {

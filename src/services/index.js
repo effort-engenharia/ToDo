@@ -7,6 +7,7 @@ import { metasService } from './supabase/metas.js';
 import { arsenalService } from './supabase/arsenal.js';
 import { administradorasService } from './supabase/administradoras.js';
 import { authService, adminService } from './supabase/auth.js';
+import { execucaoService } from './supabase/execucao.js';
 
 // Re-exportar tudo para manter compatibilidade com importações existentes
 export { supabase };
@@ -16,6 +17,7 @@ export { arsenalService };
 export { administradorasService };
 export { authService };
 export { adminService };
+export { execucaoService };
 
 // Exportar o objeto de serviço principal para compatibilidade
 export const supabaseService = {
@@ -25,7 +27,8 @@ export const supabaseService = {
   arsenal: arsenalService,
   administradoras: administradorasService,
   auth: authService,
-  admin: adminService
+  admin: adminService,
+  execucao: execucaoService
 };
 
 // Export default para uso simplificado

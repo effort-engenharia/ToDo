@@ -18,13 +18,28 @@ const SmartRedirect = ({ onRedirect }) => {
         }
 
         // Ordem de preferência para redirecionamento
-        const ordemPreferencia = ['dashboard', 'apontamentos', 'arsenal'];
+        const ordemPreferenciaComercial = ['dashboard', 'apontamentos', 'arsenal'];
+        const ordemPreferenciaExecucao = ['execucao', 'execucao/minhas-atividades'];
         let paginaDestino = paginasPermitidas[0]; // fallback
         
-        for (const pagina of ordemPreferencia) {
-          if (paginasPermitidas.includes(pagina)) {
-            paginaDestino = pagina;
-            break;
+        // Verificar se tem páginas de execução
+        const temPaginasExecucao = paginasPermitidas.some(p => p.startsWith('execucao'));
+        
+        if (temPaginasExecucao) {
+          // Usuário de execução
+          for (const pagina of ordemPreferenciaExecucao) {
+            if (paginasPermitidas.includes(pagina)) {
+              paginaDestino = pagina;
+              break;
+            }
+          }
+        } else {
+          // Usuário comercial
+          for (const pagina of ordemPreferenciaComercial) {
+            if (paginasPermitidas.includes(pagina)) {
+              paginaDestino = pagina;
+              break;
+            }
           }
         }
 
@@ -49,7 +64,10 @@ const SmartRedirect = ({ onRedirect }) => {
     const pageNames = {
       dashboard: 'Dashboard',
       apontamentos: 'Apontamentos Comerciais',
-      arsenal: 'Arsenal de Guerra'
+      arsenal: 'Arsenal de Guerra',
+      execucao: 'Dashboard Execução',
+      'execucao/minhas-atividades': 'Minhas Atividades',
+      'execucao/pops': 'Procedimentos Operacionais'
     };
 
     return (

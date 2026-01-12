@@ -7,6 +7,7 @@ import AdminPanel from './components/AdminPanel';
 import ProtectedRoute from './components/ProtectedRoute';
 import SmartRedirect from './components/SmartRedirect';
 import ResetPasswordPage from './components/ResetPasswordPage';
+import ExecucaoDashboard from './features/execucao/components/ExecucaoDashboard';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { useGoogleSheetsData } from './hooks/useGoogleSheetsData';
 
@@ -34,24 +35,37 @@ function AppContent() {
         return;
       }
 
+      console.log('🔍 Determinando página inicial para:', usuario.email);
+      console.log('📋 Nível de acesso:', usuario.nivel_acesso?.nome);
+
       try {
         const paginasPermitidas = await obterPaginasPermitidas();
         
+        console.log('✅ Páginas permitidas:', paginasPermitidas);
+
         if (paginasPermitidas.length === 0) {
-          console.error('Usuário não tem acesso a nenhuma página');
+          console.error('❌ Usuário não tem acesso a nenhuma página');
           setCurrentPage('dashboard'); // fallback
           setIsRedirecting(false);
           return;
         }
 
-        // Ordem de preferência: dashboard > apontamentos > arsenal
-        const ordemPreferencia = ['dashboard', 'apontamentos', 'arsenal'];
+        // Ordem de preferência: dashboard > apontamentos > arsenal > execucao
+        const ordemPreferencia = ['dashboard', 'apontamentos', 'arsenal', 'execucao'];
         let paginaInicial = paginasPermitidas[0]; // fallback para primeira permitida
         
-        for (const pagina of ordemPreferencia) {
-          if (paginasPermitidas.includes(pagina)) {
-            paginaInicial = pagina;
-            break;
+        // Verificar se usuário é do módulo execução (ADMIN_EXECUCAO ou TECNICO)
+        const isExecucaoUser = paginasPermitidas.some(p => p.startsWith('execucao'));
+        
+        if (isExecucaoUser) {
+          // Usuários de execução vão direto para o módulo
+          paginaInicial = 'execucao';
+        } else {
+          for (const pagina of ordemPreferencia) {
+            if (paginasPermitidas.includes(pagina)) {
+              paginaInicial = pagina;
+              break;
+            }
           }
         }
 
@@ -120,6 +134,29 @@ function AppContent() {
           }
         >
           <ArsenalDeGuerra onVoltar={() => setCurrentPage('dashboard')} />
+        </ProtectedRoute>
+        <AdminPanel 
+          isOpen={showAdminPanel} 
+          onClose={() => setShowAdminPanel(false)} 
+        />
+      </AuthGuard>
+    );
+  }
+
+  // Renderizar Dashboard Execução se selecionada (para usuários ADMIN_EXECUCAO e TECNICO)
+  if (currentPage === 'execucao') {
+    return (
+      <AuthGuard onOpenAdmin={() => setShowAdminPanel(true)}>
+        <ProtectedRoute 
+          requiredRoute="execucao"
+          fallbackComponent={
+            <SmartRedirect onRedirect={setCurrentPage} />
+          }
+        >
+          <ExecucaoDashboard 
+            usuario={usuario}
+            onVoltar={() => setCurrentPage('dashboard')} 
+          />
         </ProtectedRoute>
         <AdminPanel 
           isOpen={showAdminPanel} 

@@ -1,0 +1,16 @@
+// Exportar todos os componentes do módulo Execução
+export { default as ExecucaoDashboard } from './ExecucaoDashboard';
+export { default as ExecucaoSidebar } from './ExecucaoSidebar';
+export { default as ExecucaoHeader } from './ExecucaoHeader';
+export { default as ExecucaoHome } from './ExecucaoHome';
+export { default as AgendaBase } from './AgendaBase';
+export { default as AgendaEletrica } from './AgendaEletrica';
+export { default as AgendaCivil } from './AgendaCivil';
+export { default as AgendaGalpao } from './AgendaGalpao';
+export { default as AtividadesDia } from './AtividadesDia';
+export { default as PedidoMaterial } from './PedidoMaterial';
+export { default as DesempenhoIndividual } from './DesempenhoIndividual';
+export { default as DesempenhoTime } from './DesempenhoTime';
+export { default as PlanejamentoMacro } from './PlanejamentoMacro';
+export { default as POPs } from './POPs';
+export { default as MinhasAtividades } from './MinhasAtividades';

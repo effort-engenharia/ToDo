@@ -154,16 +154,32 @@ export const AuthProvider = ({ children }) => {
     if (!usuario?.id) return [];
     
     try {
-      const paginas = ['dashboard', 'apontamentos', 'arsenal'];
+      // Páginas comerciais e execução
+      const paginasComerciais = ['dashboard', 'apontamentos', 'arsenal'];
+      const paginasExecucao = ['execucao', 'execucao/atividades-dia', 'execucao/agenda-eletrica', 
+        'execucao/agenda-civil', 'execucao/agenda-galpao', 'execucao/pedido-material',
+        'execucao/desempenho-individual', 'execucao/desempenho-time', 'execucao/planejamento-macro',
+        'execucao/pops', 'execucao/minhas-atividades'];
+      const todasPaginas = [...paginasComerciais, ...paginasExecucao];
       const paginasPermitidas = [];
       
-      // Administradores têm acesso a tudo
+      // Administrador geral tem acesso a tudo
       if (usuario?.nivel_acesso?.nome === 'Administrador') {
-        return paginas;
+        return paginasComerciais; // Admin comercial só vê páginas comerciais
       }
       
-      // Verificar permissão para cada página
-      for (const pagina of paginas) {
+      // ADMIN_EXECUCAO tem acesso a todas as páginas de execução
+      if (usuario?.nivel_acesso?.nome === 'ADMIN_EXECUCAO') {
+        return paginasExecucao;
+      }
+      
+      // TECNICO tem acesso limitado às páginas de execução
+      if (usuario?.nivel_acesso?.nome === 'TECNICO') {
+        return ['execucao', 'execucao/minhas-atividades', 'execucao/pops'];
+      }
+      
+      // Verificar permissão para cada página para outros níveis
+      for (const pagina of todasPaginas) {
         const temAcesso = await authService.verificarPermissao(usuario.id, pagina);
         if (temAcesso) {
           paginasPermitidas.push(pagina);

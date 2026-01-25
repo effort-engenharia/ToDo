@@ -583,13 +583,68 @@ export const execucaoService = {
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
-        .select()
+        .select(`
+          *,
+          responsavel:usuarios!responsavel_id(id, nome_completo)
+        `)
         .single();
 
       if (error) throw error;
       return { success: true, data };
     } catch (error) {
       console.error('Erro ao atualizar planejamento macro:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  async excluirPlanejamentoMacro(id) {
+    try {
+      const { error } = await supabase
+        .from('execucao_planejamento_macro')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao excluir planejamento macro:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Alias para compatibilidade - lista planejamentos de um mês específico
+  async listarPlanejamentoMacro(ano, mes) {
+    try {
+      // Calcular primeiro e último dia do mês
+      const primeiroDia = new Date(ano, mes - 1, 1).toISOString().split('T')[0];
+      const ultimoDia = new Date(ano, mes, 0).toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('execucao_planejamento_macro')
+        .select(`
+          *,
+          responsavel:usuarios!responsavel_id(id, nome_completo)
+        `)
+        .or(`data_inicio.gte.${primeiroDia},data_fim.gte.${primeiroDia}`)
+        .or(`data_inicio.lte.${ultimoDia},data_fim.lte.${ultimoDia}`)
+        .order('data_inicio', { ascending: true });
+
+      if (error) throw error;
+      
+      // Filtrar apenas planejamentos que intersectam com o mês
+      const planejamentosFiltrados = data.filter(p => {
+        const inicio = new Date(p.data_inicio);
+        const fim = p.data_fim ? new Date(p.data_fim) : inicio;
+        const inicioMes = new Date(ano, mes - 1, 1);
+        const fimMes = new Date(ano, mes, 0);
+        
+        // Verifica se há interseção entre o período do planejamento e o mês
+        return inicio <= fimMes && fim >= inicioMes;
+      });
+
+      return { success: true, data: planejamentosFiltrados };
+    } catch (error) {
+      console.error('Erro ao listar planejamento macro:', error);
       return { success: false, message: error.message };
     }
   },
@@ -679,6 +734,11 @@ export const execucaoService = {
       console.error('Erro ao buscar técnicos:', error);
       return { success: false, message: error.message };
     }
+  },
+
+  // Alias para compatibilidade
+  async listarTecnicos() {
+    return this.buscarTecnicos();
   }
 };
 

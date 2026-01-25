@@ -29,6 +29,7 @@ const PlanejamentoMacro = ({ usuario }) => {
     data_inicio: '',
     data_fim: '',
     responsavel_id: '',
+    tipo_projeto: 'eletrica',
     prioridade: 'media',
     progresso: 0,
     status: 'planejado'
@@ -96,6 +97,7 @@ const PlanejamentoMacro = ({ usuario }) => {
       data_inicio: planejamento.data_inicio || '',
       data_fim: planejamento.data_fim || '',
       responsavel_id: planejamento.responsavel_id || '',
+      tipo_projeto: planejamento.tipo_projeto || 'eletrica',
       prioridade: planejamento.prioridade || 'media',
       progresso: planejamento.progresso || 0,
       status: planejamento.status || 'planejado'
@@ -120,6 +122,7 @@ const PlanejamentoMacro = ({ usuario }) => {
       data_inicio: '',
       data_fim: '',
       responsavel_id: '',
+      tipo_projeto: 'eletrica',
       prioridade: 'media',
       progresso: 0,
       status: 'planejado'
@@ -491,6 +494,22 @@ const PlanejamentoMacro = ({ usuario }) => {
                     </div>
 
                     <div className="execucao-form-group">
+                      <label className="execucao-form-label">Tipo de Projeto</label>
+                      <select
+                        className="execucao-form-select"
+                        value={formData.tipo_projeto}
+                        onChange={(e) => setFormData(prev => ({ ...prev, tipo_projeto: e.target.value }))}
+                      >
+                        <option value="eletrica">Elétrica</option>
+                        <option value="civil">Civil</option>
+                        <option value="galpao">Galpão</option>
+                        <option value="misto">Misto</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="execucao-form-group">
                       <label className="execucao-form-label">Prioridade</label>
                       <select
                         className="execucao-form-select"
@@ -503,10 +522,8 @@ const PlanejamentoMacro = ({ usuario }) => {
                         <option value="urgente">Urgente</option>
                       </select>
                     </div>
-                  </div>
 
-                  {planejamentoSelecionado && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {planejamentoSelecionado && (
                       <div className="execucao-form-group">
                         <label className="execucao-form-label">Status</label>
                         <select
@@ -520,19 +537,21 @@ const PlanejamentoMacro = ({ usuario }) => {
                           <option value="atrasado">Atrasado</option>
                         </select>
                       </div>
+                    )}
+                  </div>
 
-                      <div className="execucao-form-group">
-                        <label className="execucao-form-label">Progresso: {formData.progresso}%</label>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          step="5"
-                          value={formData.progresso}
-                          onChange={(e) => setFormData(prev => ({ ...prev, progresso: parseInt(e.target.value) }))}
-                          className="w-full"
-                        />
-                      </div>
+                  {planejamentoSelecionado && (
+                    <div className="execucao-form-group">
+                      <label className="execucao-form-label">Progresso: {formData.progresso}%</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={formData.progresso}
+                        onChange={(e) => setFormData(prev => ({ ...prev, progresso: parseInt(e.target.value) }))}
+                        className="w-full"
+                      />
                     </div>
                   )}
                 </div>

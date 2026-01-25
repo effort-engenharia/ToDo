@@ -449,6 +449,11 @@
   color: var(--accent-green);
 }
 
+.execucao-activity-status.pausada {
+  background: rgba(249, 115, 22, 0.15);
+  color: #f97316;
+}
+
 .execucao-activity-status.urgente {
   background: rgba(239, 68, 68, 0.15);
   color: var(--accent-red);
@@ -815,6 +820,10 @@
   grid-template-columns: repeat(4, 1fr);
 }
 
+.execucao-grid-5 {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 /* Scrollbar */
 .execucao-theme ::-webkit-scrollbar {
   width: 8px;
@@ -882,6 +891,10 @@
   .execucao-grid-4 {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .execucao-grid-5 {
+    grid-template-columns: repeat(3, 1fr);
+  }
   
   .execucao-grid-3 {
     grid-template-columns: repeat(2, 1fr);
@@ -894,6 +907,7 @@
   }
   
   .execucao-grid-4,
+  .execucao-grid-5,
   .execucao-grid-3,
   .execucao-grid-2 {
     grid-template-columns: 1fr;

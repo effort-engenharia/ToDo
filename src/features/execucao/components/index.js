@@ -3,6 +3,7 @@ export { default as ExecucaoDashboard } from './ExecucaoDashboard';
 export { default as ExecucaoSidebar } from './ExecucaoSidebar';
 export { default as ExecucaoHeader } from './ExecucaoHeader';
 export { default as ExecucaoHome } from './ExecucaoHome';
+export { default as NotificacoesDropdown } from './NotificacoesDropdown';
 export { default as AgendaBase } from './AgendaBase';
 export { default as AgendaEletrica } from './AgendaEletrica';
 export { default as AgendaCivil } from './AgendaCivil';

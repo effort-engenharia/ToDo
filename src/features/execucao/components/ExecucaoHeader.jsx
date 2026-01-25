@@ -1,17 +1,18 @@
 import React from 'react';
 import { 
   FaBars, 
-  FaBell, 
   FaSearch,
   FaCog
 } from 'react-icons/fa';
+import NotificacoesDropdown from './NotificacoesDropdown';
 import '../styles/execucao.css';
 
 const ExecucaoHeader = ({ 
   title, 
   subtitle,
   onMenuToggle,
-  usuario
+  usuario,
+  isAdmin = false
 }) => {
   const hoje = new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
@@ -50,11 +51,11 @@ const ExecucaoHeader = ({
           />
         </div>
 
-        {/* Botão de notificações */}
-        <button className="execucao-header-btn relative">
-          <FaBell />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-        </button>
+        {/* Dropdown de notificações */}
+        <NotificacoesDropdown 
+          usuarioId={usuario?.id} 
+          isAdmin={isAdmin}
+        />
 
         {/* Botão de configurações */}
         <button className="execucao-header-btn">

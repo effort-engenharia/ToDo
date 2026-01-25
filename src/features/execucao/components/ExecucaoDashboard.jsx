@@ -114,6 +114,7 @@ const ExecucaoDashboard = ({ onVoltar }) => {
             title={pageTitles[currentPage] || 'Dashboard'}
             onMenuToggle={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             usuario={usuario}
+            isAdmin={isAdmin}
           />
 
           {/* Content */}

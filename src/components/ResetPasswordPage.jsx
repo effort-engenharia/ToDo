@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaLock, FaEye, FaEyeSlash, FaSpinner, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { FaLock, FaEye, FaEyeSlash, FaSpinner, FaCheckCircle, FaTimesCircle, FaBolt } from 'react-icons/fa';
 import { supabase } from '../services/supabase/config.js';
 
 const ResetPasswordPage = () => {
@@ -161,12 +161,25 @@ const ResetPasswordPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto">
+    <div className="min-h-screen login-dark-bg flex items-center justify-center p-4">
+      {/* Background decorativo */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-orange-500/20 to-yellow-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-tr from-orange-600/15 to-amber-500/10 rounded-full blur-3xl"></div>
+      </div>
+      
+      <div className="login-glass-card rounded-2xl w-full max-w-md mx-auto relative">
         {/* Header */}
-        <div className="header-gradient rounded-t-2xl p-6 text-white text-center">
-          <h1 className="text-2xl font-bold mb-2">🔑 Redefinir Senha</h1>
-          <p className="text-white/80 text-sm">
+        <div className="login-header-gradient rounded-t-2xl p-6 text-white text-center">
+          {/* Logo */}
+          <div className="flex justify-center mb-4">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
+              <FaBolt className="w-8 h-8 text-white" />
+            </div>
+          </div>
+          
+          <h1 className="text-2xl font-bold mb-1">Redefinir Senha</h1>
+          <p className="text-white/60 text-sm">
             {isValidSession ? 'Defina sua nova senha' : 'Validando link de recuperação...'}
           </p>
         </div>
@@ -176,10 +189,10 @@ const ResetPasswordPage = () => {
           {message && (
             <div className={`mb-6 p-4 rounded-lg text-sm ${
               messageType === 'error' 
-                ? 'bg-red-50 text-red-700 border border-red-200' 
+                ? 'bg-red-500/10 text-red-400 border border-red-500/20' 
                 : messageType === 'success'
-                ? 'bg-green-50 text-green-700 border border-green-200'
-                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
             }`}>
               <div className="flex items-start space-x-2">
                 <span className="flex-shrink-0 mt-0.5">
@@ -196,7 +209,7 @@ const ResetPasswordPage = () => {
             <form onSubmit={handleResetPassword} className="space-y-4">
               {/* Nova Senha */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
                   Nova Senha
                 </label>
                 <div className="relative">
@@ -204,32 +217,32 @@ const ResetPasswordPage = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className={`w-full px-4 py-3 pl-10 pr-10 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                    className={`login-input w-full px-4 py-3 pl-10 pr-10 rounded-xl focus:outline-none transition-all ${
                       errors.password 
-                        ? 'border-red-300 focus:ring-red-200' 
-                        : 'border-gray-300 focus:ring-blue-200'
+                        ? 'border-red-500/50 focus:border-red-500' 
+                        : 'focus:border-orange-500/50'
                     }`}
                     placeholder="Digite sua nova senha"
                     disabled={loading}
                   />
-                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-orange-400 transition-colors"
                     disabled={loading}
                   >
                     {showPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
                   </button>
                 </div>
                 {errors.password && (
-                  <p className="text-red-500 text-xs mt-1">{errors.password}</p>
+                  <p className="text-red-400 text-xs mt-1">{errors.password}</p>
                 )}
               </div>
 
               {/* Confirmar Senha */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
                   Confirmar Nova Senha
                 </label>
                 <div className="relative">
@@ -237,18 +250,18 @@ const ResetPasswordPage = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`w-full px-4 py-3 pl-10 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                    className={`login-input w-full px-4 py-3 pl-10 rounded-xl focus:outline-none transition-all ${
                       errors.confirmPassword 
-                        ? 'border-red-300 focus:ring-red-200' 
-                        : 'border-gray-300 focus:ring-blue-200'
+                        ? 'border-red-500/50 focus:border-red-500' 
+                        : 'focus:border-orange-500/50'
                     }`}
                     placeholder="Confirme sua nova senha"
                     disabled={loading}
                   />
-                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
                 </div>
                 {errors.confirmPassword && (
-                  <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>
+                  <p className="text-red-400 text-xs mt-1">{errors.confirmPassword}</p>
                 )}
               </div>
 
@@ -256,7 +269,7 @@ const ResetPasswordPage = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                className="w-full login-btn-primary text-white py-3.5 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
                 {loading ? (
                   <>
@@ -264,7 +277,10 @@ const ResetPasswordPage = () => {
                     <span>Redefinindo...</span>
                   </>
                 ) : (
-                  <span>🔄 Redefinir Senha</span>
+                  <>
+                    <FaBolt className="w-4 h-4" />
+                    <span>Redefinir Senha</span>
+                  </>
                 )}
               </button>
             </form>
@@ -275,7 +291,7 @@ const ResetPasswordPage = () => {
             <button
               type="button"
               onClick={handleBackToLogin}
-              className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
+              className="text-sm text-gray-400 hover:text-orange-400 transition-colors"
               disabled={loading}
             >
               ← Voltar ao login

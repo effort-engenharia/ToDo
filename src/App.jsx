@@ -88,10 +88,10 @@ function AppContent() {
   // Mostrar loading enquanto determina a página inicial
   if (isRedirecting || currentPage === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center login-dark-bg">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando Dashboard Comercial...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Carregando...</p>
         </div>
       </div>
     );

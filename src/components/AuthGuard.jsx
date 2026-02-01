@@ -77,10 +77,10 @@ const AuthGuard = ({ children, onOpenAdmin }) => {
   // Loading inicial
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
+      <div className="min-h-screen flex items-center justify-center login-dark-bg">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando Dashboard Comercial...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Carregando...</p>
         </div>
       </div>
     );
@@ -98,16 +98,31 @@ const AuthGuard = ({ children, onOpenAdmin }) => {
 
   // Se não autenticado, mostrar modal de login
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+    <div className="min-h-screen login-dark-bg">
+      {/* Background decorativo */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-yellow-500/5 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-orange-600/10 to-amber-500/5 rounded-full blur-3xl"></div>
+      </div>
+
       {/* Backdrop do sistema */}
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4 relative">
         <div className="text-center max-w-md mx-auto">
           <div className="mb-8">
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">
-              📊 Dashboard Comercial
+            {/* Logo */}
+            <div className="flex justify-center mb-6">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center shadow-xl shadow-orange-500/20">
+                <svg className="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+            
+            <h1 className="text-3xl font-bold text-white mb-2">
+              Effort Engenharia
             </h1>
-            <p className="text-gray-600">
-              Sistema de gestão comercial com gamificação
+            <p className="text-gray-400">
+              Sistema de gestão integrado
             </p>
           </div>
           
@@ -115,8 +130,8 @@ const AuthGuard = ({ children, onOpenAdmin }) => {
           {message.text && (
             <div className={`mb-4 p-3 rounded-lg ${
               message.type === 'success' 
-                ? 'bg-green-100 border border-green-300 text-green-700' 
-                : 'bg-red-100 border border-red-300 text-red-700'
+                ? 'bg-green-500/10 border border-green-500/20 text-green-400' 
+                : 'bg-red-500/10 border border-red-500/20 text-red-400'
             }`}>
               {message.text}
             </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaUser, FaLock, FaEye, FaEyeSlash, FaSpinner, FaTimes } from 'react-icons/fa';
+import { FaEnvelope, FaUser, FaLock, FaEye, FaEyeSlash, FaSpinner, FaTimes, FaBolt } from 'react-icons/fa';
 import { authService, resetPassword } from '../services/supabase/auth.js';
 
 const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessage, statusType }) => {
@@ -132,33 +132,40 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto relative animate-in fade-in duration-300">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="login-glass-card rounded-2xl w-full max-w-md mx-auto relative animate-in fade-in duration-300">
         {/* Header */}
-        <div className="header-gradient rounded-t-2xl p-6 text-white relative">
+        <div className="login-header-gradient rounded-t-2xl p-6 text-white relative">
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 text-white/80 hover:text-white transition-colors"
+            className="absolute right-4 top-4 text-white/60 hover:text-white transition-colors"
             disabled={loading}
           >
             <FaTimes className="w-5 h-5" />
           </button>
           
           <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2">
+            {/* Logo */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                <FaBolt className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            
+            <h2 className="text-2xl font-bold mb-1">
               {isRecoveryMode 
-                ? '🔑 Recuperar Senha' 
+                ? 'Recuperar Senha' 
                 : isLoginMode 
-                ? '🔐 Fazer Login' 
-                : '📝 Criar Conta'
+                ? 'Bem-vindo de volta' 
+                : 'Criar Conta'
               }
             </h2>
-            <p className="text-white/80 text-sm">
+            <p className="text-white/60 text-sm">
               {isRecoveryMode 
                 ? 'Digite seu email para receber o link de recuperação'
                 : isLoginMode 
-                ? 'Acesse o Dashboard Comercial' 
-                : 'Junte-se ao Dashboard Comercial'
+                ? 'Acesse o sistema Effort Engenharia' 
+                : 'Junte-se à equipe Effort Engenharia'
               }
             </p>
           </div>
@@ -170,12 +177,12 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
           {statusMessage && (
             <div className={`mb-4 p-3 rounded-lg text-sm ${
               statusType === 'error' 
-                ? 'bg-red-50 text-red-700 border border-red-200' 
+                ? 'bg-red-500/10 text-red-400 border border-red-500/20' 
                 : statusType === 'success'
-                ? 'bg-green-50 text-green-700 border border-green-200'
+                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
                 : statusType === 'info'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'bg-gray-50 text-gray-700 border border-gray-200'
+                ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20'
+                : 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
             }`}>
               <div className="flex items-start space-x-2">
                 <span className="flex-shrink-0 mt-0.5">
@@ -192,7 +199,7 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
             {/* Nome Completo (apenas no registro) */}
             {!isLoginMode && !isRecoveryMode && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
                   Nome Completo
                 </label>
                 <div className="relative">
@@ -201,25 +208,25 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                     name="nomeCompleto"
                     value={formData.nomeCompleto}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 pl-10 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                    className={`login-input w-full px-4 py-3 pl-10 rounded-xl focus:outline-none transition-all ${
                       errors.nomeCompleto 
-                        ? 'border-red-300 focus:ring-red-200' 
-                        : 'border-gray-300 focus:ring-blue-200'
+                        ? 'border-red-500/50 focus:border-red-500' 
+                        : 'focus:border-orange-500/50'
                     }`}
                     placeholder="Digite seu nome completo"
                     disabled={loading}
                   />
-                  <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
                 </div>
                 {errors.nomeCompleto && (
-                  <p className="text-red-500 text-xs mt-1">{errors.nomeCompleto}</p>
+                  <p className="text-red-400 text-xs mt-1">{errors.nomeCompleto}</p>
                 )}
               </div>
             )}
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Email
               </label>
               <div className="relative">
@@ -228,25 +235,25 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className={`w-full px-4 py-3 pl-10 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  className={`login-input w-full px-4 py-3 pl-10 rounded-xl focus:outline-none transition-all ${
                     errors.email 
-                      ? 'border-red-300 focus:ring-red-200' 
-                      : 'border-gray-300 focus:ring-blue-200'
+                      ? 'border-red-500/50 focus:border-red-500' 
+                      : 'focus:border-orange-500/50'
                   }`}
                   placeholder="Digite seu email"
                   disabled={loading || recoveryLoading}
                 />
-                <FaUser className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <FaEnvelope className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
               </div>
               {errors.email && (
-                <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                <p className="text-red-400 text-xs mt-1">{errors.email}</p>
               )}
             </div>
 
             {/* Senha (não mostrar no modo de recuperação) */}
             {!isRecoveryMode && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
                   Senha
                 </label>
                 <div className="relative">
@@ -255,19 +262,19 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                     name="senha"
                     value={formData.senha}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 pl-10 pr-10 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                    className={`login-input w-full px-4 py-3 pl-10 pr-10 rounded-xl focus:outline-none transition-all ${
                       errors.senha 
-                        ? 'border-red-300 focus:ring-red-200' 
-                        : 'border-gray-300 focus:ring-blue-200'
+                        ? 'border-red-500/50 focus:border-red-500' 
+                        : 'focus:border-orange-500/50'
                     }`}
                     placeholder="Digite sua senha"
                     disabled={loading}
                   />
-                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-orange-400 transition-colors"
                     disabled={loading}
                   >
                     {showPassword ? (
@@ -278,7 +285,7 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                   </button>
                 </div>
                 {errors.senha && (
-                  <p className="text-red-500 text-xs mt-1">{errors.senha}</p>
+                  <p className="text-red-400 text-xs mt-1">{errors.senha}</p>
                 )}
               </div>
             )}
@@ -286,7 +293,7 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
             {/* Confirmar Senha (apenas no registro) */}
             {!isLoginMode && !isRecoveryMode && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
                   Confirmar Senha
                 </label>
                 <div className="relative">
@@ -295,18 +302,18 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                     name="confirmarSenha"
                     value={formData.confirmarSenha}
                     onChange={handleInputChange}
-                    className={`w-full px-4 py-3 pl-10 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                    className={`login-input w-full px-4 py-3 pl-10 rounded-xl focus:outline-none transition-all ${
                       errors.confirmarSenha 
-                        ? 'border-red-300 focus:ring-red-200' 
-                        : 'border-gray-300 focus:ring-blue-200'
+                        ? 'border-red-500/50 focus:border-red-500' 
+                        : 'focus:border-orange-500/50'
                     }`}
                     placeholder="Confirme sua senha"
                     disabled={loading}
                   />
-                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <FaLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 w-4 h-4" />
                 </div>
                 {errors.confirmarSenha && (
-                  <p className="text-red-500 text-xs mt-1">{errors.confirmarSenha}</p>
+                  <p className="text-red-400 text-xs mt-1">{errors.confirmarSenha}</p>
                 )}
               </div>
             )}
@@ -316,7 +323,7 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
               type={isRecoveryMode ? 'button' : 'submit'}
               onClick={isRecoveryMode ? handleForgotPassword : undefined}
               disabled={loading || recoveryLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              className="w-full login-btn-primary text-white py-3.5 rounded-xl font-semibold focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:ring-offset-2 focus:ring-offset-gray-900 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
             >
               {loading || recoveryLoading ? (
                 <>
@@ -324,14 +331,17 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                   <span>Processando...</span>
                 </>
               ) : (
-                <span>
-                  {isRecoveryMode 
-                    ? '📧 Enviar Link de Recuperação'
-                    : isLoginMode 
-                    ? '🚀 Entrar' 
-                    : '✨ Criar Conta'
-                  }
-                </span>
+                <>
+                  <FaBolt className="w-4 h-4" />
+                  <span>
+                    {isRecoveryMode 
+                      ? 'Enviar Link de Recuperação'
+                      : isLoginMode 
+                      ? 'Entrar' 
+                      : 'Criar Conta'
+                    }
+                  </span>
+                </>
               )}
             </button>
           </form>
@@ -344,10 +354,10 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                 <button
                   type="button"
                   onClick={() => setIsRecoveryMode(true)}
-                  className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                  className="text-sm text-gray-400 hover:text-orange-400 transition-colors"
                   disabled={loading}
                 >
-                  🔑 Esqueci minha senha
+                  Esqueci minha senha
                 </button>
               </div>
             )}
@@ -358,7 +368,7 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
                 <button
                   type="button"
                   onClick={() => setIsRecoveryMode(false)}
-                  className="text-sm text-gray-600 hover:text-blue-600 transition-colors"
+                  className="text-sm text-gray-400 hover:text-orange-400 transition-colors"
                   disabled={recoveryLoading}
                 >
                   ← Voltar ao login
@@ -369,12 +379,12 @@ const LoginModal = ({ isOpen, onClose, onLogin, onRegister, loading, statusMessa
             {/* Switch entre login e registro (não mostrar no modo recuperação) */}
             {!isRecoveryMode && (
               <div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-500">
                   {isLoginMode ? 'Não tem uma conta?' : 'Já tem uma conta?'}
                   <button
                     type="button"
                     onClick={switchMode}
-                    className="ml-1 text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                    className="ml-1 text-orange-400 hover:text-orange-300 font-medium transition-colors"
                     disabled={loading}
                   >
                     {isLoginMode ? 'Cadastre-se' : 'Faça login'}

@@ -779,9 +779,12 @@ export const execucaoService = {
   // Criar nova obra
   async criarObra(obra) {
     try {
+      // Separar arquivos do objeto obra
+      const { arquivos_pdf, ...dadosObra } = obra;
+      
       const { data, error } = await supabase
         .from('execucao_obras')
-        .insert([obra])
+        .insert([dadosObra])
         .select(`
           *,
           responsavel:usuarios!responsavel_id(id, nome_completo, email)
@@ -789,6 +792,12 @@ export const execucaoService = {
         .single();
 
       if (error) throw error;
+
+      // Se houver arquivos, fazer upload
+      if (arquivos_pdf && arquivos_pdf.length > 0) {
+        await this.uploadArquivosObra(data.id, arquivos_pdf);
+      }
+
       return { success: true, data };
     } catch (error) {
       console.error('Erro ao criar obra:', error);
@@ -799,10 +808,13 @@ export const execucaoService = {
   // Atualizar obra
   async atualizarObra(id, atualizacoes) {
     try {
+      // Separar arquivos do objeto
+      const { arquivos_pdf, ...dadosAtualizacao } = atualizacoes;
+      
       const { data, error } = await supabase
         .from('execucao_obras')
         .update({
-          ...atualizacoes,
+          ...dadosAtualizacao,
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
@@ -1400,6 +1412,162 @@ export const execucaoService = {
       return { success: true, count: atrasadas?.length || 0 };
     } catch (error) {
       console.error('Erro ao verificar atrasos:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // ==========================================
+  // APONTAMENTOS COMERCIAIS (para vincular obras)
+  // ==========================================
+
+  // Buscar apontamentos com fase CONTRATO/VENDA para vincular às obras
+  async buscarApontamentosParaObra(termoBusca = '') {
+    try {
+      let query = supabase
+        .from('apontamentos_comerciais')
+        .select(`
+          id,
+          nome_cliente,
+          contato_cliente,
+          logradouro,
+          numero,
+          bairro,
+          municipio,
+          uf,
+          cep,
+          cidade_atendimento,
+          cidade_outras,
+          cronograma_data_inicio,
+          cronograma_data_termino,
+          fase,
+          created_at
+        `)
+        .eq('fase', 'CONTRATO/VENDA')
+        .order('created_at', { ascending: false });
+
+      if (termoBusca && termoBusca.trim() !== '') {
+        query = query.ilike('nome_cliente', `%${termoBusca.trim()}%`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao buscar apontamentos para obra:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // ==========================================
+  // ARQUIVOS DAS OBRAS
+  // ==========================================
+
+  // Upload de arquivos PDF para uma obra
+  async uploadArquivosObra(obraId, arquivos) {
+    try {
+      const resultados = [];
+
+      for (const arquivo of arquivos) {
+        // Gerar nome único para o arquivo
+        const timestamp = Date.now();
+        const nomeArquivo = `${obraId}/${timestamp}_${arquivo.name}`;
+        
+        // Upload para o Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('obras-arquivos')
+          .upload(nomeArquivo, arquivo, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error('Erro no upload:', uploadError);
+          continue;
+        }
+
+        // Salvar referência no banco
+        const { data: arquivoData, error: dbError } = await supabase
+          .from('execucao_obras_arquivos')
+          .insert([{
+            obra_id: obraId,
+            nome: arquivo.name.replace('.pdf', ''),
+            nome_arquivo_original: arquivo.name,
+            caminho_storage: nomeArquivo,
+            tamanho_bytes: arquivo.size,
+            mime_type: arquivo.type || 'application/pdf'
+          }])
+          .select()
+          .single();
+
+        if (dbError) {
+          console.error('Erro ao salvar referência:', dbError);
+          continue;
+        }
+
+        resultados.push(arquivoData);
+      }
+
+      return { success: true, data: resultados };
+    } catch (error) {
+      console.error('Erro ao fazer upload de arquivos:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Buscar arquivos de uma obra
+  async buscarArquivosObra(obraId) {
+    try {
+      const { data, error } = await supabase
+        .from('execucao_obras_arquivos')
+        .select('*')
+        .eq('obra_id', obraId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao buscar arquivos:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Obter URL pública de um arquivo
+  async obterUrlArquivo(caminhoStorage) {
+    try {
+      const { data } = supabase.storage
+        .from('obras-arquivos')
+        .getPublicUrl(caminhoStorage);
+
+      return { success: true, url: data.publicUrl };
+    } catch (error) {
+      console.error('Erro ao obter URL:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Excluir arquivo
+  async excluirArquivoObra(arquivoId, caminhoStorage) {
+    try {
+      // Excluir do Storage
+      const { error: storageError } = await supabase.storage
+        .from('obras-arquivos')
+        .remove([caminhoStorage]);
+
+      if (storageError) {
+        console.error('Erro ao excluir do storage:', storageError);
+      }
+
+      // Excluir do banco
+      const { error: dbError } = await supabase
+        .from('execucao_obras_arquivos')
+        .delete()
+        .eq('id', arquivoId);
+
+      if (dbError) throw dbError;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao excluir arquivo:', error);
       return { success: false, message: error.message };
     }
   }

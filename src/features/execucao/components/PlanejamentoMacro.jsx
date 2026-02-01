@@ -25,7 +25,9 @@ import {
   FaFilter,
   FaListAlt,
   FaUsers,
-  FaCalendarWeek
+  FaCalendarWeek,
+  FaFilePdf,
+  FaUpload
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
 
@@ -832,20 +834,25 @@ const PlanejamentoMacro = ({ usuario }) => {
   const [tecnicos, setTecnicos] = useState([]);
   const [obraExpandida, setObraExpandida] = useState(null);
 
+  // Estados para busca de apontamentos no modal de obra
+  const [apontamentosDisponiveis, setApontamentosDisponiveis] = useState([]);
+  const [buscaApontamento, setBuscaApontamento] = useState('');
+  const [apontamentosFiltrados, setApontamentosFiltrados] = useState([]);
+
   // Form states
   const [formObra, setFormObra] = useState({
     nome_cliente: '',
     endereco: '',
     cidade: '',
-    contrato_numero: '',
-    data_contrato: '',
     data_inicio_prevista: '',
     data_fim_prevista: '',
     tipo_obra: 'misto',
     prioridade: 'media',
     responsavel_id: '',
-    valor_contrato: '',
-    observacoes: ''
+    observacoes: '',
+    contato_cliente: '',
+    apontamento_id: '',
+    arquivos_pdf: []
   });
 
   const [formEtapa, setFormEtapa] = useState({
@@ -873,6 +880,64 @@ const PlanejamentoMacro = ({ usuario }) => {
     carregarDados();
     carregarTecnicos();
   }, [filtroPeriodo, filtroStatus]);
+
+  // Carregar apontamentos quando o modal de obra abrir
+  useEffect(() => {
+    if (showObraModal) {
+      carregarApontamentosDisponiveis();
+    }
+  }, [showObraModal]);
+
+  // Filtrar apontamentos quando digitar na busca
+  useEffect(() => {
+    if (buscaApontamento.trim() === '') {
+      setApontamentosFiltrados(apontamentosDisponiveis);
+    } else {
+      const termo = buscaApontamento.toLowerCase();
+      const filtrados = apontamentosDisponiveis.filter(a => 
+        a.nome_cliente?.toLowerCase().includes(termo)
+      );
+      setApontamentosFiltrados(filtrados);
+    }
+  }, [buscaApontamento, apontamentosDisponiveis]);
+
+  const carregarApontamentosDisponiveis = async () => {
+    const result = await execucaoService.buscarApontamentosParaObra();
+    if (result.success) {
+      setApontamentosDisponiveis(result.data);
+      setApontamentosFiltrados(result.data);
+    }
+  };
+
+  const handleSelecionarApontamento = (apontamento) => {
+    if (!apontamento) {
+      // Limpar os campos se nenhum apontamento selecionado
+      return;
+    }
+
+    // Montar endereço completo
+    const partes = [];
+    if (apontamento.logradouro) partes.push(apontamento.logradouro);
+    if (apontamento.numero) partes.push(apontamento.numero);
+    if (apontamento.bairro) partes.push(apontamento.bairro);
+    const endereco = partes.join(', ');
+
+    // Cidade pode vir de cidade_atendimento, cidade_outras ou municipio
+    const cidade = apontamento.cidade_atendimento === 'OUTRAS' 
+      ? apontamento.cidade_outras 
+      : apontamento.cidade_atendimento || apontamento.municipio || '';
+
+    setFormObra(prev => ({
+      ...prev,
+      nome_cliente: apontamento.nome_cliente || '',
+      endereco: endereco,
+      cidade: cidade,
+      data_inicio_prevista: apontamento.cronograma_data_inicio || '',
+      data_fim_prevista: apontamento.cronograma_data_termino || '',
+      contato_cliente: apontamento.contato_cliente || '',
+      apontamento_id: apontamento.id || ''
+    }));
+  };
 
   const carregarDados = async () => {
     setLoading(true);
@@ -982,14 +1047,15 @@ const PlanejamentoMacro = ({ usuario }) => {
       endereco: obra.endereco || '',
       cidade: obra.cidade || '',
       contrato_numero: obra.contrato_numero || '',
-      data_contrato: obra.data_contrato || '',
       data_inicio_prevista: obra.data_inicio_prevista || '',
       data_fim_prevista: obra.data_fim_prevista || '',
       tipo_obra: obra.tipo_obra || 'misto',
       prioridade: obra.prioridade || 'media',
       responsavel_id: obra.responsavel_id || '',
-      valor_contrato: obra.valor_contrato || '',
-      observacoes: obra.observacoes || ''
+      observacoes: obra.observacoes || '',
+      contato_cliente: obra.contato_cliente || '',
+      apontamento_id: obra.apontamento_id || '',
+      arquivos_pdf: []
     });
     setShowObraModal(true);
   };
@@ -1005,19 +1071,20 @@ const PlanejamentoMacro = ({ usuario }) => {
 
   const resetFormObra = () => {
     setObraSelecionada(null);
+    setBuscaApontamento('');
     setFormObra({
       nome_cliente: '',
       endereco: '',
       cidade: '',
-      contrato_numero: '',
-      data_contrato: '',
       data_inicio_prevista: '',
       data_fim_prevista: '',
       tipo_obra: 'misto',
       prioridade: 'media',
       responsavel_id: '',
-      valor_contrato: '',
-      observacoes: ''
+      observacoes: '',
+      contato_cliente: '',
+      apontamento_id: '',
+      arquivos_pdf: []
     });
   };
 
@@ -1501,6 +1568,52 @@ const PlanejamentoMacro = ({ usuario }) => {
             <form onSubmit={handleSalvarObra}>
               <div className="execucao-modal-body">
                 <div className="space-y-4">
+                  {/* Seção de busca de apontamento - só mostra para nova obra */}
+                  {!obraSelecionada && (
+                    <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700 space-y-3">
+                      <label className="text-sm font-medium text-sky-400 flex items-center gap-2">
+                        <FaSearch size={12} />
+                        Buscar Cliente (Contrato/Venda)
+                      </label>
+                      
+                      {/* Campo de busca */}
+                      <div className="relative">
+                        <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={12} />
+                        <input
+                          type="text"
+                          className="execucao-form-input !pl-9"
+                          value={buscaApontamento}
+                          onChange={(e) => setBuscaApontamento(e.target.value)}
+                          placeholder="Digite o nome do cliente para buscar..."
+                        />
+                      </div>
+
+                      {/* Combobox com todos os clientes */}
+                      <div className="execucao-form-group !mb-0">
+                        <label className="execucao-form-label">Ou selecione da lista</label>
+                        <select
+                          className="execucao-form-select"
+                          value={formObra.apontamento_id}
+                          onChange={(e) => {
+                            const apontamento = apontamentosDisponiveis.find(a => a.id === e.target.value);
+                            handleSelecionarApontamento(apontamento);
+                          }}
+                        >
+                          <option value="">Selecione um cliente...</option>
+                          {apontamentosFiltrados.map(a => (
+                            <option key={a.id} value={a.id}>
+                              {a.nome_cliente} {a.cidade_atendimento ? `- ${a.cidade_atendimento}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {apontamentosDisponiveis.length === 0 && (
+                        <p className="text-xs text-slate-500">Nenhum cliente com fase CONTRATO/VENDA encontrado.</p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Cliente */}
                   <div className="execucao-form-group">
                     <label className="execucao-form-label">Nome do Cliente *</label>
@@ -1511,6 +1624,18 @@ const PlanejamentoMacro = ({ usuario }) => {
                       onChange={(e) => setFormObra(prev => ({ ...prev, nome_cliente: e.target.value }))}
                       placeholder="Nome do cliente/condomínio"
                       required
+                    />
+                  </div>
+
+                  {/* Contato do Cliente */}
+                  <div className="execucao-form-group">
+                    <label className="execucao-form-label">Contato do Cliente</label>
+                    <input
+                      type="text"
+                      className="execucao-form-input"
+                      value={formObra.contato_cliente}
+                      onChange={(e) => setFormObra(prev => ({ ...prev, contato_cliente: e.target.value }))}
+                      placeholder="Telefone/WhatsApp do cliente"
                     />
                   </div>
 
@@ -1538,28 +1663,7 @@ const PlanejamentoMacro = ({ usuario }) => {
                     </div>
                   </div>
 
-                  {/* Contrato */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="execucao-form-group">
-                      <label className="execucao-form-label">Nº do Contrato</label>
-                      <input
-                        type="text"
-                        className="execucao-form-input"
-                        value={formObra.contrato_numero}
-                        onChange={(e) => setFormObra(prev => ({ ...prev, contrato_numero: e.target.value }))}
-                        placeholder="Número do contrato"
-                      />
-                    </div>
-                    <div className="execucao-form-group">
-                      <label className="execucao-form-label">Data do Contrato</label>
-                      <input
-                        type="date"
-                        className="execucao-form-input"
-                        value={formObra.data_contrato}
-                        onChange={(e) => setFormObra(prev => ({ ...prev, data_contrato: e.target.value }))}
-                      />
-                    </div>
-                  </div>
+
 
                   {/* Datas Previstas */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1628,29 +1732,72 @@ const PlanejamentoMacro = ({ usuario }) => {
                     </div>
                   </div>
 
-                  {/* Valor e Observações */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="execucao-form-group">
-                      <label className="execucao-form-label">Valor do Contrato</label>
+                  {/* Observações */}
+                  <div className="execucao-form-group">
+                    <label className="execucao-form-label">Observações</label>
+                    <textarea
+                      className="execucao-form-textarea"
+                      rows="2"
+                      value={formObra.observacoes}
+                      onChange={(e) => setFormObra(prev => ({ ...prev, observacoes: e.target.value }))}
+                      placeholder="Observações gerais"
+                    />
+                  </div>
+
+                  {/* Upload de Arquivos PDF */}
+                  <div className="execucao-form-group">
+                    <label className="execucao-form-label flex items-center gap-2">
+                      <FaFilePdf className="text-red-400" />
+                      Anexar Arquivos (PDF)
+                    </label>
+                    <div className="border-2 border-dashed border-slate-600 rounded-lg p-4 hover:border-sky-500 transition-colors">
                       <input
-                        type="number"
-                        step="0.01"
-                        className="execucao-form-input"
-                        value={formObra.valor_contrato}
-                        onChange={(e) => setFormObra(prev => ({ ...prev, valor_contrato: e.target.value }))}
-                        placeholder="0.00"
+                        type="file"
+                        accept=".pdf"
+                        multiple
+                        className="hidden"
+                        id="upload-pdf-obra"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files);
+                          setFormObra(prev => ({ 
+                            ...prev, 
+                            arquivos_pdf: [...(prev.arquivos_pdf || []), ...files] 
+                          }));
+                        }}
                       />
+                      <label 
+                        htmlFor="upload-pdf-obra" 
+                        className="flex flex-col items-center gap-2 cursor-pointer"
+                      >
+                        <FaUpload className="text-slate-400" size={24} />
+                        <span className="text-sm text-slate-400">Clique para selecionar arquivos PDF</span>
+                      </label>
                     </div>
-                    <div className="execucao-form-group">
-                      <label className="execucao-form-label">Observações</label>
-                      <input
-                        type="text"
-                        className="execucao-form-input"
-                        value={formObra.observacoes}
-                        onChange={(e) => setFormObra(prev => ({ ...prev, observacoes: e.target.value }))}
-                        placeholder="Observações gerais"
-                      />
-                    </div>
+                    {/* Lista de arquivos selecionados */}
+                    {formObra.arquivos_pdf && formObra.arquivos_pdf.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {formObra.arquivos_pdf.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between bg-slate-800/50 rounded px-3 py-2">
+                            <span className="text-sm text-slate-300 flex items-center gap-2">
+                              <FaFilePdf className="text-red-400" size={12} />
+                              {file.name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFormObra(prev => ({
+                                  ...prev,
+                                  arquivos_pdf: prev.arquivos_pdf.filter((_, i) => i !== index)
+                                }));
+                              }}
+                              className="text-red-400 hover:text-red-300"
+                            >
+                              <FaTimes size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -15,6 +15,7 @@ import ChartsSecondRow from './ChartsSecondRow';
 import ChartsThirdRow from './ChartsThirdRow';
 import SalesTables from './SalesTables';
 import StatusFooter from './StatusFooter';
+import AvisosEsquecidos from './AvisosEsquecidos';
 
 const Dashboard = ({ setCurrentPage }) => {
   // Função para obter o mês atual em português - FIXED 
@@ -137,6 +138,9 @@ const Dashboard = ({ setCurrentPage }) => {
       
       {/* Main Content */}
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        {/* Avisos de Oportunidades Esquecidas */}
+        <AvisosEsquecidos />
+
         {/* Status Indicator */}
         <StatusIndicator 
           isDataChanging={isDataChanging}

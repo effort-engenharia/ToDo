@@ -5,28 +5,32 @@ export const apontamentosService = {
   // Criar novo apontamento
   async criarApontamento(dadosApontamento) {
     try {
+      // Função auxiliar para normalizar strings para uppercase
+      const normalizar = (valor) => valor ? valor.toString().toUpperCase().trim() : valor;
+
       const { data, error } = await supabase
         .from('apontamentos_comerciais')
         .insert([{
           cnpj_cliente: dadosApontamento.cnpjCliente,
-          razao_social: dadosApontamento.razaoSocial,
-          nome_fantasia: dadosApontamento.nomeFantasia,
-          logradouro: dadosApontamento.logradouro,
-          bairro: dadosApontamento.bairro,
-          municipio: dadosApontamento.municipio,
-          uf: dadosApontamento.uf,
+          razao_social: normalizar(dadosApontamento.razaoSocial),
+          nome_fantasia: normalizar(dadosApontamento.nomeFantasia),
+          logradouro: normalizar(dadosApontamento.logradouro),
+          numero: dadosApontamento.numero,
+          bairro: normalizar(dadosApontamento.bairro),
+          municipio: normalizar(dadosApontamento.municipio),
+          uf: normalizar(dadosApontamento.uf),
           cep: dadosApontamento.cep,
-          tipo_oportunidade: dadosApontamento.tipoOportunidade,
-          nome_cliente: dadosApontamento.nomeCliente,
-          fase: dadosApontamento.fase,
-          origem_cliente: dadosApontamento.origemCliente,
-          origem_outros: dadosApontamento.origemOutros,
-          proprietario_relacionamento: dadosApontamento.proprietarioRelacionamento,
+          tipo_oportunidade: normalizar(dadosApontamento.tipoOportunidade),
+          nome_cliente: normalizar(dadosApontamento.nomeCliente),
+          fase: normalizar(dadosApontamento.fase),
+          origem_cliente: normalizar(dadosApontamento.origemCliente),
+          origem_outros: normalizar(dadosApontamento.origemOutros),
+          proprietario_relacionamento: normalizar(dadosApontamento.proprietarioRelacionamento),
           valor_total_servico: dadosApontamento.valorTotalServico,
           valor_entrada_servico: dadosApontamento.valorEntradaServico,
           quantidade_parcelas: parseInt(dadosApontamento.quantidadeParcelas),
-          cidade_atendimento: dadosApontamento.cidadeAtendimento,
-          cidade_outras: dadosApontamento.cidadeOutras,
+          cidade_atendimento: normalizar(dadosApontamento.cidadeAtendimento),
+          cidade_outras: normalizar(dadosApontamento.cidadeOutras),
           cronograma_data_inicio: dadosApontamento.cronogramaDataInicio,
           cronograma_data_termino: dadosApontamento.cronogramaDataTermino
         }])
@@ -62,6 +66,7 @@ export const apontamentosService = {
           razao_social,
           nome_fantasia,
           logradouro,
+          numero,
           bairro,
           municipio,
           uf,
@@ -115,6 +120,9 @@ export const apontamentosService = {
   // Atualizar apontamento com histórico
   async atualizarApontamento(id, dadosAtualizacao) {
     try {
+      // Função auxiliar para normalizar strings para uppercase
+      const normalizar = (valor) => valor ? valor.toString().toUpperCase().trim() : valor;
+
       // Primeiro, buscar o registro atual para comparar
       const { data: registroAtual, error: errorBusca } = await supabase
         .from('apontamentos_comerciais')
@@ -141,7 +149,13 @@ export const apontamentosService = {
         'cidade_atendimento': 'cidadeAtendimento',
         'cidade_outras': 'cidadeOutras',
         'cronograma_data_inicio': 'cronogramaDataInicio',
-        'cronograma_data_termino': 'cronogramaDataTermino'
+        'cronograma_data_termino': 'cronogramaDataTermino',
+        'cep': 'cep',
+        'logradouro': 'logradouro',
+        'numero': 'numero',
+        'bairro': 'bairro',
+        'municipio': 'municipio',
+        'uf': 'uf'
       };
 
       // Preparar alterações para histórico
@@ -175,19 +189,25 @@ export const apontamentosService = {
       const { data, error } = await supabase
         .from('apontamentos_comerciais')
         .update({
-          tipo_oportunidade: dadosAtualizacao.tipoOportunidade,
-          nome_cliente: dadosAtualizacao.nomeCliente,
-          fase: dadosAtualizacao.fase,
-          origem_cliente: dadosAtualizacao.origemCliente,
-          origem_outros: dadosAtualizacao.origemOutros,
-          proprietario_relacionamento: dadosAtualizacao.proprietarioRelacionamento,
+          tipo_oportunidade: normalizar(dadosAtualizacao.tipoOportunidade),
+          nome_cliente: normalizar(dadosAtualizacao.nomeCliente),
+          fase: normalizar(dadosAtualizacao.fase),
+          origem_cliente: normalizar(dadosAtualizacao.origemCliente),
+          origem_outros: normalizar(dadosAtualizacao.origemOutros),
+          proprietario_relacionamento: normalizar(dadosAtualizacao.proprietarioRelacionamento),
           valor_total_servico: dadosAtualizacao.valorTotalServico,
           valor_entrada_servico: dadosAtualizacao.valorEntradaServico,
           quantidade_parcelas: parseInt(dadosAtualizacao.quantidadeParcelas),
-          cidade_atendimento: dadosAtualizacao.cidadeAtendimento,
-          cidade_outras: dadosAtualizacao.cidadeOutras,
+          cidade_atendimento: normalizar(dadosAtualizacao.cidadeAtendimento),
+          cidade_outras: normalizar(dadosAtualizacao.cidadeOutras),
           cronograma_data_inicio: dadosAtualizacao.cronogramaDataInicio,
-          cronograma_data_termino: dadosAtualizacao.cronogramaDataTermino
+          cronograma_data_termino: dadosAtualizacao.cronogramaDataTermino,
+          cep: dadosAtualizacao.cep,
+          logradouro: normalizar(dadosAtualizacao.logradouro),
+          numero: dadosAtualizacao.numero,
+          bairro: normalizar(dadosAtualizacao.bairro),
+          municipio: normalizar(dadosAtualizacao.municipio),
+          uf: normalizar(dadosAtualizacao.uf)
         })
         .eq('id', id)
         .select();
@@ -384,6 +404,43 @@ export const apontamentosService = {
       return stats;
     } catch (error) {
       console.error('Erro no serviço de estatísticas:', error);
+      throw error;
+    }
+  },
+
+  // Buscar apontamentos esquecidos (sem atualização há mais de 8 dias)
+  async buscarApontamentosEsquecidos(diasSemAtualizacao = 8) {
+    try {
+      const dataLimite = new Date();
+      dataLimite.setDate(dataLimite.getDate() - diasSemAtualizacao);
+
+      const { data, error } = await supabase
+        .from('apontamentos_comerciais')
+        .select('id, nome_cliente, proprietario_relacionamento, fase, tipo_oportunidade, updated_at, valor_total_servico')
+        .in('fase', ['PROSPECÇÃO', 'QUALIFICAÇÃO', 'NEGOCIAÇÃO'])
+        .lt('updated_at', dataLimite.toISOString())
+        .order('updated_at', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao buscar apontamentos esquecidos:', error);
+        throw error;
+      }
+
+      // Calcular dias sem atualização para cada registro
+      const agora = new Date();
+      const dataComDias = data.map(item => {
+        const updatedAt = new Date(item.updated_at);
+        const diffTime = Math.abs(agora - updatedAt);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        return {
+          ...item,
+          dias_sem_atualizacao: diffDays
+        };
+      });
+
+      return dataComDias;
+    } catch (error) {
+      console.error('Erro no serviço de apontamentos esquecidos:', error);
       throw error;
     }
   }

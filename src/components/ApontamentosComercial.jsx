@@ -30,11 +30,12 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
     cnpjCliente: '',
     razaoSocial: '',
     nomeFantasia: '',
+    cep: '',
     logradouro: '',
+    numero: '',
     bairro: '',
     municipio: '',
     uf: '',
-    cep: '',
     tipoOportunidade: '',
     nomeCliente: '',
     fase: '',
@@ -55,6 +56,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
+  const [isLoadingCep, setIsLoadingCep] = useState(false);
 
   // Estados para controlar os valores formatados dos inputs monetários
   const [displayValues, setDisplayValues] = useState({
@@ -185,6 +187,87 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
     return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d+)/, '$1.$2.$3/$4-$5');
   };
 
+  // Função para formatar CEP
+  const formatCep = (value) => {
+    const cleanValue = value.replace(/\D/g, '');
+    if (cleanValue.length <= 5) return cleanValue;
+    return cleanValue.replace(/(\d{5})(\d+)/, '$1-$2');
+  };
+
+  // Função para consultar CEP na API ViaCEP
+  const consultarCep = async (cep) => {
+    const cleanCep = cep.replace(/\D/g, '');
+    
+    if (cleanCep.length !== 8) {
+      return;
+    }
+
+    setIsLoadingCep(true);
+    
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+      
+      if (!response.ok) {
+        throw new Error('CEP não encontrado');
+      }
+      
+      const data = await response.json();
+      
+      if (data.erro) {
+        throw new Error('CEP não encontrado');
+      }
+      
+      // Preencher os campos automaticamente
+      setFormData(prev => ({
+        ...prev,
+        logradouro: data.logradouro || '',
+        bairro: data.bairro || '',
+        municipio: data.localidade || '',
+        uf: data.uf || ''
+      }));
+      
+      showToast('✅ Endereço carregado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao consultar CEP:', error);
+      showToast('❌ CEP não encontrado. Verifique o número informado.', 'error');
+      
+      // Limpar os campos em caso de erro
+      setFormData(prev => ({
+        ...prev,
+        logradouro: '',
+        bairro: '',
+        municipio: '',
+        uf: ''
+      }));
+    } finally {
+      setIsLoadingCep(false);
+    }
+  };
+
+  // Função para manipular mudança no CEP
+  const handleCepChange = (value) => {
+    const formattedValue = formatCep(value);
+    setFormData(prev => ({
+      ...prev,
+      cep: formattedValue
+    }));
+    
+    // Se o CEP estiver completo (8 dígitos), fazer a consulta
+    const cleanValue = value.replace(/\D/g, '');
+    if (cleanValue.length === 8) {
+      consultarCep(formattedValue);
+    } else {
+      // Limpar os campos se CEP incompleto
+      setFormData(prev => ({
+        ...prev,
+        logradouro: '',
+        bairro: '',
+        municipio: '',
+        uf: ''
+      }));
+    }
+  };
+
   // Função para consultar CNPJ na API BrasilAPI
   const consultarCnpj = async (cnpj) => {
     const cleanCnpj = cnpj.replace(/\D/g, '');
@@ -204,16 +287,11 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
       
       const data = await response.json();
       
-      // Preencher os campos automaticamente
+      // Preencher apenas razão social e nome fantasia
       setFormData(prev => ({
         ...prev,
         razaoSocial: data.razao_social || '',
-        nomeFantasia: data.nome_fantasia || '',
-        logradouro: data.logradouro || '',
-        bairro: data.bairro || '',
-        municipio: data.municipio || '',
-        uf: data.uf || '',
-        cep: data.cep || ''
+        nomeFantasia: data.nome_fantasia || ''
       }));
       
       showToast('✅ Dados da empresa carregados com sucesso!', 'success');
@@ -225,12 +303,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
       setFormData(prev => ({
         ...prev,
         razaoSocial: '',
-        nomeFantasia: '',
-        logradouro: '',
-        bairro: '',
-        municipio: '',
-        uf: '',
-        cep: ''
+        nomeFantasia: ''
       }));
     } finally {
       setIsLoadingCnpj(false);
@@ -254,12 +327,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
       setFormData(prev => ({
         ...prev,
         razaoSocial: '',
-        nomeFantasia: '',
-        logradouro: '',
-        bairro: '',
-        municipio: '',
-        uf: '',
-        cep: ''
+        nomeFantasia: ''
       }));
     }
   };
@@ -342,7 +410,10 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
       newErrors.cidadeOutras = 'Especifique a cidade quando selecionado "OUTRAS"';
     }
 
-
+    // Validar número do endereço como obrigatório se CEP foi preenchido
+    if (formData.cep && !formData.numero.trim()) {
+      newErrors.numero = 'Número do endereço é obrigatório';
+    }
 
     // Validar se data de término é posterior à data de início
     if (formData.cronogramaDataInicio && formData.cronogramaDataTermino) {
@@ -382,11 +453,12 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
         cnpjCliente: '',
         razaoSocial: '',
         nomeFantasia: '',
+        cep: '',
         logradouro: '',
+        numero: '',
         bairro: '',
         municipio: '',
         uf: '',
-        cep: '',
         tipoOportunidade: '',
         nomeCliente: '',
         fase: '',
@@ -515,12 +587,12 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                 </div>
               </div>
 
-              {/* Dados da Empresa - Preenchidos automaticamente */}
-              {(formData.razaoSocial || formData.nomeFantasia || formData.logradouro) && (
+              {/* Dados da Empresa - Preenchidos automaticamente via CNPJ */}
+              {(formData.razaoSocial || formData.nomeFantasia) && (
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                   <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
                     <FaBuilding className="mr-2 text-gray-500" />
-                    Dados da Empresa (preenchidos automaticamente)
+                    Dados da Empresa (preenchidos automaticamente via CNPJ)
                   </h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -549,9 +621,44 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 text-sm"
                       />
                     </div>
+                  </div>
+                </div>
+              )}
 
+              {/* CEP do Cliente */}
+              <div>
+                <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  <FaMapMarkedAlt className="mr-2 text-green-500" />
+                  CEP do Cliente
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.cep}
+                    onChange={(e) => handleCepChange(e.target.value)}
+                    placeholder="00000-000"
+                    maxLength={9}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  {isLoadingCep && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <FaSpinner className="animate-spin text-green-500" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Dados de Endereço - Preenchidos automaticamente via CEP */}
+              {(formData.logradouro || formData.bairro || formData.municipio) && (
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
+                    <FaMapMarkedAlt className="mr-2 text-green-500" />
+                    Endereço (preenchido automaticamente via CEP)
+                  </h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Logradouro */}
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="text-sm font-medium text-gray-600 mb-1 block">
                         Logradouro
                       </label>
@@ -559,8 +666,27 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                         type="text"
                         value={formData.logradouro}
                         disabled
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 text-sm"
+                        className="w-full px-3 py-2 border border-green-200 rounded-lg bg-green-100/50 text-gray-600 text-sm"
                       />
+                    </div>
+
+                    {/* Número - Campo manual obrigatório */}
+                    <div>
+                      <label className="text-sm font-medium text-gray-600 mb-1 block">
+                        Número *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.numero}
+                        onChange={(e) => setFormData(prev => ({ ...prev, numero: e.target.value }))}
+                        placeholder="Nº do endereço"
+                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm ${
+                          errors.numero ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                      />
+                      {errors.numero && (
+                        <p className="text-red-500 text-xs mt-1">{errors.numero}</p>
+                      )}
                     </div>
 
                     {/* Bairro */}
@@ -572,20 +698,20 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                         type="text"
                         value={formData.bairro}
                         disabled
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 text-sm"
+                        className="w-full px-3 py-2 border border-green-200 rounded-lg bg-green-100/50 text-gray-600 text-sm"
                       />
                     </div>
 
                     {/* Município */}
                     <div>
                       <label className="text-sm font-medium text-gray-600 mb-1 block">
-                        Município
+                        Cidade
                       </label>
                       <input
                         type="text"
                         value={formData.municipio}
                         disabled
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 text-sm"
+                        className="w-full px-3 py-2 border border-green-200 rounded-lg bg-green-100/50 text-gray-600 text-sm"
                       />
                     </div>
 
@@ -598,20 +724,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                         type="text"
                         value={formData.uf}
                         disabled
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 text-sm"
-                      />
-                    </div>
-
-                    {/* CEP */}
-                    <div>
-                      <label className="text-sm font-medium text-gray-600 mb-1 block">
-                        CEP
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.cep}
-                        disabled
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-600 text-sm"
+                        className="w-full px-3 py-2 border border-green-200 rounded-lg bg-green-100/50 text-gray-600 text-sm"
                       />
                     </div>
                   </div>

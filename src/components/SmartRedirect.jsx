@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { FaBolt, FaExclamationTriangle } from 'react-icons/fa';
 
 const SmartRedirect = ({ onRedirect }) => {
   const { usuario, obterPaginasPermitidas } = useAuth();
@@ -71,20 +72,34 @@ const SmartRedirect = ({ onRedirect }) => {
     };
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="text-center max-w-md mx-auto p-8">
-          <div className="text-6xl mb-4">🔄</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">
+      <div className="min-h-screen flex items-center justify-center login-dark-bg relative">
+        {/* Background decorativo */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-orange-500/10 to-yellow-500/5 rounded-full blur-3xl"></div>
+          <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-orange-600/10 to-amber-500/5 rounded-full blur-3xl"></div>
+        </div>
+        
+        <div className="text-center max-w-md mx-auto p-8 relative z-10">
+          {/* Logo animado */}
+          <div className="flex justify-center mb-6">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center shadow-xl shadow-orange-500/20 animate-pulse">
+              <FaBolt className="w-10 h-10 text-white" />
+            </div>
+          </div>
+          
+          <h2 className="text-2xl font-bold text-white mb-4">
             Redirecionando...
           </h2>
-          <p className="text-gray-600 mb-6">
-            Você não tem acesso a esta página. Redirecionando para <strong>{pageNames[targetPage]}</strong>...
+          <p className="text-gray-400 mb-6">
+            Você não tem acesso a esta página.<br />
+            Redirecionando para <span className="text-orange-400 font-semibold">{pageNames[targetPage]}</span>...
           </p>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-left">
-            <strong>Seu nível de acesso:</strong> {usuario?.nivel_acesso?.nome || 'Não definido'}
+          <div className="login-glass-card rounded-xl p-4 text-sm text-left">
+            <span className="text-gray-400">Seu nível de acesso:</span>{' '}
+            <span className="text-white font-medium">{usuario?.nivel_acesso?.nome || 'Não definido'}</span>
           </div>
-          <div className="mt-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="mt-6">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
           </div>
         </div>
       </div>
@@ -93,18 +108,36 @@ const SmartRedirect = ({ onRedirect }) => {
 
   // Se não tem nenhuma página permitida
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50">
-      <div className="text-center max-w-md mx-auto p-8">
-        <div className="text-6xl mb-4">🚫</div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">
+    <div className="min-h-screen flex items-center justify-center login-dark-bg relative">
+      {/* Background decorativo */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-br from-red-500/10 to-orange-500/5 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-gradient-to-tr from-red-600/10 to-orange-500/5 rounded-full blur-3xl"></div>
+      </div>
+      
+      <div className="text-center max-w-md mx-auto p-8 relative z-10">
+        {/* Ícone de alerta */}
+        <div className="flex justify-center mb-6">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-xl shadow-red-500/20">
+            <FaExclamationTriangle className="w-10 h-10 text-white" />
+          </div>
+        </div>
+        
+        <h2 className="text-2xl font-bold text-white mb-4">
           Acesso Negado
         </h2>
-        <p className="text-gray-600 mb-6">
+        <p className="text-gray-400 mb-6">
           Você não tem permissão para acessar nenhuma página do sistema. Entre em contato com o administrador para solicitar acesso.
         </p>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-left">
-          <strong>Seu nível de acesso:</strong> {usuario?.nivel_acesso?.nome || 'Não definido'}<br />
-          <strong>Email:</strong> {usuario?.email || 'Não definido'}
+        <div className="login-glass-card rounded-xl p-4 text-sm text-left space-y-2">
+          <div>
+            <span className="text-gray-400">Seu nível de acesso:</span>{' '}
+            <span className="text-white font-medium">{usuario?.nivel_acesso?.nome || 'Não definido'}</span>
+          </div>
+          <div>
+            <span className="text-gray-400">Email:</span>{' '}
+            <span className="text-white font-medium">{usuario?.email || 'Não definido'}</span>
+          </div>
         </div>
       </div>
     </div>

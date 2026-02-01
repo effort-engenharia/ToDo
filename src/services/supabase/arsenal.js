@@ -247,5 +247,76 @@ export const arsenalService = {
       console.error('Erro no serviço de download de arquivo:', error);
       throw error;
     }
+  },
+
+  // Serviços para Financiamentos
+  async salvarFinanciamento(dadosFinanciamento) {
+    try {
+      const { data, error } = await supabase
+        .from('arsenal_financiamentos')
+        .insert([{
+          nome: dadosFinanciamento.nome,
+          valor_total: dadosFinanciamento.valorTotal,
+          valor_entrada: dadosFinanciamento.valorEntrada,
+          parcelas_entrada: dadosFinanciamento.parcelasEntrada,
+          entrada_com_juros: dadosFinanciamento.entradaComJuros,
+          juros_entrada_ano: dadosFinanciamento.jurosEntradaAno,
+          valor_restante: dadosFinanciamento.valorRestante,
+          parcelas_restante: dadosFinanciamento.parcelasRestante,
+          juros_restante_ano: dadosFinanciamento.jurosRestanteAno,
+          valor_total_final: dadosFinanciamento.valorTotalFinal,
+          valor_juros_total: dadosFinanciamento.valorJurosTotal,
+          resumo: dadosFinanciamento.resumo
+        }])
+        .select();
+
+      if (error) {
+        console.error('Erro ao salvar financiamento:', error);
+        throw error;
+      }
+
+      return data[0];
+    } catch (error) {
+      console.error('Erro no serviço de salvamento de financiamento:', error);
+      throw error;
+    }
+  },
+
+  async buscarFinanciamentos() {
+    try {
+      const { data, error } = await supabase
+        .from('arsenal_financiamentos')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar financiamentos:', error);
+        throw error;
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Erro no serviço de busca de financiamentos:', error);
+      throw error;
+    }
+  },
+
+  async excluirFinanciamento(id) {
+    try {
+      const { error } = await supabase
+        .from('arsenal_financiamentos')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Erro ao excluir financiamento:', error);
+        throw error;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Erro no serviço de exclusão de financiamento:', error);
+      throw error;
+    }
   }
 };

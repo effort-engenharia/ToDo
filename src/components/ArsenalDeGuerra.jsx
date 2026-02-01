@@ -16,6 +16,7 @@ import {
 import { arsenalService } from '../services/supabaseService';
 import AdministradorasTable from './AdministradorasTable';
 import ProfileButton from './ProfileButton';
+import CalculadoraFinanciamento from './CalculadoraFinanciamento';
 import { useAuth } from '../contexts/AuthContext';
 
 // Componente da tabela de links editável (Div 1) - movido para fora
@@ -1696,6 +1697,11 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
                 setCalculandoRota={setCalculandoRota}
                 addNotification={addNotification}
               />
+            </div>
+
+            {/* Calculadora de Financiamento */}
+            <div className="grid grid-cols-1 gap-6 mb-6">
+              <CalculadoraFinanciamento addNotification={addNotification} />
             </div>
           </>
         )}

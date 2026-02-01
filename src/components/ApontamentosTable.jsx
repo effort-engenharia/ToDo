@@ -237,6 +237,7 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
     setEditData({
       tipoOportunidade: apontamento.tipo_oportunidade,
       nomeCliente: apontamento.nome_cliente,
+      contatoCliente: apontamento.contato_cliente || '',
       fase: apontamento.fase,
       origemCliente: apontamento.origem_cliente,
       origemOutros: apontamento.origem_outros || '',
@@ -297,6 +298,7 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
     const labels = {
       'tipo_oportunidade': 'Tipo de Oportunidade',
       'nome_cliente': 'Nome do Cliente',
+      'contato_cliente': 'Contato do Cliente',
       'fase': 'Fase',
       'origem_cliente': 'Origem do Cliente',
       'origem_outros': 'Origem (Outros)',
@@ -508,6 +510,12 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
                     {renderSortIcon('nome_cliente')}
                   </div>
                 </th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('contato_cliente')}>
+                  <div className="flex items-center">
+                    📞 Contato
+                    {renderSortIcon('contato_cliente')}
+                  </div>
+                </th>
                 <th className="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('tipo_oportunidade')}>
                   <div className="flex items-center">
                     Oportunidade
@@ -580,6 +588,37 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
                     {editingId === apontamento.id ? 
                       renderEditInput('nomeCliente', editData.nomeCliente) :
                       <span className="font-medium text-gray-900">{apontamento.nome_cliente}</span>
+                    }
+                  </td>
+                  <td className="px-2 py-4 whitespace-nowrap text-sm">
+                    {editingId === apontamento.id ? 
+                      <input
+                        type="tel"
+                        value={editData.contatoCliente || ''}
+                        onChange={(e) => {
+                          let value = e.target.value.replace(/\D/g, '');
+                          if (value.length <= 2) {
+                            value = value;
+                          } else if (value.length <= 7) {
+                            value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+                          } else if (value.length <= 11) {
+                            value = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
+                          } else {
+                            value = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7, 11)}`;
+                          }
+                          setEditData(prev => ({ ...prev, contatoCliente: value }));
+                        }}
+                        placeholder="(XX) XXXXX-XXXX"
+                        maxLength={16}
+                        className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      /> :
+                      <span className="text-gray-700">
+                        {apontamento.contato_cliente ? (
+                          <a href={`tel:${apontamento.contato_cliente.replace(/\D/g, '')}`} className="text-blue-600 hover:underline">
+                            {apontamento.contato_cliente}
+                          </a>
+                        ) : '-'}
+                      </span>
                     }
                   </td>
                   <td className="px-2 py-4 whitespace-nowrap text-sm">

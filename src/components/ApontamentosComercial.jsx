@@ -157,6 +157,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
     uf: '',
     tipoOportunidade: '',
     nomeCliente: '',
+    contatoCliente: '',
     fase: '',
     origemCliente: '',
     origemOutros: '',
@@ -412,6 +413,12 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
       newErrors.nomeCliente = 'Nome do cliente é obrigatório';
     }
 
+    // Validar contato do cliente (obrigatório)
+    const contatoLimpo = formData.contatoCliente.replace(/\D/g, '');
+    if (!contatoLimpo || contatoLimpo.length < 10) {
+      newErrors.contatoCliente = 'Telefone de contato é obrigatório (mínimo 10 dígitos)';
+    }
+
     if (!formData.fase) {
       newErrors.fase = 'Fase é obrigatória';
     }
@@ -485,6 +492,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
         uf: '',
         tipoOportunidade: '',
         nomeCliente: '',
+        contatoCliente: '',
         fase: '',
         origemCliente: '',
         origemOutros: '',
@@ -796,6 +804,40 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
               />
               {errors.nomeCliente && (
                 <p className="text-red-500 text-sm mt-1">{errors.nomeCliente}</p>
+              )}
+            </div>
+
+            {/* Contato do Cliente (Telefone) */}
+            <div>
+              <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                <FaUser className="mr-2 text-orange-500" />
+                📞 Contato do Cliente (Telefone) *
+              </label>
+              <input
+                type="tel"
+                value={formData.contatoCliente}
+                onChange={(e) => {
+                  // Formatar telefone: (XX) XXXXX-XXXX
+                  let value = e.target.value.replace(/\D/g, '');
+                  if (value.length <= 2) {
+                    value = value;
+                  } else if (value.length <= 7) {
+                    value = `(${value.slice(0, 2)}) ${value.slice(2)}`;
+                  } else if (value.length <= 11) {
+                    value = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}`;
+                  } else {
+                    value = `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7, 11)}`;
+                  }
+                  setFormData(prev => ({ ...prev, contatoCliente: value }));
+                }}
+                placeholder="(XX) XXXXX-XXXX"
+                maxLength={16}
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.contatoCliente ? 'border-red-500' : 'border-gray-300'
+                }`}
+              />
+              {errors.contatoCliente && (
+                <p className="text-red-500 text-sm mt-1">{errors.contatoCliente}</p>
               )}
             </div>
 

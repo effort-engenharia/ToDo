@@ -22,6 +22,7 @@ export const apontamentosService = {
           cep: dadosApontamento.cep,
           tipo_oportunidade: normalizar(dadosApontamento.tipoOportunidade),
           nome_cliente: normalizar(dadosApontamento.nomeCliente),
+          contato_cliente: dadosApontamento.contatoCliente,
           fase: normalizar(dadosApontamento.fase),
           origem_cliente: normalizar(dadosApontamento.origemCliente),
           origem_outros: normalizar(dadosApontamento.origemOutros),
@@ -143,6 +144,7 @@ export const apontamentosService = {
         'origem_cliente': 'origemCliente',
         'origem_outros': 'origemOutros',
         'proprietario_relacionamento': 'proprietarioRelacionamento',
+        'contato_cliente': 'contatoCliente',
         'valor_total_servico': 'valorTotalServico',
         'valor_entrada_servico': 'valorEntradaServico',
         'quantidade_parcelas': 'quantidadeParcelas',
@@ -191,6 +193,7 @@ export const apontamentosService = {
         .update({
           tipo_oportunidade: normalizar(dadosAtualizacao.tipoOportunidade),
           nome_cliente: normalizar(dadosAtualizacao.nomeCliente),
+          contato_cliente: dadosAtualizacao.contatoCliente,
           fase: normalizar(dadosAtualizacao.fase),
           origem_cliente: normalizar(dadosAtualizacao.origemCliente),
           origem_outros: normalizar(dadosAtualizacao.origemOutros),

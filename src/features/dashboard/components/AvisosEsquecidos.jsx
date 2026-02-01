@@ -14,7 +14,7 @@ const AvisosEsquecidos = () => {
     aviso.nome_cliente?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Agrupar avisos por proprietário
+  // Agrupar avisos por proprietário e ordenar do mais recente para o mais atrasado
   const avisosAgrupados = avisosFiltrados.reduce((acc, aviso) => {
     const proprietario = aviso.proprietario_relacionamento || 'SEM PROPRIETÁRIO';
     if (!acc[proprietario]) {
@@ -23,6 +23,11 @@ const AvisosEsquecidos = () => {
     acc[proprietario].push(aviso);
     return acc;
   }, {});
+
+  // Ordenar avisos dentro de cada grupo (menor dias primeiro = mais recente)
+  Object.keys(avisosAgrupados).forEach(proprietario => {
+    avisosAgrupados[proprietario].sort((a, b) => a.dias_sem_atualizacao - b.dias_sem_atualizacao);
+  });
 
   const carregarAvisos = async () => {
     try {
@@ -170,7 +175,7 @@ const AvisosEsquecidos = () => {
                                 ) : (
                                   <FaCheck />
                                 )}
-                                <span className="hidden sm:inline">Alinhamento</span>
+                                <span className="hidden sm:inline">Alinhamento Realizado</span>
                               </button>
                             </div>
                           </div>

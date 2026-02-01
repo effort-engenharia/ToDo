@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, memo } from 'react';
 import { 
   FaArrowLeft, 
   FaSearch, 
@@ -20,6 +20,125 @@ import { apontamentosService } from '../services/supabaseService';
 import ApontamentosTable from './ApontamentosTable';
 import ProfileButton from './ProfileButton';
 import { useAuth } from '../contexts/AuthContext';
+
+// Componente Toast movido para fora - evita recriação a cada render
+const Toast = memo(({ show, message, type, onClose }) => {
+  if (!show) return null;
+
+  const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
+  const icon = type === 'success' ? <FaCheck /> : <FaTimes />;
+
+  return (
+    <div className={`fixed top-4 right-4 ${bgColor} text-white px-6 py-4 rounded-lg shadow-lg z-50 flex items-center space-x-3 transform transition-all duration-300 ease-in-out`}>
+      <div className="flex items-center space-x-2">
+        {icon}
+        <span className="font-medium">{message}</span>
+      </div>
+      <button 
+        onClick={onClose}
+        className="ml-4 hover:bg-white/20 p-1 rounded"
+      >
+        <FaTimes size={14} />
+      </button>
+    </div>
+  );
+});
+
+// Opções dos comboboxes - constantes fora do componente
+const TIPOS_OPORTUNIDADE = [
+  'MEDIÇÃO OHMICA',
+  'SPDA',
+  'ENTRADA DE ENERGIA',
+  'CENTRO DE MEDIÇÃO',
+  'PRUMADAS',
+  'ESTAÇÃO DE RECARGA',
+  'CABINE PRIMÁRIA',
+  'QUADROS DE BOMBA',
+  'PROJETOS ELÉTRICOS',
+  'QUADROS ADMINISTRATIVOS',
+  'SISTEMA DE ILUMINAÇÃO',
+  'RESIDÊNCIAL',
+  'QUADRO DE ELEVADOR',
+  'ADEQUAÇÃO ELÉTRICA',
+  'QUADRO DE DISJUNTORES',
+  'MANUTENÇÃO ELÉTRICA',
+  'CIVIL',
+  'LAUDOS',
+  'POSTE DE ENTRADA',
+  'AVCB E SISTEMA DE INCÊNDIO'
+];
+
+const FASES = [
+  'PROSPECÇÃO',
+  'QUALIFICAÇÃO',
+  'NEGOCIAÇÃO',
+  'CONTRATO/VENDA',
+  'CANCELADO/PERCA'
+];
+
+const ORIGENS_CLIENTE = [
+  'PROSPECÇÃO',
+  'INDICAÇÃO',
+  'GOOGLE',
+  'CARTEIRA',
+  'ADM',
+  'OUTROS'
+];
+
+const PROPRIETARIOS = [
+  'PAMELLI',
+  'EDUARDA',
+  'FÁBIO',
+  'EDGAR'
+];
+
+const CIDADES = [
+  'GUARUJÁ',
+  'BERTIOGA',
+  'SANTOS',
+  'SÃO VICENTE',
+  'PRAIA GRANDE',
+  'CUBATÃO',
+  'SÃO SEBASTIÃO',
+  'OUTRAS'
+];
+
+// Gerar opções de parcelas - constante fora do componente
+const PARCELAS = Array.from({ length: 100 }, (_, i) => {
+  const num = i + 1;
+  if (num === 1) return { value: '1', label: '1x (À Vista)' };
+  return { value: num.toString(), label: `${num}x` };
+});
+
+// Funções de formatação - fora do componente
+const formatCnpj = (value) => {
+  const cleanValue = value.replace(/\D/g, '');
+  if (cleanValue.length <= 2) return cleanValue;
+  if (cleanValue.length <= 5) return cleanValue.replace(/(\d{2})(\d+)/, '$1.$2');
+  if (cleanValue.length <= 8) return cleanValue.replace(/(\d{2})(\d{3})(\d+)/, '$1.$2.$3');
+  if (cleanValue.length <= 12) return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d+)/, '$1.$2.$3/$4');
+  return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d+)/, '$1.$2.$3/$4-$5');
+};
+
+const formatCep = (value) => {
+  const cleanValue = value.replace(/\D/g, '');
+  if (cleanValue.length <= 5) return cleanValue;
+  return cleanValue.replace(/(\d{5})(\d+)/, '$1-$2');
+};
+
+const formatCurrency = (numericValue) => {
+  if (!numericValue) return 'R$ 0,00';
+  const cleanValue = numericValue.toString().replace(/\D/g, '');
+  if (!cleanValue) return 'R$ 0,00';
+  
+  const formattedValue = (parseInt(cleanValue) / 100).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  return formattedValue;
+};
 
 const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
   const { usuario, temPermissao } = useAuth();
@@ -88,111 +207,12 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
   }, [usuario, temPermissao]);
 
   // Função para mostrar toast
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => {
       setToast({ show: false, message: '', type: '' });
     }, 4000);
-  };
-
-  // Componente Toast
-  const Toast = ({ show, message, type, onClose }) => {
-    if (!show) return null;
-
-    const bgColor = type === 'success' ? 'bg-green-500' : 'bg-red-500';
-    const icon = type === 'success' ? <FaCheck /> : <FaTimes />;
-
-    return (
-      <div className={`fixed top-4 right-4 ${bgColor} text-white px-6 py-4 rounded-lg shadow-lg z-50 flex items-center space-x-3 transform transition-all duration-300 ease-in-out`}>
-        <div className="flex items-center space-x-2">
-          {icon}
-          <span className="font-medium">{message}</span>
-        </div>
-        <button 
-          onClick={onClose}
-          className="ml-4 hover:bg-white/20 p-1 rounded"
-        >
-          <FaTimes size={14} />
-        </button>
-      </div>
-    );
-  };
-
-  // Opções dos comboboxes
-  const tiposOportunidade = [
-    'MEDIÇÃO OHMICA',
-    'SPDA',
-    'ENTRADA DE ENERGIA',
-    'CENTRO DE MEDIÇÃO',
-    'PRUMADAS',
-    'ESTAÇÃO DE RECARGA',
-    'CABINE PRIMÁRIA',
-    'QUADROS DE BOMBA',
-    'PROJETOS ELÉTRICOS',
-    'QUADROS ADMINISTRATIVOS',
-    'SISTEMA DE ILUMINAÇÃO',
-    'RESIDÊNCIAL',
-    'QUADRO DE ELEVADOR',
-    'ADEQUAÇÃO ELÉTRICA',
-    'QUADRO DE DISJUNTORES',
-    'MANUTENÇÃO ELÉTRICA',
-    'CIVIL',
-    'LAUDOS',
-    'POSTE DE ENTRADA',
-    'AVCB E SISTEMA DE INCÊNDIO'
-  ];
-
-  const fases = [
-    'PROSPECÇÃO',
-    'QUALIFICAÇÃO',
-    'NEGOCIAÇÃO',
-    'CONTRATO/VENDA',
-    'CANCELADO/PERCA'
-  ];
-
-  const origensCliente = [
-    'PROSPECÇÃO',
-    'INDICAÇÃO',
-    'GOOGLE',
-    'CARTEIRA',
-    'ADM',
-    'OUTROS'
-  ];
-
-  const proprietarios = [
-    'PAMELLI',
-    'EDUARDA',
-    'FÁBIO',
-    'EDGAR'
-  ];
-
-  const cidades = [
-    'GUARUJÁ',
-    'BERTIOGA',
-    'SANTOS',
-    'SÃO VICENTE',
-    'PRAIA GRANDE',
-    'CUBATÃO',
-    'SÃO SEBASTIÃO',
-    'OUTRAS'
-  ];
-
-  // Função para formatar CNPJ
-  const formatCnpj = (value) => {
-    const cleanValue = value.replace(/\D/g, '');
-    if (cleanValue.length <= 2) return cleanValue;
-    if (cleanValue.length <= 5) return cleanValue.replace(/(\d{2})(\d+)/, '$1.$2');
-    if (cleanValue.length <= 8) return cleanValue.replace(/(\d{2})(\d{3})(\d+)/, '$1.$2.$3');
-    if (cleanValue.length <= 12) return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d+)/, '$1.$2.$3/$4');
-    return cleanValue.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d+)/, '$1.$2.$3/$4-$5');
-  };
-
-  // Função para formatar CEP
-  const formatCep = (value) => {
-    const cleanValue = value.replace(/\D/g, '');
-    if (cleanValue.length <= 5) return cleanValue;
-    return cleanValue.replace(/(\d{5})(\d+)/, '$1-$2');
-  };
+  }, []);
 
   // Função para consultar CEP na API ViaCEP
   const consultarCep = async (cep) => {
@@ -247,24 +267,34 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
   // Função para manipular mudança no CEP
   const handleCepChange = (value) => {
     const formattedValue = formatCep(value);
-    setFormData(prev => ({
-      ...prev,
-      cep: formattedValue
-    }));
+    const cleanValue = value.replace(/\D/g, '');
     
     // Se o CEP estiver completo (8 dígitos), fazer a consulta
-    const cleanValue = value.replace(/\D/g, '');
     if (cleanValue.length === 8) {
-      consultarCep(formattedValue);
-    } else {
-      // Limpar os campos se CEP incompleto
       setFormData(prev => ({
         ...prev,
-        logradouro: '',
-        bairro: '',
-        municipio: '',
-        uf: ''
+        cep: formattedValue
       }));
+      consultarCep(formattedValue);
+    } else {
+      // Só limpar os campos se já tinham valor preenchido (CEP foi apagado/modificado)
+      setFormData(prev => {
+        const shouldClearAddress = prev.logradouro || prev.bairro || prev.municipio || prev.uf;
+        if (shouldClearAddress) {
+          return {
+            ...prev,
+            cep: formattedValue,
+            logradouro: '',
+            bairro: '',
+            municipio: '',
+            uf: ''
+          };
+        }
+        return {
+          ...prev,
+          cep: formattedValue
+        };
+      });
     }
   };
 
@@ -313,49 +343,37 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
   // Função para manipular mudança no CNPJ
   const handleCnpjChange = (value) => {
     const formattedValue = formatCnpj(value);
-    setFormData(prev => ({
-      ...prev,
-      cnpjCliente: formattedValue
-    }));
+    const cleanValue = value.replace(/\D/g, '');
     
     // Se o CNPJ estiver completo (14 dígitos), fazer a consulta
-    const cleanValue = value.replace(/\D/g, '');
     if (cleanValue.length === 14) {
-      consultarCnpj(formattedValue);
-    } else {
-      // Limpar os campos se CNPJ incompleto
       setFormData(prev => ({
         ...prev,
-        razaoSocial: '',
-        nomeFantasia: ''
+        cnpjCliente: formattedValue
       }));
+      consultarCnpj(formattedValue);
+    } else {
+      // Só limpar os campos se já tinham valor preenchido (CNPJ foi apagado/modificado)
+      setFormData(prev => {
+        const shouldClearCompanyData = prev.razaoSocial || prev.nomeFantasia;
+        if (shouldClearCompanyData) {
+          return {
+            ...prev,
+            cnpjCliente: formattedValue,
+            razaoSocial: '',
+            nomeFantasia: ''
+          };
+        }
+        return {
+          ...prev,
+          cnpjCliente: formattedValue
+        };
+      });
     }
   };
 
-  // Gerar opções de parcelas (1x até 100x)
-  const parcelas = Array.from({ length: 100 }, (_, i) => {
-    const num = i + 1;
-    if (num === 1) return { value: '1', label: '1x (À Vista)' };
-    return { value: num.toString(), label: `${num}x` };
-  });
-
-  // Função para formatar valor monetário para exibição
-  const formatCurrency = (numericValue) => {
-    if (!numericValue) return 'R$ 0,00';
-    const cleanValue = numericValue.toString().replace(/\D/g, '');
-    if (!cleanValue) return 'R$ 0,00';
-    
-    const formattedValue = (parseInt(cleanValue) / 100).toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-    return formattedValue;
-  };
-
   // Função para manipular mudanças nos inputs monetários
-  const handleCurrencyChange = (field, value) => {
+  const handleCurrencyChange = useCallback((field, value) => {
     const numericValue = value.replace(/\D/g, '');
     
     // Atualiza o valor formatado para exibição
@@ -371,16 +389,16 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
       ...prev,
       [field]: finalValue
     }));
-  };
+  }, []);
 
   // Função para validar apenas letras no nome do cliente
-  const handleClienteNameChange = (value) => {
+  const handleClienteNameChange = useCallback((value) => {
     const onlyLetters = value.replace(/[^a-zA-ZÀ-ÿ\s]/g, '');
     setFormData(prev => ({
       ...prev,
       nomeCliente: onlyLetters
     }));
-  };
+  }, []);
 
   // Função para validar formulário
   const validateForm = () => {
@@ -408,6 +426,12 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
 
     if (formData.cidadeAtendimento === 'OUTRAS' && !formData.cidadeOutras.trim()) {
       newErrors.cidadeOutras = 'Especifique a cidade quando selecionado "OUTRAS"';
+    }
+
+    // Validar CEP como campo obrigatório
+    const cleanCep = formData.cep.replace(/\D/g, '');
+    if (!cleanCep || cleanCep.length !== 8) {
+      newErrors.cep = 'CEP é obrigatório e deve ter 8 dígitos';
     }
 
     // Validar número do endereço como obrigatório se CEP foi preenchido
@@ -629,7 +653,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
               <div>
                 <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
                   <FaMapMarkedAlt className="mr-2 text-green-500" />
-                  CEP do Cliente
+                  CEP do Cliente <span className="text-red-500 ml-1">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -638,7 +662,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                     onChange={(e) => handleCepChange(e.target.value)}
                     placeholder="00000-000"
                     maxLength={9}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.cep ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   />
                   {isLoadingCep && (
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -646,6 +670,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                     </div>
                   )}
                 </div>
+                {errors.cep && <p className="text-red-500 text-xs mt-1">{errors.cep}</p>}
               </div>
 
               {/* Dados de Endereço - Preenchidos automaticamente via CEP */}
@@ -745,7 +770,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                   }`}
                 >
                   <option value="">Selecione o tipo de oportunidade</option>
-                  {tiposOportunidade.map((tipo) => (
+                  {TIPOS_OPORTUNIDADE.map((tipo) => (
                     <option key={tipo} value={tipo}>{tipo}</option>
                   ))}
                 </select>
@@ -790,7 +815,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                   }`}
                 >
                   <option value="">Selecione a fase</option>
-                  {fases.map((fase) => (
+                  {FASES.map((fase) => (
                     <option key={fase} value={fase}>{fase}</option>
                   ))}
                 </select>
@@ -813,7 +838,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                   }`}
                 >
                   <option value="">Selecione a origem</option>
-                  {origensCliente.map((origem) => (
+                  {ORIGENS_CLIENTE.map((origem) => (
                     <option key={origem} value={origem}>{origem}</option>
                   ))}
                 </select>
@@ -856,7 +881,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Selecione o proprietário</option>
-                {proprietarios.map((proprietario) => (
+                {PROPRIETARIOS.map((proprietario) => (
                   <option key={proprietario} value={proprietario}>{proprietario}</option>
                 ))}
               </select>
@@ -907,7 +932,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                   onChange={(e) => setFormData(prev => ({ ...prev, quantidadeParcelas: e.target.value }))}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {parcelas.map((parcela) => (
+                  {PARCELAS.map((parcela) => (
                     <option key={parcela.value} value={parcela.value}>{parcela.label}</option>
                   ))}
                 </select>
@@ -925,7 +950,7 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Selecione a cidade</option>
-                  {cidades.map((cidade) => (
+                  {CIDADES.map((cidade) => (
                     <option key={cidade} value={cidade}>{cidade}</option>
                   ))}
                 </select>

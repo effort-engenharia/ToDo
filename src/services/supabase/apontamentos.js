@@ -157,7 +157,10 @@ export const apontamentosService = {
         'numero': 'numero',
         'bairro': 'bairro',
         'municipio': 'municipio',
-        'uf': 'uf'
+        'uf': 'uf',
+        'cnpj_cliente': 'cnpjCliente',
+        'razao_social': 'razaoSocial',
+        'nome_fantasia': 'nomeFantasia'
       };
 
       // Preparar alterações para histórico
@@ -203,14 +206,17 @@ export const apontamentosService = {
           quantidade_parcelas: parseInt(dadosAtualizacao.quantidadeParcelas),
           cidade_atendimento: normalizar(dadosAtualizacao.cidadeAtendimento),
           cidade_outras: normalizar(dadosAtualizacao.cidadeOutras),
-          cronograma_data_inicio: dadosAtualizacao.cronogramaDataInicio,
-          cronograma_data_termino: dadosAtualizacao.cronogramaDataTermino,
+          cronograma_data_inicio: dadosAtualizacao.cronogramaDataInicio || null,
+          cronograma_data_termino: dadosAtualizacao.cronogramaDataTermino || null,
           cep: dadosAtualizacao.cep,
           logradouro: normalizar(dadosAtualizacao.logradouro),
           numero: dadosAtualizacao.numero,
           bairro: normalizar(dadosAtualizacao.bairro),
           municipio: normalizar(dadosAtualizacao.municipio),
-          uf: normalizar(dadosAtualizacao.uf)
+          uf: normalizar(dadosAtualizacao.uf),
+          cnpj_cliente: dadosAtualizacao.cnpjCliente,
+          razao_social: normalizar(dadosAtualizacao.razaoSocial),
+          nome_fantasia: normalizar(dadosAtualizacao.nomeFantasia)
         })
         .eq('id', id)
         .select();

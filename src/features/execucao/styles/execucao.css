@@ -802,6 +802,16 @@
   color: var(--accent-purple);
 }
 
+.execucao-badge-gray {
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+}
+
+.execucao-badge-orange {
+  background: rgba(249, 115, 22, 0.15);
+  color: #f97316;
+}
+
 /* Grid System */
 .execucao-grid {
   display: grid;
@@ -946,6 +956,18 @@
   box-shadow: var(--shadow-xl);
 }
 
+.execucao-modal-lg {
+  max-width: 850px;
+}
+
+.execucao-modal-xl {
+  max-width: 1100px;
+}
+
+.execucao-modal-full {
+  max-width: calc(100vw - 2rem);
+}
+
 .execucao-modal-header {
   display: flex;
   align-items: center;
@@ -1045,4 +1067,48 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ============================================
+   TABS - Sistema de Abas
+   ============================================ */
+.execucao-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.execucao-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.execucao-tab:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.execucao-tab.active {
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
+.execucao-tab svg {
+  font-size: 1rem;
+  flex-shrink: 0;
 }

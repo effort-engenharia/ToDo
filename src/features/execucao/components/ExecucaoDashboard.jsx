@@ -6,6 +6,7 @@ import AtividadesDia from './AtividadesDia';
 import AgendaEletrica from './AgendaEletrica';
 import AgendaCivil from './AgendaCivil';
 import AgendaGalpao from './AgendaGalpao';
+import AgendaGestao from './AgendaGestao';
 import PedidoMaterial from './PedidoMaterial';
 import DesempenhoIndividual from './DesempenhoIndividual';
 import DesempenhoTime from './DesempenhoTime';
@@ -22,6 +23,7 @@ const pageTitles = {
   'agenda-eletrica': 'Agenda Elétrica',
   'agenda-civil': 'Agenda Civil',
   'agenda-galpao': 'Agenda Galpão',
+  'agenda-gestao': 'Agenda Gestão',
   'pedido-material': 'Pedido de Material',
   'desempenho-individual': 'Desempenho Individual',
   'desempenho-time': 'Desempenho do Time',
@@ -76,6 +78,8 @@ const ExecucaoDashboard = ({ onVoltar }) => {
         return <AgendaCivil usuario={usuario} />;
       case 'agenda-galpao':
         return <AgendaGalpao usuario={usuario} />;
+      case 'agenda-gestao':
+        return <AgendaGestao usuario={usuario} />;
       case 'pedido-material':
         return <PedidoMaterial usuario={usuario} isAdmin={isAdmin} />;
       case 'desempenho-individual':

@@ -27,9 +27,31 @@ import {
   FaUsers,
   FaCalendarWeek,
   FaFilePdf,
-  FaUpload
+  FaUpload,
+  FaFileExcel,
+  FaDownload,
+  FaBell,
+  FaMagic,
+  FaSearchMinus,
+  FaSearchPlus,
+  FaWrench,
+  FaCopy
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// =====================================================
+// TEMPLATES_ETAPAS agora são carregados do banco de dados via execucaoService.buscarTemplates()
+// A constante abaixo serve apenas como fallback caso o banco esteja vazio
+const TEMPLATES_ETAPAS_FALLBACK = {
+  eletrica: { nome: 'Obra Elétrica Padrão', etapas: [] },
+  civil: { nome: 'Obra Civil Padrão', etapas: [] },
+  galpao: { nome: 'Galpão Industrial', etapas: [] },
+  spda: { nome: 'SPDA (Para-raios)', etapas: [] },
+  manutencao: { nome: 'Manutenção Predial', etapas: [] }
+};
 
 // =====================================================
 // FUNÇÃO AUXILIAR PARA CORRIGIR TIMEZONE
@@ -59,10 +81,168 @@ const formatarDataCurta = (dataString) => {
 };
 
 // =====================================================
-// COMPONENTE DE GRÁFICO GANTT
+// COMPONENTE DE ALERTAS DE ETAPAS ATRASADAS
 // =====================================================
-const GanttChart = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade }) => {
+const AlertasEtapasAtrasadas = ({ obras, onVerEtapa }) => {
+  const etapasAtrasadas = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    
+    const atrasadas = [];
+    obras.forEach(obra => {
+      if (!obra.etapas) return;
+      obra.etapas.forEach(etapa => {
+        const fimEtapa = parseDataLocal(etapa.data_fim);
+        if (fimEtapa < hoje && (etapa.progresso || 0) < 100) {
+          const diasAtraso = Math.ceil((hoje - fimEtapa) / (1000 * 60 * 60 * 24));
+          atrasadas.push({
+            ...etapa,
+            cliente: obra.nome_cliente,
+            cidade: obra.cidade,
+            obra_id: obra.id,
+            diasAtraso
+          });
+        }
+      });
+    });
+    
+    // Ordenar por dias de atraso (mais atrasadas primeiro)
+    return atrasadas.sort((a, b) => b.diasAtraso - a.diasAtraso);
+  }, [obras]);
+  
+  if (etapasAtrasadas.length === 0) return null;
+  
   const [expanded, setExpanded] = useState(true);
+  
+  return (
+    <div className="mb-6 execucao-animate-fade-in">
+      <div 
+        className={`rounded-lg border-2 ${expanded ? 'border-red-500/50 bg-red-500/10' : 'border-red-500/30 bg-red-500/5'} overflow-hidden`}
+      >
+        {/* Header do Alerta */}
+        <div 
+          className="flex items-center justify-between p-4 cursor-pointer hover:bg-red-500/20 transition-colors"
+          onClick={() => setExpanded(!expanded)}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-red-500/20 rounded-lg animate-pulse">
+              <FaBell className="text-red-400" size={20} />
+            </div>
+            <div>
+              <h3 className="font-bold text-red-400 flex items-center gap-2">
+                ⚠️ Etapas Atrasadas
+                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {etapasAtrasadas.length}
+                </span>
+              </h3>
+              <p className="text-sm text-slate-400">
+                {etapasAtrasadas.length} etapa{etapasAtrasadas.length > 1 ? 's' : ''} precisam de atenção imediata
+              </p>
+            </div>
+          </div>
+          <div className="text-slate-400">
+            {expanded ? <FaChevronUp /> : <FaChevronDown />}
+          </div>
+        </div>
+        
+        {/* Lista de Etapas Atrasadas */}
+        {expanded && (
+          <div className="border-t border-red-500/30 max-h-64 overflow-y-auto">
+            {etapasAtrasadas.map((etapa, index) => (
+              <div 
+                key={etapa.id}
+                className={`flex items-center justify-between p-3 hover:bg-red-500/10 transition-colors ${
+                  index < etapasAtrasadas.length - 1 ? 'border-b border-red-500/20' : ''
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-2 h-2 rounded-full ${
+                    etapa.diasAtraso > 7 ? 'bg-red-500' : 
+                    etapa.diasAtraso > 3 ? 'bg-orange-500' : 'bg-yellow-500'
+                  }`} />
+                  <div>
+                    <div className="font-medium text-white">{etapa.nome}</div>
+                    <div className="text-xs text-slate-400">
+                      {etapa.cliente} • {etapa.cidade}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className={`text-sm font-bold ${
+                      etapa.diasAtraso > 7 ? 'text-red-400' : 
+                      etapa.diasAtraso > 3 ? 'text-orange-400' : 'text-yellow-400'
+                    }`}>
+                      {etapa.diasAtraso} dia{etapa.diasAtraso > 1 ? 's' : ''} de atraso
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Prazo: {formatarDataBR(etapa.data_fim)}
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-400 bg-slate-800 px-2 py-1 rounded">
+                    {etapa.progresso || 0}%
+                  </div>
+                  <button
+                    onClick={() => onVerEtapa(etapa)}
+                    className="p-2 text-sky-400 hover:bg-sky-500/20 rounded-lg transition-colors"
+                    title="Criar atividade para esta etapa"
+                  >
+                    <FaCalendarPlus size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// =====================================================
+// COMPONENTE DE GRÁFICO GANTT MELHORADO
+// =====================================================
+const GanttChart = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubEtapa }) => {
+  const [expanded, setExpanded] = useState(true);
+  const [zoomLevel, setZoomLevel] = useState(1); // 0.5 = mais zoom out, 2 = mais zoom in
+  const [subEtapasExpandidas, setSubEtapasExpandidas] = useState(new Set()); // IDs das etapas pai com sub-etapas visíveis
+  
+  // Organizar etapas em hierarquia (pais e filhos)
+  const etapasOrganizadas = useMemo(() => {
+    if (!obra.etapas) return [];
+    
+    // Separar etapas pai (sem etapa_pai_id) e sub-etapas (com etapa_pai_id)
+    const etapasPai = obra.etapas.filter(e => !e.etapa_pai_id);
+    const subEtapas = obra.etapas.filter(e => e.etapa_pai_id);
+    
+    // Agrupar sub-etapas por pai
+    const subEtapasPorPai = {};
+    subEtapas.forEach(sub => {
+      if (!subEtapasPorPai[sub.etapa_pai_id]) {
+        subEtapasPorPai[sub.etapa_pai_id] = [];
+      }
+      subEtapasPorPai[sub.etapa_pai_id].push(sub);
+    });
+    
+    // Ordenar sub-etapas por ordem
+    Object.keys(subEtapasPorPai).forEach(paiId => {
+      subEtapasPorPai[paiId].sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+    });
+    
+    return { etapasPai, subEtapasPorPai };
+  }, [obra.etapas]);
+  
+  const toggleSubEtapas = (etapaId) => {
+    setSubEtapasExpandidas(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(etapaId)) {
+        newSet.delete(etapaId);
+      } else {
+        newSet.add(etapaId);
+      }
+      return newSet;
+    });
+  };
   
   if (!obra.etapas || obra.etapas.length === 0) {
     return (
@@ -77,11 +257,18 @@ const GanttChart = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade }) => {
   const minDate = new Date(Math.min(...allDates));
   const maxDate = new Date(Math.max(...allDates));
   
-  // Adicionar margem
-  minDate.setDate(minDate.getDate() - 7);
-  maxDate.setDate(maxDate.getDate() + 7);
+  // Adicionar margem proporcional ao zoom
+  const marginDays = Math.round(7 / zoomLevel);
+  minDate.setDate(minDate.getDate() - marginDays);
+  maxDate.setDate(maxDate.getDate() + marginDays);
   
   const totalDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24));
+  
+  // Linha de hoje
+  const hoje = new Date();
+  hoje.setHours(12, 0, 0, 0);
+  const hojePosition = ((hoje - minDate) / (1000 * 60 * 60 * 24)) / totalDays * 100;
+  const hojeVisible = hojePosition >= 0 && hojePosition <= 100;
   
   // Gerar meses para o header
   const meses = [];
@@ -120,6 +307,9 @@ const GanttChart = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade }) => {
       default: return <FaTasks className="text-blue-400" size={10} />;
     }
   };
+  
+  // Largura mínima do gráfico baseada no zoom
+  const chartMinWidth = Math.max(800, 800 * zoomLevel);
 
   return (
     <div className="execucao-card mt-4">
@@ -133,16 +323,38 @@ const GanttChart = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade }) => {
           <span className="font-medium text-white">Cronograma de Etapas</span>
           <span className="text-xs text-slate-300">({obra.etapas.length} etapas)</span>
         </div>
+        
+        {/* Controles de Zoom */}
+        {expanded && (
+          <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <span className="text-xs text-slate-400">Zoom:</span>
+            <button
+              onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+              title="Diminuir zoom"
+            >
+              <FaSearchMinus size={12} />
+            </button>
+            <span className="text-xs text-slate-300 w-10 text-center">{Math.round(zoomLevel * 100)}%</span>
+            <button
+              onClick={() => setZoomLevel(Math.min(2, zoomLevel + 0.25))}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+              title="Aumentar zoom"
+            >
+              <FaSearchPlus size={12} />
+            </button>
+          </div>
+        )}
       </div>
 
       {expanded && (
         <div className="overflow-x-auto">
           {/* Header com meses */}
-          <div className="flex border-b border-slate-600 min-w-[800px]">
+          <div className="flex border-b border-slate-600" style={{ minWidth: `${chartMinWidth}px` }}>
             <div className="w-64 flex-shrink-0 p-2 bg-slate-700/70 font-medium text-sm text-white">
               Etapa
             </div>
-            <div className="flex-1 flex">
+            <div className="flex-1 flex relative">
               {meses.map((mes, i) => (
                 <div 
                   key={i} 
@@ -155,77 +367,229 @@ const GanttChart = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade }) => {
           </div>
 
           {/* Etapas */}
-          {obra.etapas.map((etapa) => {
-            const pos = getBarPosition(etapa.data_inicio, etapa.data_fim);
-            const hoje = new Date();
-            const fimEtapa = new Date(etapa.data_fim);
-            const atrasada = fimEtapa < hoje && etapa.progresso < 100;
+          <div className="relative">
+            {etapasOrganizadas.etapasPai.map((etapa) => {
+              const pos = getBarPosition(etapa.data_inicio, etapa.data_fim);
+              const hoje2 = new Date();
+              const fimEtapa = new Date(etapa.data_fim);
+              const atrasada = fimEtapa < hoje2 && etapa.progresso < 100;
+              const temSubEtapas = etapasOrganizadas.subEtapasPorPai[etapa.id]?.length > 0;
+              const subEtapasVisiveis = subEtapasExpandidas.has(etapa.id);
+              const subEtapas = etapasOrganizadas.subEtapasPorPai[etapa.id] || [];
 
-            return (
-              <div 
-                key={etapa.id} 
-                className="flex border-b border-slate-700/50 hover:bg-slate-800/30 min-w-[800px] group"
-              >
-                {/* Nome da etapa */}
-                <div className="w-72 flex-shrink-0 p-2 flex items-center gap-2 bg-slate-800/40">
-                  {getTipoIcon(etapa.tipo)}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate text-white">{etapa.nome}</div>
-                    <div className="text-xs text-slate-300">
-                      {formatarDataBR(etapa.data_inicio)} - {formatarDataBR(etapa.data_fim)}
+              return (
+                <React.Fragment key={etapa.id}>
+                  <div 
+                    className="flex border-b border-slate-700/50 hover:bg-slate-800/30 group"
+                    style={{ minWidth: `${chartMinWidth}px` }}
+                  >
+                    {/* Nome da etapa */}
+                    <div className="w-72 flex-shrink-0 p-2 flex items-center gap-2 bg-slate-800/40">
+                      {/* Botão expandir sub-etapas */}
+                      {temSubEtapas ? (
+                        <button
+                          onClick={() => toggleSubEtapas(etapa.id)}
+                          className="p-1 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+                          title={subEtapasVisiveis ? 'Ocultar sub-etapas' : 'Mostrar sub-etapas'}
+                        >
+                          {subEtapasVisiveis ? <FaChevronDown size={10} /> : <FaChevronRight size={10} />}
+                        </button>
+                      ) : (
+                        <div className="w-6" /> // Espaçador para alinhar
+                      )}
+                      {getTipoIcon(etapa.tipo)}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate text-white flex items-center gap-1">
+                          {etapa.nome}
+                          {temSubEtapas && (
+                            <span className="text-[10px] text-slate-400 bg-slate-700 px-1 rounded">
+                              {subEtapas.length} sub
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-slate-300">
+                          {formatarDataBR(etapa.data_inicio)} - {formatarDataBR(etapa.data_fim)}
+                        </div>
+                        {etapa.responsavel?.nome_completo && (
+                          <div className="text-xs text-sky-400 truncate">
+                            👤 {etapa.responsavel.nome_completo}
+                          </div>
+                        )}
+                      </div>
+                      {/* Ações */}
+                      <div className="opacity-0 group-hover:opacity-100 flex gap-1">
+                        <button
+                          onClick={() => onAddSubEtapa && onAddSubEtapa(etapa)}
+                          className="p-1 text-purple-400 hover:bg-purple-500/20 rounded"
+                          title="Adicionar sub-etapa"
+                        >
+                          <FaPlus size={10} />
+                        </button>
+                        <button
+                          onClick={() => onAddAtividade(etapa)}
+                          className="p-1 text-green-400 hover:bg-green-500/20 rounded"
+                          title="Criar atividade na agenda"
+                        >
+                          <FaCalendarPlus size={12} />
+                        </button>
+                        <button
+                          onClick={() => onEditEtapa(etapa)}
+                          className="p-1 text-blue-400 hover:bg-blue-500/20 rounded"
+                          title="Editar etapa"
+                        >
+                          <FaEdit size={12} />
+                        </button>
+                        <button
+                          onClick={() => onDeleteEtapa(etapa.id)}
+                          className="p-1 text-red-400 hover:bg-red-500/20 rounded"
+                          title="Excluir etapa"
+                        >
+                          <FaTrash size={12} />
+                        </button>
+                      </div>
                     </div>
-                    {etapa.responsavel?.nome_completo && (
-                      <div className="text-xs text-sky-400 truncate">
-                        👤 {etapa.responsavel.nome_completo}
+
+                  {/* Barra do Gantt */}
+                  <div className="flex-1 relative h-12 flex items-center bg-slate-800/20">
+                    {/* Linha de HOJE */}
+                    {hojeVisible && (
+                      <div 
+                        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20"
+                        style={{ left: `${hojePosition}%` }}
+                      >
+                        <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-[8px] px-1 rounded whitespace-nowrap">
+                          HOJE
+                        </div>
                       </div>
                     )}
-                  </div>
-                  {/* Ações */}
-                  <div className="opacity-0 group-hover:opacity-100 flex gap-1">
-                    <button
-                      onClick={() => onAddAtividade(etapa)}
-                      className="p-1 text-green-400 hover:bg-green-500/20 rounded"
-                      title="Criar atividade na agenda"
-                    >
-                      <FaCalendarPlus size={12} />
-                    </button>
-                    <button
-                      onClick={() => onEditEtapa(etapa)}
-                      className="p-1 text-blue-400 hover:bg-blue-500/20 rounded"
-                      title="Editar etapa"
-                    >
-                      <FaEdit size={12} />
-                    </button>
-                    <button
-                      onClick={() => onDeleteEtapa(etapa.id)}
-                      className="p-1 text-red-400 hover:bg-red-500/20 rounded"
-                      title="Excluir etapa"
-                    >
-                      <FaTrash size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Barra do Gantt */}
-                <div className="flex-1 relative h-12 flex items-center bg-slate-800/20">
-                  <div 
-                    className={`absolute h-7 rounded-md shadow-lg ${getStatusColor(etapa.status, etapa.progresso)} ${atrasada ? 'animate-pulse' : ''}`}
-                    style={{ left: pos.left, width: pos.width, minWidth: '60px' }}
-                  >
-                    {/* Barra de progresso interna */}
+                    
                     <div 
-                      className="h-full bg-white/30 rounded-l-md"
-                      style={{ width: `${etapa.progresso}%` }}
-                    />
-                    {/* Label de progresso */}
-                    <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow-md">
-                      {etapa.progresso}%
+                      className={`absolute h-7 rounded-md shadow-lg ${getStatusColor(etapa.status, etapa.progresso)} ${atrasada ? 'animate-pulse' : ''}`}
+                      style={{ left: pos.left, width: pos.width, minWidth: '60px' }}
+                    >
+                      {/* Barra de progresso interna */}
+                      <div 
+                        className="h-full bg-white/30 rounded-l-md"
+                        style={{ width: `${etapa.progresso}%` }}
+                      />
+                      {/* Label de progresso */}
+                      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white drop-shadow-md">
+                        {etapa.progresso}%
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+                
+                {/* Sub-etapas (renderizadas quando expandidas) */}
+                {subEtapasVisiveis && subEtapas.map((subEtapa) => {
+                  const subPos = getBarPosition(subEtapa.data_inicio, subEtapa.data_fim);
+                  const fimSubEtapa = new Date(subEtapa.data_fim);
+                  const subAtrasada = fimSubEtapa < hoje2 && subEtapa.progresso < 100;
+                  
+                  return (
+                    <div 
+                      key={subEtapa.id}
+                      className="flex border-b border-slate-700/30 hover:bg-slate-700/30 group bg-slate-900/40"
+                      style={{ minWidth: `${chartMinWidth}px` }}
+                    >
+                      {/* Nome da sub-etapa (indentada) */}
+                      <div className="w-72 flex-shrink-0 p-2 flex items-center gap-2 bg-slate-900/50 pl-10">
+                        <div className="w-1 h-6 bg-purple-500/50 rounded-full mr-1"></div>
+                        {getTipoIcon(subEtapa.tipo)}
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate text-slate-200">
+                            ↳ {subEtapa.nome}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {formatarDataBR(subEtapa.data_inicio)} - {formatarDataBR(subEtapa.data_fim)}
+                          </div>
+                          {subEtapa.responsavel?.nome_completo && (
+                            <div className="text-xs text-sky-400 truncate">
+                              👤 {subEtapa.responsavel.nome_completo}
+                            </div>
+                          )}
+                        </div>
+                        {/* Ações */}
+                        <div className="opacity-0 group-hover:opacity-100 flex gap-1">
+                          <button
+                            onClick={() => onAddAtividade(subEtapa)}
+                            className="p-1 text-green-400 hover:bg-green-500/20 rounded"
+                            title="Criar atividade na agenda"
+                          >
+                            <FaCalendarPlus size={12} />
+                          </button>
+                          <button
+                            onClick={() => onEditEtapa(subEtapa)}
+                            className="p-1 text-blue-400 hover:bg-blue-500/20 rounded"
+                            title="Editar sub-etapa"
+                          >
+                            <FaEdit size={12} />
+                          </button>
+                          <button
+                            onClick={() => onDeleteEtapa(subEtapa.id)}
+                            className="p-1 text-red-400 hover:bg-red-500/20 rounded"
+                            title="Excluir sub-etapa"
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Barra do Gantt da sub-etapa */}
+                      <div className="flex-1 relative h-10 flex items-center bg-slate-900/30">
+                        <div 
+                          className={`absolute h-5 rounded-md shadow-lg ${getStatusColor(subEtapa.status, subEtapa.progresso)} opacity-80 ${subAtrasada ? 'animate-pulse' : ''}`}
+                          style={{ left: subPos.left, width: subPos.width, minWidth: '40px' }}
+                        >
+                          <div 
+                            className="h-full bg-white/30 rounded-l-md"
+                            style={{ width: `${subEtapa.progresso}%` }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow-md">
+                            {subEtapa.progresso}%
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </React.Fragment>
             );
           })}
+            
+            {/* Linha vertical de HOJE no container geral (para visualização contínua) */}
+            {hojeVisible && (
+              <div 
+                className="absolute top-0 bottom-0 w-0.5 bg-red-500/30 z-10 pointer-events-none"
+                style={{ left: `calc(288px + ${hojePosition}% * (100% - 288px) / 100)` }}
+              />
+            )}
+          </div>
+          
+          {/* Legenda */}
+          <div className="flex items-center gap-4 p-3 border-t border-slate-700 text-xs">
+            <span className="text-slate-400">Legenda:</span>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-indigo-400"></div>
+              <span className="text-slate-300">Pendente</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-sky-500"></div>
+              <span className="text-slate-300">Em Andamento</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-emerald-500"></div>
+              <span className="text-slate-300">Concluída</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-red-500"></div>
+              <span className="text-slate-300">Atrasada</span>
+            </div>
+            <div className="flex items-center gap-1 ml-4">
+              <div className="w-3 h-0.5 bg-red-500"></div>
+              <span className="text-slate-300">Hoje</span>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -238,8 +602,10 @@ const GanttChart = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade }) => {
 const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [ordenacao, setOrdenacao] = useState('data'); // data, cliente, equipe
-  const [modoVisualizacao, setModoVisualizacao] = useState('tabela'); // tabela, agenda
+  const [modoVisualizacao, setModoVisualizacao] = useState('tabela'); // tabela, agenda, mensal, anual
   const [semanaOffset, setSemanaOffset] = useState(0); // Para navegar entre semanas na agenda
+  const [mesOffset, setMesOffset] = useState(0); // Para navegar entre meses
+  const [anoOffset, setAnoOffset] = useState(0); // Para navegar entre anos
   
   // Extrair TODAS as etapas de TODAS as obras em uma lista única
   const todasEtapas = useMemo(() => {
@@ -337,20 +703,27 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
       });
     }
     
-    // Distribuir etapas nos dias
-    todasEtapas.forEach(etapa => {
-      const etapaInicio = new Date(etapa.data_inicio);
-      const etapaFim = new Date(etapa.data_fim);
-      
-      dias.forEach(dia => {
-        // Se a etapa está ativa neste dia
-        if (dia.data >= etapaInicio && dia.data <= etapaFim) {
-          dia.etapas.push({
-            ...etapa,
-            isPrimeiroDia: dia.data.toDateString() === etapaInicio.toDateString(),
-            isUltimoDia: dia.data.toDateString() === etapaFim.toDateString()
-          });
-        }
+    // Distribuir etapas nos dias (buscar de TODAS as obras, não só filtradas)
+    obras.forEach(obra => {
+      if (!obra.etapas) return;
+      obra.etapas.forEach(etapa => {
+        if (filtroTipo !== 'todos' && etapa.tipo !== filtroTipo) return;
+        
+        const etapaInicio = parseDataLocal(etapa.data_inicio);
+        const etapaFim = parseDataLocal(etapa.data_fim);
+        
+        dias.forEach(dia => {
+          if (dia.data >= etapaInicio && dia.data <= etapaFim) {
+            dia.etapas.push({
+              ...etapa,
+              cliente: obra.nome_cliente,
+              cidade: obra.cidade,
+              obra_id: obra.id,
+              isPrimeiroDia: dia.data.toDateString() === etapaInicio.toDateString(),
+              isUltimoDia: dia.data.toDateString() === etapaFim.toDateString()
+            });
+          }
+        });
       });
     });
     
@@ -360,7 +733,109 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
       fimSemana: dias[6].data,
       mesAno: inicioSemana.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
     };
-  }, [todasEtapas, semanaOffset]);
+  }, [obras, semanaOffset, filtroTipo]);
+  
+  // Calcular dados para visualização MENSAL
+  const mensalData = useMemo(() => {
+    const hoje = new Date();
+    const mesAtual = new Date(hoje.getFullYear(), hoje.getMonth() + mesOffset, 1);
+    const primeiroDia = new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1);
+    const ultimoDia = new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0);
+    
+    // Calcular início da grade (domingo anterior ao primeiro dia)
+    const inicioGrade = new Date(primeiroDia);
+    inicioGrade.setDate(primeiroDia.getDate() - primeiroDia.getDay());
+    
+    // Gerar 6 semanas (42 dias) para cobrir qualquer mês
+    const dias = [];
+    for (let i = 0; i < 42; i++) {
+      const dia = new Date(inicioGrade);
+      dia.setDate(inicioGrade.getDate() + i);
+      dias.push({
+        data: dia,
+        diaNumero: dia.getDate(),
+        isMesAtual: dia.getMonth() === mesAtual.getMonth(),
+        isHoje: dia.toDateString() === new Date().toDateString(),
+        etapas: []
+      });
+    }
+    
+    // Distribuir etapas
+    obras.forEach(obra => {
+      if (!obra.etapas) return;
+      obra.etapas.forEach(etapa => {
+        if (filtroTipo !== 'todos' && etapa.tipo !== filtroTipo) return;
+        
+        const etapaInicio = parseDataLocal(etapa.data_inicio);
+        const etapaFim = parseDataLocal(etapa.data_fim);
+        
+        dias.forEach(dia => {
+          if (dia.data >= etapaInicio && dia.data <= etapaFim) {
+            dia.etapas.push({
+              ...etapa,
+              cliente: obra.nome_cliente,
+              cidade: obra.cidade,
+              obra_id: obra.id
+            });
+          }
+        });
+      });
+    });
+    
+    // Agrupar em semanas
+    const semanas = [];
+    for (let i = 0; i < 6; i++) {
+      semanas.push(dias.slice(i * 7, (i + 1) * 7));
+    }
+    
+    return {
+      semanas,
+      mesAno: mesAtual.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+      mesAtual
+    };
+  }, [obras, mesOffset, filtroTipo]);
+  
+  // Calcular dados para visualização ANUAL
+  const anualData = useMemo(() => {
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear() + anoOffset;
+    
+    const meses = [];
+    for (let m = 0; m < 12; m++) {
+      const primeiroDia = new Date(anoAtual, m, 1);
+      const ultimoDia = new Date(anoAtual, m + 1, 0);
+      
+      const etapasDoMes = [];
+      obras.forEach(obra => {
+        if (!obra.etapas) return;
+        obra.etapas.forEach(etapa => {
+          if (filtroTipo !== 'todos' && etapa.tipo !== filtroTipo) return;
+          
+          const etapaInicio = parseDataLocal(etapa.data_inicio);
+          const etapaFim = parseDataLocal(etapa.data_fim);
+          
+          // Se a etapa intersecta o mês
+          if (etapaInicio <= ultimoDia && etapaFim >= primeiroDia) {
+            etapasDoMes.push({
+              ...etapa,
+              cliente: obra.nome_cliente,
+              obra_id: obra.id
+            });
+          }
+        });
+      });
+      
+      meses.push({
+        mes: m,
+        nome: primeiroDia.toLocaleDateString('pt-BR', { month: 'short' }).toUpperCase(),
+        nomeLongo: primeiroDia.toLocaleDateString('pt-BR', { month: 'long' }),
+        etapas: etapasDoMes,
+        isAtual: m === hoje.getMonth() && anoOffset === 0
+      });
+    }
+    
+    return { meses, ano: anoAtual };
+  }, [obras, anoOffset, filtroTipo]);
   
   // Estatísticas
   const stats = useMemo(() => {
@@ -381,6 +856,89 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
       totalClientes: clientes.size 
     };
   }, [todasEtapas]);
+  
+  // =====================================================
+  // FUNÇÕES DE EXPORTAÇÃO
+  // =====================================================
+  const exportarExcel = () => {
+    const dados = todasEtapas.map(e => ({
+      'Cliente': e.cliente,
+      'Cidade': e.cidade || '',
+      'Etapa': e.nome,
+      'Tipo': e.tipo,
+      'Data Início': formatarDataBR(e.data_inicio),
+      'Data Fim': formatarDataBR(e.data_fim),
+      'Progresso (%)': e.progresso || 0,
+      'Status': e.status || 'pendente'
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(dados);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Etapas');
+    
+    // Ajustar largura das colunas
+    const colWidths = [
+      { wch: 30 }, { wch: 15 }, { wch: 35 }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+    ];
+    ws['!cols'] = colWidths;
+    
+    XLSX.writeFile(wb, `planejamento_etapas_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+  
+  const exportarPDF = () => {
+    const doc = new jsPDF('l', 'mm', 'a4'); // landscape
+    
+    // Título
+    doc.setFontSize(16);
+    doc.setTextColor(51, 51, 51);
+    doc.text('Relatório de Planejamento - Etapas', 14, 15);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(128, 128, 128);
+    doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 14, 22);
+    doc.text(`Período: ${getPeriodoLabel()}`, 14, 27);
+    
+    // Tabela
+    const dados = todasEtapas.map(e => [
+      e.cliente?.substring(0, 25) || '',
+      e.nome?.substring(0, 30) || '',
+      e.tipo || '',
+      formatarDataBR(e.data_inicio),
+      formatarDataBR(e.data_fim),
+      `${e.progresso || 0}%`,
+      e.status || 'pendente'
+    ]);
+    
+    autoTable(doc, {
+      startY: 32,
+      head: [['Cliente', 'Etapa', 'Tipo', 'Início', 'Fim', 'Progresso', 'Status']],
+      body: dados,
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 8, cellPadding: 2 },
+      columnStyles: {
+        0: { cellWidth: 50 },
+        1: { cellWidth: 60 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 25 },
+        5: { cellWidth: 20 },
+        6: { cellWidth: 25 }
+      }
+    });
+    
+    // Rodapé
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(128, 128, 128);
+      doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.width - 25, doc.internal.pageSize.height - 10);
+    }
+    
+    doc.save(`planejamento_etapas_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
   
   const getTipoIcon = (tipo) => {
     switch (tipo) {
@@ -448,7 +1006,27 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
         
         {/* Modo de Visualização + Filtros */}
         <div className="flex items-center gap-4 flex-wrap">
-          {/* Toggle Tabela/Agenda */}
+          {/* Botões de Exportação */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportarExcel}
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm flex items-center gap-1.5"
+              title="Exportar para Excel"
+            >
+              <FaFileExcel className="text-green-400" size={14} />
+              Excel
+            </button>
+            <button
+              onClick={exportarPDF}
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm flex items-center gap-1.5"
+              title="Exportar para PDF"
+            >
+              <FaFilePdf className="text-red-400" size={14} />
+              PDF
+            </button>
+          </div>
+          
+          {/* Toggle Visualizações */}
           <div className="flex items-center bg-slate-800 rounded-lg p-1">
             <button
               onClick={() => setModoVisualizacao('tabela')}
@@ -468,9 +1046,34 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
                   ? 'bg-sky-500 text-white' 
                   : 'text-slate-400 hover:text-white'
               }`}
+              title="Visualização semanal"
             >
               <FaCalendarAlt size={12} />
-              Agenda
+              Semana
+            </button>
+            <button
+              onClick={() => setModoVisualizacao('mensal')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                modoVisualizacao === 'mensal' 
+                  ? 'bg-sky-500 text-white' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Visualização mensal"
+            >
+              <FaCalendarAlt size={12} />
+              Mês
+            </button>
+            <button
+              onClick={() => setModoVisualizacao('anual')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                modoVisualizacao === 'anual' 
+                  ? 'bg-sky-500 text-white' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Visualização anual"
+            >
+              <FaCalendarAlt size={12} />
+              Ano
             </button>
           </div>
           
@@ -507,14 +1110,14 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
         </div>
       </div>
       
-      {/* Navegação da Agenda (só aparece no modo agenda) */}
+      {/* Navegação da Agenda SEMANAL */}
       {modoVisualizacao === 'agenda' && (
         <div className="flex items-center justify-between mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
           <button
             onClick={() => setSemanaOffset(prev => prev - 1)}
             className="execucao-btn execucao-btn-secondary execucao-btn-sm"
           >
-            <FaChevronLeft /> Semana Anterior
+            <FaChevronLeft /> Anterior
           </button>
           
           <div className="text-center">
@@ -535,7 +1138,69 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
               onClick={() => setSemanaOffset(prev => prev + 1)}
               className="execucao-btn execucao-btn-secondary execucao-btn-sm"
             >
-              Próxima Semana <FaChevronRight />
+              Próxima <FaChevronRight />
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Navegação MENSAL */}
+      {modoVisualizacao === 'mensal' && (
+        <div className="flex items-center justify-between mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+          <button
+            onClick={() => setMesOffset(prev => prev - 1)}
+            className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+          >
+            <FaChevronLeft /> Mês Anterior
+          </button>
+          
+          <div className="text-center">
+            <div className="text-lg font-bold text-white capitalize">{mensalData.mesAno}</div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMesOffset(0)}
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+            >
+              Mês Atual
+            </button>
+            <button
+              onClick={() => setMesOffset(prev => prev + 1)}
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+            >
+              Próximo Mês <FaChevronRight />
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Navegação ANUAL */}
+      {modoVisualizacao === 'anual' && (
+        <div className="flex items-center justify-between mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
+          <button
+            onClick={() => setAnoOffset(prev => prev - 1)}
+            className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+          >
+            <FaChevronLeft /> Ano Anterior
+          </button>
+          
+          <div className="text-center">
+            <div className="text-lg font-bold text-white">{anualData.ano}</div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setAnoOffset(0)}
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+            >
+              Ano Atual
+            </button>
+            <button
+              onClick={() => setAnoOffset(prev => prev + 1)}
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+            >
+              Próximo Ano <FaChevronRight />
             </button>
           </div>
         </div>
@@ -670,6 +1335,178 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 rounded bg-green-500"></div>
               <span className="text-slate-300">Administrativo</span>
+            </div>
+          </div>
+        </div>
+      ) : modoVisualizacao === 'mensal' ? (
+        /* ===== VISUALIZAÇÃO MENSAL ===== */
+        <div className="execucao-card p-0 overflow-hidden">
+          {/* Header com dias da semana */}
+          <div className="grid grid-cols-7 border-b border-slate-700 bg-slate-800/70">
+            {['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].map((dia, i) => (
+              <div key={i} className="p-2 text-center text-xs font-semibold text-slate-400 border-r border-slate-700 last:border-r-0">
+                {dia}
+              </div>
+            ))}
+          </div>
+          
+          {/* Grid do mês */}
+          {mensalData.semanas.map((semana, semanaIndex) => (
+            <div key={semanaIndex} className="grid grid-cols-7 border-b border-slate-700 last:border-b-0">
+              {semana.map((dia, diaIndex) => (
+                <div 
+                  key={diaIndex}
+                  className={`min-h-[100px] p-1 border-r border-slate-700 last:border-r-0 ${
+                    !dia.isMesAtual ? 'bg-slate-900/50' : 
+                    dia.isHoje ? 'bg-sky-500/10' : 'bg-slate-800/30'
+                  }`}
+                >
+                  {/* Número do dia */}
+                  <div className={`text-right text-sm font-medium mb-1 ${
+                    !dia.isMesAtual ? 'text-slate-600' :
+                    dia.isHoje ? 'text-sky-400' : 'text-slate-400'
+                  }`}>
+                    {dia.isHoje ? (
+                      <span className="bg-sky-500 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-xs">
+                        {dia.diaNumero}
+                      </span>
+                    ) : dia.diaNumero}
+                  </div>
+                  
+                  {/* Etapas do dia */}
+                  <div className="space-y-0.5 overflow-y-auto max-h-[80px]">
+                    {dia.etapas.slice(0, 3).map((etapa, i) => (
+                      <div
+                        key={`${etapa.id}-${i}`}
+                        onClick={() => onAddAtividade(etapa)}
+                        className={`text-[9px] px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 ${getTipoCorAgenda(etapa.tipo)}`}
+                        title={`${etapa.cliente}\n${etapa.nome}`}
+                      >
+                        {etapa.cliente?.substring(0, 10)}
+                      </div>
+                    ))}
+                    {dia.etapas.length > 3 && (
+                      <div className="text-[9px] text-slate-500 text-center">
+                        +{dia.etapas.length - 3} mais
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+          
+          {/* Legenda */}
+          <div className="p-3 border-t border-slate-700 flex flex-wrap gap-4 text-xs">
+            <span className="text-slate-400">Legenda:</span>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-yellow-500"></div>
+              <span className="text-slate-300">Elétrica</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-orange-500"></div>
+              <span className="text-slate-300">Civil</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-purple-500"></div>
+              <span className="text-slate-300">Galpão</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-blue-500"></div>
+              <span className="text-slate-300">Geral</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded bg-green-500"></div>
+              <span className="text-slate-300">Administrativo</span>
+            </div>
+          </div>
+        </div>
+      ) : modoVisualizacao === 'anual' ? (
+        /* ===== VISUALIZAÇÃO ANUAL ===== */
+        <div className="execucao-card p-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {anualData.meses.map((mes) => (
+              <div 
+                key={mes.mes}
+                className={`rounded-lg border p-3 ${
+                  mes.isAtual 
+                    ? 'border-sky-500/50 bg-sky-500/10' 
+                    : 'border-slate-700 bg-slate-800/30'
+                }`}
+              >
+                {/* Nome do mês */}
+                <div className={`text-sm font-bold mb-2 ${mes.isAtual ? 'text-sky-400' : 'text-white'}`}>
+                  {mes.nomeLongo.toUpperCase()}
+                </div>
+                
+                {/* Contagem de etapas */}
+                <div className="text-2xl font-bold text-white mb-2">
+                  {mes.etapas.length}
+                  <span className="text-xs font-normal text-slate-400 ml-1">etapas</span>
+                </div>
+                
+                {/* Breakdown por tipo */}
+                <div className="flex flex-wrap gap-1">
+                  {mes.etapas.filter(e => e.tipo === 'eletrica').length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-300">
+                      ⚡ {mes.etapas.filter(e => e.tipo === 'eletrica').length}
+                    </span>
+                  )}
+                  {mes.etapas.filter(e => e.tipo === 'civil').length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300">
+                      🏗️ {mes.etapas.filter(e => e.tipo === 'civil').length}
+                    </span>
+                  )}
+                  {mes.etapas.filter(e => e.tipo === 'galpao').length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300">
+                      🏭 {mes.etapas.filter(e => e.tipo === 'galpao').length}
+                    </span>
+                  )}
+                  {mes.etapas.filter(e => e.tipo === 'geral').length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
+                      📋 {mes.etapas.filter(e => e.tipo === 'geral').length}
+                    </span>
+                  )}
+                  {mes.etapas.filter(e => e.tipo === 'administrativo').length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/20 text-green-300">
+                      📊 {mes.etapas.filter(e => e.tipo === 'administrativo').length}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Lista de clientes únicos */}
+                {mes.etapas.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-slate-700">
+                    <div className="text-[10px] text-slate-500 mb-1">Clientes:</div>
+                    <div className="flex flex-wrap gap-1">
+                      {[...new Set(mes.etapas.map(e => e.cliente))].slice(0, 3).map((cliente, i) => (
+                        <span key={i} className="text-[9px] px-1 py-0.5 rounded bg-slate-700 text-slate-300 truncate max-w-[80px]">
+                          {cliente}
+                        </span>
+                      ))}
+                      {[...new Set(mes.etapas.map(e => e.cliente))].length > 3 && (
+                        <span className="text-[9px] text-slate-500">
+                          +{[...new Set(mes.etapas.map(e => e.cliente))].length - 3}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          
+          {/* Resumo anual */}
+          <div className="mt-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="text-slate-400 text-sm">Total {anualData.ano}:</div>
+              <div className="text-white font-bold">
+                {anualData.meses.reduce((acc, m) => acc + m.etapas.length, 0)} etapas
+              </div>
+              <div className="text-slate-400">em</div>
+              <div className="text-white font-bold">
+                {new Set(anualData.meses.flatMap(m => m.etapas.map(e => e.cliente))).size} clientes
+              </div>
             </div>
           </div>
         </div>
@@ -825,14 +1662,27 @@ const PlanejamentoMacro = ({ usuario }) => {
   const [showObraModal, setShowObraModal] = useState(false);
   const [showEtapaModal, setShowEtapaModal] = useState(false);
   const [showAtividadeModal, setShowAtividadeModal] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false); // Modal de gerenciamento de templates
   const [obraSelecionada, setObraSelecionada] = useState(null);
   const [etapaSelecionada, setEtapaSelecionada] = useState(null);
   const [filtroPeriodo, setFiltroPeriodo] = useState('mes');
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [busca, setBusca] = useState('');
-  const [abaAtiva, setAbaAtiva] = useState('obras'); // obras, resumo
+  const [abaAtiva, setAbaAtiva] = useState('obras'); // obras, resumo, templates
   const [tecnicos, setTecnicos] = useState([]);
   const [obraExpandida, setObraExpandida] = useState(null);
+
+  // Estados para templates do banco
+  const [templates, setTemplates] = useState([]);
+  const [templateSelecionado, setTemplateSelecionado] = useState(null);
+  const [formTemplate, setFormTemplate] = useState({
+    nome: '',
+    descricao: '',
+    tipo_obra: 'eletrica',
+    icone: 'FaBolt',
+    cor: '#eab308',
+    itens: []
+  });
 
   // Estados para busca de apontamentos no modal de obra
   const [apontamentosDisponiveis, setApontamentosDisponiveis] = useState([]);
@@ -879,7 +1729,16 @@ const PlanejamentoMacro = ({ usuario }) => {
   useEffect(() => {
     carregarDados();
     carregarTecnicos();
+    carregarTemplates();
   }, [filtroPeriodo, filtroStatus]);
+
+  // Carregar templates do banco
+  const carregarTemplates = async () => {
+    const result = await execucaoService.buscarTemplates(false); // false = incluir inativos
+    if (result.success) {
+      setTemplates(result.data);
+    }
+  };
 
   // Carregar apontamentos quando o modal de obra abrir
   useEffect(() => {
@@ -1028,6 +1887,39 @@ const PlanejamentoMacro = ({ usuario }) => {
         result = await execucaoService.atualizarObra(obraSelecionada.id, formObra);
       } else {
         result = await execucaoService.criarObra(formObra);
+        
+        // Se um template foi selecionado, criar etapas automaticamente
+        if (result.success && formObra.template_id) {
+          // Buscar template do banco
+          const templateSelecionado = templates.find(t => t.id === formObra.template_id);
+          if (templateSelecionado && templateSelecionado.itens) {
+            const dataInicio = new Date(formObra.data_inicio_prevista);
+            let dataAtual = new Date(dataInicio);
+            
+            for (let i = 0; i < templateSelecionado.itens.length; i++) {
+              const etapaTemplate = templateSelecionado.itens[i];
+              const dataInicioEtapa = new Date(dataAtual);
+              const dataFimEtapa = new Date(dataAtual);
+              dataFimEtapa.setDate(dataFimEtapa.getDate() + (etapaTemplate.duracao_dias || 3));
+              
+              await execucaoService.criarEtapa({
+                obra_id: result.data.id,
+                nome: etapaTemplate.nome,
+                descricao: etapaTemplate.descricao,
+                tipo: etapaTemplate.tipo,
+                data_inicio: dataInicioEtapa.toISOString().split('T')[0],
+                data_fim: dataFimEtapa.toISOString().split('T')[0],
+                ordem: i + 1,
+                status: 'pendente',
+                progresso: 0
+              });
+              
+              // Próxima etapa começa após o fim da atual
+              dataAtual = new Date(dataFimEtapa);
+              dataAtual.setDate(dataAtual.getDate() + 1);
+            }
+          }
+        }
       }
 
       if (result.success) {
@@ -1084,8 +1976,102 @@ const PlanejamentoMacro = ({ usuario }) => {
       observacoes: '',
       contato_cliente: '',
       apontamento_id: '',
-      arquivos_pdf: []
+      arquivos_pdf: [],
+      template_id: ''
     });
+  };
+
+  // Handlers de Templates
+  const handleNovoTemplate = () => {
+    setTemplateSelecionado(null);
+    setFormTemplate({
+      nome: '',
+      descricao: '',
+      tipo_obra: 'eletrica',
+      icone: 'FaBolt',
+      cor: '#eab308',
+      itens: []
+    });
+    setShowTemplateModal(true);
+  };
+
+  const handleEditarTemplate = (template) => {
+    setTemplateSelecionado(template);
+    setFormTemplate({
+      nome: template.nome || '',
+      descricao: template.descricao || '',
+      tipo_obra: template.tipo_obra || 'eletrica',
+      icone: template.icone || 'FaBolt',
+      cor: template.cor || '#eab308',
+      ativo: template.ativo !== false,
+      itens: template.itens || []
+    });
+    setShowTemplateModal(true);
+  };
+
+  const handleSalvarTemplate = async (e) => {
+    e?.preventDefault();
+    try {
+      let result;
+      if (templateSelecionado) {
+        result = await execucaoService.atualizarTemplate(templateSelecionado.id, formTemplate);
+      } else {
+        result = await execucaoService.criarTemplate(formTemplate);
+      }
+
+      if (result.success) {
+        setShowTemplateModal(false);
+        setTemplateSelecionado(null);
+        carregarTemplates();
+      } else {
+        alert('Erro ao salvar template: ' + (result.message || 'Erro desconhecido'));
+      }
+    } catch (error) {
+      console.error('Erro ao salvar template:', error);
+      alert('Erro ao salvar template: ' + error.message);
+    }
+  };
+
+  const handleExcluirTemplate = async (templateId) => {
+    if (confirm('Deseja realmente excluir este template?')) {
+      const result = await execucaoService.excluirTemplate(templateId);
+      if (result.success) {
+        carregarTemplates();
+      }
+    }
+  };
+
+  const handleDuplicarTemplate = async (templateId, nome) => {
+    const result = await execucaoService.duplicarTemplate(templateId, nome + ' (Cópia)');
+    if (result.success) {
+      carregarTemplates();
+    }
+  };
+
+  const handleAdicionarItemTemplate = () => {
+    setFormTemplate(prev => ({
+      ...prev,
+      itens: [
+        ...prev.itens,
+        { nome: '', descricao: '', tipo: 'geral', duracao_dias: 3, ordem: prev.itens.length + 1 }
+      ]
+    }));
+  };
+
+  const handleRemoverItemTemplate = (index) => {
+    setFormTemplate(prev => ({
+      ...prev,
+      itens: prev.itens.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleAtualizarItemTemplate = (index, campo, valor) => {
+    setFormTemplate(prev => ({
+      ...prev,
+      itens: prev.itens.map((item, i) => 
+        i === index ? { ...item, [campo]: valor } : item
+      )
+    }));
   };
 
   // Handlers de Etapa
@@ -1093,6 +2079,10 @@ const PlanejamentoMacro = ({ usuario }) => {
     setObraSelecionada(obra);
     if (etapa) {
       setEtapaSelecionada(etapa);
+      // Buscar nome da etapa pai se existir
+      const etapaPai = etapa.etapa_pai_id 
+        ? obra.etapas?.find(e => e.id === etapa.etapa_pai_id) 
+        : null;
       setFormEtapa({
         nome: etapa.nome || '',
         descricao: etapa.descricao || '',
@@ -1102,7 +2092,9 @@ const PlanejamentoMacro = ({ usuario }) => {
         responsavel_id: etapa.responsavel_id || '',
         ordem: etapa.ordem || 0,
         progresso: etapa.progresso || 0,
-        status: etapa.status || 'pendente'
+        status: etapa.status || 'pendente',
+        etapa_pai_id: etapa.etapa_pai_id || null,
+        etapa_pai_nome: etapaPai?.nome || null
       });
     } else {
       setEtapaSelecionada(null);
@@ -1113,23 +2105,59 @@ const PlanejamentoMacro = ({ usuario }) => {
         data_inicio: obra.data_inicio_prevista || '',
         data_fim: '',
         responsavel_id: '',
-        ordem: (obra.etapas?.length || 0) + 1
+        ordem: (obra.etapas?.length || 0) + 1,
+        etapa_pai_id: null
       });
     }
+    setShowEtapaModal(true);
+  };
+
+  // Handler para abrir modal de sub-etapa
+  const handleAbrirSubEtapaModal = (obra, etapaPai) => {
+    setObraSelecionada(obra);
+    setEtapaSelecionada(null);
+    
+    // Contar sub-etapas existentes para determinar ordem
+    const subEtapasExistentes = obra.etapas?.filter(e => e.etapa_pai_id === etapaPai.id) || [];
+    
+    setFormEtapa({
+      nome: '',
+      descricao: '',
+      tipo: etapaPai.tipo || 'geral', // Herda o tipo da etapa pai
+      data_inicio: etapaPai.data_inicio || '',
+      data_fim: etapaPai.data_fim || '',
+      responsavel_id: etapaPai.responsavel_id || '',
+      ordem: subEtapasExistentes.length + 1,
+      etapa_pai_id: etapaPai.id,
+      etapa_pai_nome: etapaPai.nome // Para exibição no modal
+    });
     setShowEtapaModal(true);
   };
 
   const handleSalvarEtapa = async (e) => {
     e.preventDefault();
     try {
+      // Remover campos auxiliares que não existem no banco
+      const { etapa_pai_nome, ...dadosParaSalvar } = formEtapa;
+      
       let result;
       if (etapaSelecionada) {
-        result = await execucaoService.atualizarEtapa(etapaSelecionada.id, formEtapa);
+        result = await execucaoService.atualizarEtapa(etapaSelecionada.id, dadosParaSalvar);
+        
+        // Se responsável foi definido/atualizado, atualizar ou criar atividade na agenda
+        if (result.success && formEtapa.responsavel_id) {
+          await criarOuAtualizarAtividadeAutomatica(result.data || { id: etapaSelecionada.id, ...dadosParaSalvar });
+        }
       } else {
         result = await execucaoService.criarEtapa({
-          ...formEtapa,
+          ...dadosParaSalvar,
           obra_id: obraSelecionada.id
         });
+        
+        // Se responsável foi definido, criar atividade automaticamente na agenda
+        if (result.success && formEtapa.responsavel_id) {
+          await criarOuAtualizarAtividadeAutomatica(result.data);
+        }
       }
 
       if (result.success) {
@@ -1138,6 +2166,62 @@ const PlanejamentoMacro = ({ usuario }) => {
       }
     } catch (error) {
       console.error('Erro ao salvar etapa:', error);
+    }
+  };
+
+  // Função para criar ou atualizar atividade automaticamente quando etapa tem responsável
+  // Para etapas do tipo 'estoque', cria APENAS pedido de material (NÃO cria atividade em agenda)
+  const criarOuAtualizarAtividadeAutomatica = async (etapa) => {
+    try {
+      // Buscar dados da obra para incluir informações do cliente
+      const obra = obras.find(o => o.id === (etapa.obra_id || obraSelecionada?.id));
+      
+      // Se for etapa de estoque/compras, criar APENAS pedido de material (sem atividade na agenda)
+      if (etapa.tipo === 'estoque') {
+        // Criar pedido de material vinculado à obra e etapa
+        // Este pedido aparecerá na Visão Geral e no Pedido de Material como card
+        const dadosPedido = {
+          descricao: `Lista de Materiais - ${obra?.nome_cliente || 'N/A'}`,
+          itens: [],
+          urgencia: 'normal',
+          status: 'concluido',
+          obra_id: obra?.id,
+          etapa_id: etapa.id,
+          cliente_nome: obra?.nome_cliente || '',
+          endereco_obra: obra?.endereco || '',
+          data_lista_pronta: etapa.data_fim, // Data limite para montar a lista
+          observacoes: `📦 Lista de materiais para a obra.\n\n🏢 Cliente: ${obra?.nome_cliente || 'N/A'}\n📍 Endereço: ${obra?.endereco || 'N/A'}\n📅 Data limite para lista pronta: ${etapa.data_fim}\n\n⚠️ Após preencher os itens e definir a data de disponibilidade, uma etapa "Chegada dos Materiais" será criada automaticamente no cronograma.`
+        };
+
+        await execucaoService.criarPedidoMaterial(dadosPedido, usuario?.id);
+        console.log('📦 Pedido de material criado automaticamente (aparecerá na Visão Geral e Pedido de Material)');
+        return;
+      }
+      
+      // Para outros tipos, criar atividade na agenda correspondente
+      const dadosAtividade = {
+        titulo: etapa.nome,
+        descricao: etapa.descricao || `Etapa da obra: ${obra?.nome_cliente || 'N/A'}`,
+        data_programada: etapa.data_inicio,
+        hora_inicio: '08:00',
+        hora_fim: '17:00',
+        prioridade: 'normal',
+        tecnico_responsavel_id: etapa.responsavel_id,
+        cliente_nome: obra?.nome_cliente || '',
+        endereco: obra?.endereco || '',
+        observacoes: `Etapa automática - Obra: ${obra?.nome_cliente || 'N/A'}\nPeríodo: ${etapa.data_inicio} a ${etapa.data_fim}`
+      };
+
+      await execucaoService.criarAtividadeDeEtapa(
+        etapa.id,
+        dadosAtividade,
+        usuario?.id
+      );
+      
+      console.log('✅ Atividade criada automaticamente na agenda');
+    } catch (error) {
+      console.error('Erro ao criar atividade/pedido automático:', error);
+      // Não interrompe o fluxo se falhar a criação
     }
   };
 
@@ -1263,6 +2347,17 @@ const PlanejamentoMacro = ({ usuario }) => {
 
   return (
     <div className="execucao-animate-fade-in">
+      {/* Alertas de Etapas Atrasadas */}
+      <AlertasEtapasAtrasadas 
+        obras={obras} 
+        onVerEtapa={(etapa) => {
+          const obra = obras.find(o => o.id === etapa.obra_id);
+          if (obra) {
+            handleAbrirEtapaModal(obra, etapa);
+          }
+        }}
+      />
+
       {/* Abas de Navegação */}
       <div className="flex items-center gap-1 mb-6 border-b border-slate-700 pb-4">
         <button
@@ -1287,10 +2382,24 @@ const PlanejamentoMacro = ({ usuario }) => {
           <FaListAlt size={14} />
           Resumo de Etapas
         </button>
+        <button
+          onClick={() => setAbaAtiva('templates')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+            abaAtiva === 'templates' 
+              ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30' 
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          <FaMagic size={14} />
+          Templates
+          <span className="text-[10px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded">
+            {templates.length}
+          </span>
+        </button>
       </div>
 
       {/* Aba de Resumo de Etapas */}
-      {abaAtiva === 'resumo' ? (
+      {abaAtiva === 'resumo' && (
         <>
           {/* Filtro de Período para Resumo */}
           <div className="flex items-center gap-4 mb-6">
@@ -1317,7 +2426,138 @@ const PlanejamentoMacro = ({ usuario }) => {
             onAddAtividade={handleAbrirAtividadeModal}
           />
         </>
-      ) : (
+      )}
+
+      {/* Aba de Templates */}
+      {abaAtiva === 'templates' && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <FaMagic className="text-purple-400" />
+                Templates de Etapas
+              </h3>
+              <p className="text-sm text-slate-400">
+                Gerencie modelos de etapas pré-definidos para usar ao criar novas obras
+              </p>
+            </div>
+            <button
+              onClick={handleNovoTemplate}
+              className="execucao-btn-primary flex items-center gap-2"
+            >
+              <FaPlus size={12} />
+              Novo Template
+            </button>
+          </div>
+
+          {/* Lista de Templates */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {templates.map(template => {
+              const getIcone = (icone) => {
+                switch(icone) {
+                  case 'FaBolt': return <FaBolt size={24} />;
+                  case 'FaHardHat': return <FaHardHat size={24} />;
+                  case 'FaWarehouse': return <FaWarehouse size={24} />;
+                  case 'FaWrench': return <FaWrench size={24} />;
+                  default: return <FaTasks size={24} />;
+                }
+              };
+              
+              return (
+                <div 
+                  key={template.id}
+                  className={`p-4 rounded-xl border transition-all ${
+                    template.ativo 
+                      ? 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                      : 'bg-slate-900/50 border-slate-800 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div 
+                      className="w-12 h-12 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: `${template.cor}20`, color: template.cor }}
+                    >
+                      {getIcone(template.icone)}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {!template.ativo && (
+                        <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded">
+                          Inativo
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleEditarTemplate(template)}
+                        className="p-1.5 rounded text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-all"
+                        title="Editar template"
+                      >
+                        <FaEdit size={12} />
+                      </button>
+                      <button
+                        onClick={() => handleDuplicarTemplate(template.id, template.nome)}
+                        className="p-1.5 rounded text-slate-400 hover:text-purple-400 hover:bg-purple-500/10 transition-all"
+                        title="Duplicar template"
+                      >
+                        <FaCopy size={12} />
+                      </button>
+                      <button
+                        onClick={() => handleExcluirTemplate(template.id)}
+                        className="p-1.5 rounded text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        title="Excluir template"
+                      >
+                        <FaTrash size={12} />
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <h4 className="font-semibold text-white mb-1">{template.nome}</h4>
+                  {template.descricao && (
+                    <p className="text-xs text-slate-400 mb-3">{template.descricao}</p>
+                  )}
+                  
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
+                      {template.tipo_obra || 'Geral'}
+                    </span>
+                    <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
+                      {template.itens?.length || 0} etapas
+                    </span>
+                  </div>
+                  
+                  {/* Lista de etapas do template */}
+                  <div className="space-y-1 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                    {template.itens?.slice(0, 5).map((etapa, idx) => (
+                      <div 
+                        key={idx}
+                        className="flex items-center justify-between text-xs p-1.5 bg-slate-900/50 rounded"
+                      >
+                        <span className="text-slate-300 truncate">{idx + 1}. {etapa.nome}</span>
+                        <span className="text-slate-500 shrink-0 ml-2">{etapa.duracao_dias}d</span>
+                      </div>
+                    ))}
+                    {template.itens?.length > 5 && (
+                      <div className="text-center text-[10px] text-slate-500 py-1">
+                        +{template.itens.length - 5} mais etapas...
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {templates.length === 0 && (
+            <div className="text-center py-12 text-slate-400">
+              <FaMagic size={48} className="mx-auto mb-4 opacity-30" />
+              <p>Nenhum template cadastrado</p>
+              <p className="text-sm mt-1">Clique em "Novo Template" para criar o primeiro</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Aba de Obras */}
+      {abaAtiva === 'obras' && (
         <>
           {/* Header da aba Obras */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
@@ -1540,6 +2780,7 @@ const PlanejamentoMacro = ({ usuario }) => {
                       onEditEtapa={(etapa) => handleAbrirEtapaModal(obra, etapa)}
                       onDeleteEtapa={handleExcluirEtapa}
                       onAddAtividade={handleAbrirAtividadeModal}
+                      onAddSubEtapa={(etapaPai) => handleAbrirSubEtapaModal(obra, etapaPai)}
                     />
                   </div>
                 )}
@@ -1549,6 +2790,182 @@ const PlanejamentoMacro = ({ usuario }) => {
         </div>
       )}
         </>
+      )}
+
+      {/* Modal de Template */}
+      {showTemplateModal && (
+        <div className="execucao-modal-overlay" onClick={() => setShowTemplateModal(false)}>
+          <div className="execucao-modal execucao-modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="execucao-modal-header">
+              <h3 className="execucao-modal-title">
+                <FaMagic className="text-purple-400" />
+                {templateSelecionado ? 'Editar Template' : 'Novo Template'}
+              </h3>
+              <button className="execucao-modal-close" onClick={() => setShowTemplateModal(false)}>
+                <FaTimes />
+              </button>
+            </div>
+
+            <form onSubmit={handleSalvarTemplate}>
+              <div className="execucao-modal-body">
+                <div className="space-y-4">
+                  {/* Dados básicos do template */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="execucao-form-group">
+                      <label className="execucao-form-label">Nome do Template *</label>
+                      <input
+                        type="text"
+                        className="execucao-form-input"
+                        value={formTemplate.nome}
+                        onChange={(e) => setFormTemplate(prev => ({ ...prev, nome: e.target.value }))}
+                        placeholder="Ex: Template Elétrica Industrial"
+                        required
+                      />
+                    </div>
+                    <div className="execucao-form-group">
+                      <label className="execucao-form-label">Tipo de Obra</label>
+                      <input
+                        type="text"
+                        className="execucao-form-input"
+                        value={formTemplate.tipo_obra}
+                        onChange={(e) => setFormTemplate(prev => ({ ...prev, tipo_obra: e.target.value }))}
+                        placeholder="Ex: Elétrica, Civil, Galpão..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="execucao-form-group">
+                    <label className="execucao-form-label">Descrição</label>
+                    <textarea
+                      className="execucao-form-textarea"
+                      rows="2"
+                      value={formTemplate.descricao}
+                      onChange={(e) => setFormTemplate(prev => ({ ...prev, descricao: e.target.value }))}
+                      placeholder="Descreva quando usar este template..."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="execucao-form-group">
+                      <label className="execucao-form-label">Ícone</label>
+                      <select
+                        className="execucao-form-select"
+                        value={formTemplate.icone}
+                        onChange={(e) => setFormTemplate(prev => ({ ...prev, icone: e.target.value }))}
+                      >
+                        <option value="FaTasks">📋 Tarefas</option>
+                        <option value="FaBolt">⚡ Elétrica</option>
+                        <option value="FaHardHat">👷 Civil</option>
+                        <option value="FaWarehouse">🏭 Galpão</option>
+                        <option value="FaWrench">🔧 Manutenção</option>
+                      </select>
+                    </div>
+                    <div className="execucao-form-group">
+                      <label className="execucao-form-label">Cor</label>
+                      <input
+                        type="color"
+                        className="execucao-form-input h-10 p-1 cursor-pointer"
+                        value={formTemplate.cor}
+                        onChange={(e) => setFormTemplate(prev => ({ ...prev, cor: e.target.value }))}
+                      />
+                    </div>
+                    <div className="execucao-form-group">
+                      <label className="execucao-form-label flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={formTemplate.ativo}
+                          onChange={(e) => setFormTemplate(prev => ({ ...prev, ativo: e.target.checked }))}
+                          className="w-4 h-4"
+                        />
+                        Template Ativo
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Etapas do Template */}
+                  <div className="border-t border-slate-700 pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="text-sm font-medium text-purple-400">
+                        Etapas do Template ({formTemplate.itens?.length || 0})
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAdicionarItemTemplate}
+                        className="text-xs flex items-center gap-1 px-2 py-1 rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all"
+                      >
+                        <FaPlus size={10} />
+                        Adicionar Etapa
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                      {formTemplate.itens?.map((item, index) => (
+                        <div 
+                          key={index}
+                          className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700"
+                        >
+                          <span className="text-xs text-slate-500 w-6">{index + 1}.</span>
+                          <input
+                            type="text"
+                            className="flex-1 bg-transparent border-none text-sm text-white focus:outline-none"
+                            value={item.nome}
+                            onChange={(e) => handleAtualizarItemTemplate(index, 'nome', e.target.value)}
+                            placeholder="Nome da etapa"
+                          />
+                          <input
+                            type="number"
+                            className="w-16 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-center"
+                            value={item.duracao_dias}
+                            onChange={(e) => handleAtualizarItemTemplate(index, 'duracao_dias', parseInt(e.target.value) || 1)}
+                            min="1"
+                            title="Duração em dias"
+                          />
+                          <span className="text-xs text-slate-500">dias</span>
+                          <select
+                            className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs"
+                            value={item.tipo || 'etapa'}
+                            onChange={(e) => handleAtualizarItemTemplate(index, 'tipo', e.target.value)}
+                            title="Tipo"
+                          >
+                            <option value="etapa">Etapa</option>
+                            <option value="marco">Marco</option>
+                            <option value="fase">Fase</option>
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoverItemTemplate(index)}
+                            className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all"
+                            title="Remover etapa"
+                          >
+                            <FaTrash size={10} />
+                          </button>
+                        </div>
+                      ))}
+                      {(!formTemplate.itens || formTemplate.itens.length === 0) && (
+                        <div className="text-center py-4 text-slate-500 text-sm">
+                          Nenhuma etapa adicionada. Clique em "Adicionar Etapa" para começar.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="execucao-modal-footer">
+                <button
+                  type="button"
+                  className="execucao-btn execucao-btn-secondary"
+                  onClick={() => setShowTemplateModal(false)}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="execucao-btn bg-purple-600 hover:bg-purple-700">
+                  {templateSelecionado ? 'Salvar Alterações' : 'Criar Template'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* Modal de Obra */}
@@ -1610,6 +3027,67 @@ const PlanejamentoMacro = ({ usuario }) => {
 
                       {apontamentosDisponiveis.length === 0 && (
                         <p className="text-xs text-slate-500">Nenhum cliente com fase CONTRATO/VENDA encontrado.</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Seção de Templates - só mostra para nova obra */}
+                  {!obraSelecionada && templates.length > 0 && (
+                    <div className="p-4 bg-gradient-to-r from-purple-500/10 to-sky-500/10 rounded-lg border border-purple-500/30 space-y-3">
+                      <label className="text-sm font-medium text-purple-400 flex items-center gap-2">
+                        <FaMagic size={12} />
+                        Usar Template de Etapas
+                      </label>
+                      <p className="text-xs text-slate-400">
+                        Ao salvar a obra, as etapas do template selecionado serão criadas automaticamente.
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {templates.filter(t => t.ativo).map(template => {
+                          const isSelected = formObra.template_id === template.id;
+                          const getIcone = (icone) => {
+                            switch(icone) {
+                              case 'FaBolt': return <FaBolt size={16} />;
+                              case 'FaHardHat': return <FaHardHat size={16} />;
+                              case 'FaWarehouse': return <FaWarehouse size={16} />;
+                              case 'FaWrench': return <FaWrench size={16} />;
+                              default: return <FaTasks size={16} />;
+                            }
+                          };
+                          return (
+                            <button
+                              key={template.id}
+                              type="button"
+                              onClick={() => setFormObra(prev => ({ 
+                                ...prev, 
+                                template_id: prev.template_id === template.id ? '' : template.id 
+                              }))}
+                              className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-all ${
+                                isSelected
+                                  ? `bg-opacity-20 border-opacity-50`
+                                  : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                              }`}
+                              style={isSelected ? { 
+                                backgroundColor: `${template.cor}20`, 
+                                borderColor: `${template.cor}80`,
+                                color: template.cor
+                              } : {}}
+                            >
+                              {getIcone(template.icone)}
+                              <span className="text-xs font-medium">{template.nome?.split(' ')[0] || 'Template'}</span>
+                              <span className="text-[10px] opacity-60">{template.itens?.length || 0} etapas</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {formObra.template_id && (
+                        <div className="mt-2 p-2 bg-slate-800/50 rounded text-xs text-slate-300">
+                          <strong className="text-white">Etapas que serão criadas:</strong>
+                          <ul className="mt-1 list-disc list-inside space-y-0.5">
+                            {templates.find(t => t.id === formObra.template_id)?.itens?.map((etapa, i) => (
+                              <li key={i}>{etapa.nome} <span className="text-slate-500">({etapa.duracao_dias} dias)</span></li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   )}
@@ -1825,8 +3303,11 @@ const PlanejamentoMacro = ({ usuario }) => {
           <div className="execucao-modal" onClick={(e) => e.stopPropagation()}>
             <div className="execucao-modal-header">
               <h3 className="execucao-modal-title">
-                <FaProjectDiagram className="text-green-400" />
-                {etapaSelecionada ? 'Editar Etapa' : 'Nova Etapa'}
+                <FaProjectDiagram className={formEtapa.etapa_pai_id ? "text-purple-400" : "text-green-400"} />
+                {etapaSelecionada 
+                  ? (etapaSelecionada.etapa_pai_id ? 'Editar Sub-etapa' : 'Editar Etapa')
+                  : (formEtapa.etapa_pai_id ? 'Nova Sub-etapa' : 'Nova Etapa')
+                }
               </h3>
               <button className="execucao-modal-close" onClick={() => setShowEtapaModal(false)}>
                 <FaTimes />
@@ -1836,14 +3317,27 @@ const PlanejamentoMacro = ({ usuario }) => {
             <form onSubmit={handleSalvarEtapa}>
               <div className="execucao-modal-body">
                 <div className="space-y-4">
+                  {/* Indicador de etapa pai (quando é sub-etapa) */}
+                  {formEtapa.etapa_pai_id && (
+                    <div className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                      <div className="flex items-center gap-2 text-purple-400 text-sm">
+                        <FaProjectDiagram size={12} />
+                        <span className="font-medium">Sub-etapa de:</span>
+                        <span className="text-white">{formEtapa.etapa_pai_nome || 'Etapa pai'}</span>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="execucao-form-group">
-                    <label className="execucao-form-label">Nome da Etapa *</label>
+                    <label className="execucao-form-label">
+                      {formEtapa.etapa_pai_id ? 'Nome da Sub-etapa *' : 'Nome da Etapa *'}
+                    </label>
                     <input
                       type="text"
                       className="execucao-form-input"
                       value={formEtapa.nome}
                       onChange={(e) => setFormEtapa(prev => ({ ...prev, nome: e.target.value }))}
-                      placeholder="Ex: Instalação de quadros elétricos"
+                      placeholder={formEtapa.etapa_pai_id ? "Ex: Passagem de cabos - Bloco A" : "Ex: Instalação de quadros elétricos"}
                       required
                     />
                   </div>
@@ -1867,11 +3361,12 @@ const PlanejamentoMacro = ({ usuario }) => {
                         value={formEtapa.tipo}
                         onChange={(e) => setFormEtapa(prev => ({ ...prev, tipo: e.target.value }))}
                       >
-                        <option value="eletrica">Elétrica</option>
-                        <option value="civil">Civil</option>
-                        <option value="galpao">Galpão</option>
-                        <option value="geral">Geral</option>
-                        <option value="administrativo">Administrativo</option>
+                        <option value="gestao">🎯 Gestão/Liderança</option>
+                        <option value="eletrica">⚡ Elétrica</option>
+                        <option value="civil">🏗️ Civil</option>
+                        <option value="galpao">🏭 Galpão</option>
+                        <option value="estoque">📦 Estoque/Compras</option>
+                        <option value="administrativo">📋 Administrativo</option>
                       </select>
                     </div>
                     <div className="execucao-form-group">
@@ -1952,8 +3447,11 @@ const PlanejamentoMacro = ({ usuario }) => {
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="execucao-btn execucao-btn-primary">
-                  {etapaSelecionada ? 'Salvar' : 'Adicionar Etapa'}
+                <button type="submit" className={`execucao-btn ${formEtapa.etapa_pai_id ? 'bg-purple-600 hover:bg-purple-700' : 'execucao-btn-primary'}`}>
+                  {etapaSelecionada 
+                    ? 'Salvar' 
+                    : (formEtapa.etapa_pai_id ? 'Adicionar Sub-etapa' : 'Adicionar Etapa')
+                  }
                 </button>
               </div>
             </form>

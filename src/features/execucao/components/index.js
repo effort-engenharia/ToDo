@@ -8,6 +8,7 @@ export { default as AgendaBase } from './AgendaBase';
 export { default as AgendaEletrica } from './AgendaEletrica';
 export { default as AgendaCivil } from './AgendaCivil';
 export { default as AgendaGalpao } from './AgendaGalpao';
+export { default as AgendaGestao } from './AgendaGestao';
 export { default as AtividadesDia } from './AtividadesDia';
 export { default as PedidoMaterial } from './PedidoMaterial';
 export { default as DesempenhoIndividual } from './DesempenhoIndividual';

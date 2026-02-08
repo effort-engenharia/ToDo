@@ -284,10 +284,82 @@ export const execucaoService = {
         });
       }
 
+      // Se concluída, verificar se há etapa vinculada e atualizar progresso
+      if (novoStatus === 'concluida') {
+        await this.atualizarEtapaVinculada(id);
+      }
+
       return { success: true, data };
     } catch (error) {
       console.error('Erro ao alterar status:', error);
       return { success: false, message: error.message };
+    }
+  },
+
+  // Atualizar etapa vinculada quando atividade é concluída
+  async atualizarEtapaVinculada(atividadeId) {
+    try {
+      // Buscar atividade com etapa_id
+      const { data: atividade, error: atividadeError } = await supabase
+        .from('execucao_atividades')
+        .select('id, titulo, cliente_nome, etapa_id')
+        .eq('id', atividadeId)
+        .single();
+
+      if (atividadeError || !atividade) return;
+
+      // Se tem etapa_id direto, usar ele
+      if (atividade.etapa_id) {
+        await supabase
+          .from('execucao_obras_etapas')
+          .update({
+            progresso: 100,
+            status: 'concluida',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', atividade.etapa_id);
+        console.log('✅ Etapa vinculada atualizada para 100%');
+        return;
+      }
+
+      // Se não tem etapa_id, tentar encontrar por título + cliente usando RPC ou query direta
+      // Buscar todas as etapas com o mesmo nome
+      const { data: etapas, error: etapaError } = await supabase
+        .from('execucao_obras_etapas')
+        .select('id, nome, obra:execucao_obras(nome_cliente)')
+        .eq('nome', atividade.titulo);
+
+      if (!etapaError && etapas && etapas.length > 0) {
+        // Verificar se o cliente bate
+        const etapaMatch = etapas.find(e => 
+          e.obra?.nome_cliente === atividade.cliente_nome
+        );
+        
+        if (etapaMatch) {
+          await supabase
+            .from('execucao_obras_etapas')
+            .update({
+              progresso: 100,
+              status: 'concluida',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', etapaMatch.id);
+          
+          // Vincular atividade à etapa para futuras atualizações
+          await supabase
+            .from('execucao_atividades')
+            .update({ etapa_id: etapaMatch.id })
+            .eq('id', atividadeId);
+            
+          console.log('✅ Etapa encontrada e atualizada para 100%:', etapaMatch.id);
+        } else {
+          console.log('⚠️ Nenhuma etapa encontrada com cliente correspondente');
+        }
+      } else {
+        console.log('⚠️ Nenhuma etapa encontrada com o nome:', atividade.titulo);
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar etapa vinculada:', error);
     }
   },
 
@@ -513,6 +585,172 @@ export const execucaoService = {
       return { success: true, data };
     } catch (error) {
       console.error('Erro ao atualizar status do pedido:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  async atualizarPedidoMaterial(id, dados) {
+    try {
+      const { data, error } = await supabase
+        .from('execucao_pedidos_material')
+        .update({
+          ...dados,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select(`
+          *,
+          solicitante:usuarios!solicitante_id(id, nome_completo)
+        `)
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao atualizar pedido de material:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  async excluirPedidoMaterial(id) {
+    try {
+      const { error } = await supabase
+        .from('execucao_pedidos_material')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao excluir pedido de material:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // ==========================================
+  // HISTÓRICO DE PEDIDOS
+  // ==========================================
+
+  async registrarHistoricoPedido(pedidoId, dados, usuario) {
+    try {
+      const { data, error } = await supabase
+        .from('execucao_historico_pedidos')
+        .insert([{
+          pedido_id: pedidoId,
+          usuario_id: usuario?.id || null,
+          usuario_nome: usuario?.nome_completo || 'Sistema',
+          tipo_alteracao: dados.tipo_alteracao,
+          descricao: dados.descricao,
+          dados_anteriores: dados.dados_anteriores || null,
+          dados_novos: dados.dados_novos || null,
+          data_limite_anterior: dados.data_limite_anterior || null,
+          data_limite_nova: dados.data_limite_nova || null,
+          motivo: dados.motivo || null
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao registrar histórico:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  async buscarHistoricoPedido(pedidoId) {
+    try {
+      const { data, error } = await supabase
+        .from('execucao_historico_pedidos')
+        .select('*')
+        .eq('pedido_id', pedidoId)
+        .order('data_alteracao', { ascending: false });
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao buscar histórico:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // ==========================================
+  // TEMPLATES DE MATERIAIS
+  // ==========================================
+
+  async buscarTemplatesMateriais(filtros = {}) {
+    try {
+      let query = supabase
+        .from('execucao_templates_materiais')
+        .select('*')
+        .eq('ativo', true)
+        .order('tipo_servico', { ascending: true })
+        .order('nome', { ascending: true });
+
+      if (filtros.tipo_servico) {
+        query = query.eq('tipo_servico', filtros.tipo_servico);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao buscar templates de materiais:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  async criarTemplateMaterial(template, usuarioId) {
+    try {
+      const { data, error } = await supabase
+        .from('execucao_templates_materiais')
+        .insert([{
+          ...template,
+          created_by: usuarioId
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao criar template de material:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  async atualizarTemplateMaterial(id, dados) {
+    try {
+      const { data, error } = await supabase
+        .from('execucao_templates_materiais')
+        .update({
+          ...dados,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao atualizar template de material:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  async excluirTemplateMaterial(id) {
+    try {
+      // Soft delete - apenas desativa
+      const { error } = await supabase
+        .from('execucao_templates_materiais')
+        .update({ ativo: false, updated_at: new Date().toISOString() })
+        .eq('id', id);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao excluir template de material:', error);
       return { success: false, message: error.message };
     }
   },
@@ -782,6 +1020,11 @@ export const execucaoService = {
       // Separar arquivos do objeto obra
       const { arquivos_pdf, ...dadosObra } = obra;
       
+      // Tratar template_id vazio como null (UUID não aceita string vazia)
+      if (dadosObra.template_id === '' || dadosObra.template_id === undefined) {
+        dadosObra.template_id = null;
+      }
+      
       const { data, error } = await supabase
         .from('execucao_obras')
         .insert([dadosObra])
@@ -832,9 +1075,33 @@ export const execucaoService = {
     }
   },
 
-  // Excluir obra
+  // Excluir obra e todas as atividades/pedidos relacionados
   async excluirObra(id) {
     try {
+      // Buscar dados da obra antes de excluir
+      const { data: obra } = await supabase
+        .from('execucao_obras')
+        .select('nome_cliente')
+        .eq('id', id)
+        .single();
+
+      if (obra) {
+        // Excluir todas as atividades relacionadas a esta obra
+        await supabase
+          .from('execucao_atividades')
+          .delete()
+          .eq('cliente_nome', obra.nome_cliente);
+        
+        // Excluir todos os pedidos de material relacionados a esta obra
+        await supabase
+          .from('execucao_pedidos_material')
+          .delete()
+          .ilike('descricao', `%${obra.nome_cliente}%`);
+        
+        console.log('🗑️ Atividades e pedidos relacionados à obra excluídos');
+      }
+
+      // Excluir a obra (etapas são excluídas por CASCADE)
       const { error } = await supabase
         .from('execucao_obras')
         .delete()
@@ -916,13 +1183,44 @@ export const execucaoService = {
   // Excluir etapa
   async excluirEtapa(id) {
     try {
-      // Buscar obra_id antes de excluir
+      // Buscar dados da etapa antes de excluir
       const { data: etapa } = await supabase
         .from('execucao_obras_etapas')
-        .select('obra_id')
+        .select(`
+          obra_id,
+          nome,
+          data_inicio,
+          tipo,
+          obra:execucao_obras(nome_cliente)
+        `)
         .eq('id', id)
         .single();
 
+      if (etapa) {
+        // Se for etapa de estoque, excluir pedidos de material relacionados
+        if (etapa.tipo === 'estoque') {
+          const descricaoPedido = `${etapa.nome} - Obra: ${etapa.obra?.nome_cliente || ''}`;
+          await supabase
+            .from('execucao_pedidos_material')
+            .delete()
+            .ilike('descricao', `%${etapa.nome}%`)
+            .ilike('descricao', `%${etapa.obra?.nome_cliente || 'N/A'}%`);
+          
+          console.log('🗑️ Pedidos de material relacionados excluídos');
+        } else {
+          // Excluir atividades relacionadas (mesmo título + cliente + data)
+          await supabase
+            .from('execucao_atividades')
+            .delete()
+            .eq('titulo', etapa.nome)
+            .eq('cliente_nome', etapa.obra?.nome_cliente || '')
+            .eq('data_programada', etapa.data_inicio);
+          
+          console.log('🗑️ Atividades relacionadas excluídas');
+        }
+      }
+
+      // Excluir a etapa
       const { error } = await supabase
         .from('execucao_obras_etapas')
         .delete()
@@ -998,7 +1296,8 @@ export const execucaoService = {
     }
   },
 
-  // Criar atividade a partir de uma etapa (integração com agendas)
+  // Criar ou atualizar atividade a partir de uma etapa (integração com agendas)
+  // Evita duplicação verificando se já existe atividade para a mesma etapa
   async criarAtividadeDeEtapa(etapaId, dadosAtividade, usuarioId) {
     try {
       // Buscar dados da etapa
@@ -1013,19 +1312,56 @@ export const execucaoService = {
 
       if (etapaError) throw etapaError;
 
+      // Verificar se já existe atividade para esta etapa (pelo título + cliente + data)
+      const { data: atividadeExistente, error: buscaError } = await supabase
+        .from('execucao_atividades')
+        .select('id')
+        .eq('titulo', dadosAtividade.titulo || etapa.nome)
+        .eq('cliente_nome', dadosAtividade.cliente_nome || etapa.obra?.nome_cliente || '')
+        .eq('data_programada', dadosAtividade.data_programada || etapa.data_inicio)
+        .maybeSingle();
+
+      // Ignorar erro de "não encontrado" - é esperado quando não existe atividade
+      if (buscaError && buscaError.code !== 'PGRST116') {
+        console.warn('Aviso ao buscar atividade existente:', buscaError);
+      }
+
+      // Se já existe, atualizar ao invés de criar
+      if (atividadeExistente) {
+        console.log('📝 Atualizando atividade existente:', atividadeExistente.id);
+        return await this.atualizarAtividade(atividadeExistente.id, {
+          tecnico_responsavel_id: dadosAtividade.tecnico_responsavel_id || etapa.responsavel_id,
+          data_programada: dadosAtividade.data_programada || etapa.data_inicio,
+          observacoes: dadosAtividade.observacoes
+        });
+      }
+
+      // Mapear tipo da etapa para tipo_execucao da atividade
+      // Tipos válidos para atividade: eletrica, civil, galpao, gestao, estoque
+      const mapearTipoExecucao = (tipoEtapa) => {
+        const tiposValidos = ['eletrica', 'civil', 'galpao', 'gestao', 'estoque'];
+        if (tiposValidos.includes(tipoEtapa)) {
+          return tipoEtapa;
+        }
+        // 'geral' e 'administrativo' vão para 'gestao'
+        return 'gestao';
+      };
+
       // Criar atividade com dados da etapa + dados personalizados
+      // Inclui etapa_id para vincular diretamente a atividade à etapa
       const atividade = {
         titulo: dadosAtividade.titulo || etapa.nome,
         descricao: dadosAtividade.descricao || etapa.descricao,
-        tipo_execucao: etapa.tipo === 'geral' || etapa.tipo === 'administrativo' ? 'eletrica' : etapa.tipo,
+        tipo_execucao: mapearTipoExecucao(etapa.tipo),
         data_programada: dadosAtividade.data_programada || etapa.data_inicio,
         hora_inicio: dadosAtividade.hora_inicio || '08:00',
         hora_fim: dadosAtividade.hora_fim || '17:00',
         prioridade: dadosAtividade.prioridade || 'normal',
         tecnico_responsavel_id: dadosAtividade.tecnico_responsavel_id || etapa.responsavel_id,
-        cliente_nome: etapa.obra?.nome_cliente,
-        endereco: etapa.obra?.endereco,
+        cliente_nome: dadosAtividade.cliente_nome || etapa.obra?.nome_cliente,
+        endereco: dadosAtividade.endereco || etapa.obra?.endereco,
         observacoes: dadosAtividade.observacoes || `Etapa: ${etapa.nome}`,
+        etapa_id: etapaId, // Vincula a atividade à etapa para sincronização automática
         created_by: usuarioId
       };
 
@@ -1568,6 +1904,278 @@ export const execucaoService = {
       return { success: true };
     } catch (error) {
       console.error('Erro ao excluir arquivo:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // ==========================================
+  // TEMPLATES DE ETAPAS
+  // ==========================================
+
+  // Buscar todos os templates
+  async buscarTemplates(apenasAtivos = true) {
+    try {
+      let query = supabase
+        .from('execucao_templates_etapas')
+        .select(`
+          *,
+          itens:execucao_templates_etapas_itens(*)
+        `)
+        .order('ordem', { ascending: true });
+
+      if (apenasAtivos) {
+        query = query.eq('ativo', true);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Ordenar itens de cada template por ordem
+      const templatesOrdenados = data.map(template => ({
+        ...template,
+        itens: (template.itens || []).sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+      }));
+
+      return { success: true, data: templatesOrdenados };
+    } catch (error) {
+      console.error('Erro ao buscar templates:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Buscar um template específico
+  async buscarTemplate(templateId) {
+    try {
+      const { data, error } = await supabase
+        .from('execucao_templates_etapas')
+        .select(`
+          *,
+          itens:execucao_templates_etapas_itens(*)
+        `)
+        .eq('id', templateId)
+        .single();
+
+      if (error) throw error;
+
+      // Ordenar itens por ordem
+      if (data.itens) {
+        data.itens.sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+      }
+
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao buscar template:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Criar novo template
+  async criarTemplate(templateData) {
+    try {
+      const { itens, ...dadosTemplate } = templateData;
+
+      // Criar template
+      const { data: template, error: templateError } = await supabase
+        .from('execucao_templates_etapas')
+        .insert(dadosTemplate)
+        .select()
+        .single();
+
+      if (templateError) throw templateError;
+
+      // Criar itens se existirem
+      if (itens && itens.length > 0) {
+        const itensComTemplateId = itens.map((item, index) => ({
+          ...item,
+          template_id: template.id,
+          ordem: item.ordem || index + 1
+        }));
+
+        const { error: itensError } = await supabase
+          .from('execucao_templates_etapas_itens')
+          .insert(itensComTemplateId);
+
+        if (itensError) throw itensError;
+      }
+
+      return { success: true, data: template };
+    } catch (error) {
+      console.error('Erro ao criar template:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Atualizar template
+  async atualizarTemplate(templateId, templateData) {
+    try {
+      const { itens, ...dadosTemplate } = templateData;
+
+      // Atualizar dados do template
+      dadosTemplate.updated_at = new Date().toISOString();
+      const { error: templateError } = await supabase
+        .from('execucao_templates_etapas')
+        .update(dadosTemplate)
+        .eq('id', templateId);
+
+      if (templateError) throw templateError;
+
+      // Se itens foram enviados, atualizar todos
+      if (itens !== undefined) {
+        // Excluir itens antigos
+        const { error: deleteError } = await supabase
+          .from('execucao_templates_etapas_itens')
+          .delete()
+          .eq('template_id', templateId);
+
+        if (deleteError) throw deleteError;
+
+        // Inserir novos itens
+        if (itens && itens.length > 0) {
+          const itensComTemplateId = itens.map((item, index) => ({
+            nome: item.nome,
+            descricao: item.descricao,
+            tipo: item.tipo,
+            duracao_dias: item.duracao_dias || item.duracao || 3,
+            template_id: templateId,
+            ordem: item.ordem || index + 1
+          }));
+
+          const { error: itensError } = await supabase
+            .from('execucao_templates_etapas_itens')
+            .insert(itensComTemplateId);
+
+          if (itensError) throw itensError;
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao atualizar template:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Excluir template
+  async excluirTemplate(templateId) {
+    try {
+      // Os itens serão excluídos automaticamente pelo ON DELETE CASCADE
+      const { error } = await supabase
+        .from('execucao_templates_etapas')
+        .delete()
+        .eq('id', templateId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao excluir template:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Adicionar item a um template
+  async adicionarItemTemplate(templateId, itemData) {
+    try {
+      const { data, error } = await supabase
+        .from('execucao_templates_etapas_itens')
+        .insert({
+          ...itemData,
+          template_id: templateId
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao adicionar item:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Atualizar item de template
+  async atualizarItemTemplate(itemId, itemData) {
+    try {
+      const { error } = await supabase
+        .from('execucao_templates_etapas_itens')
+        .update(itemData)
+        .eq('id', itemId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao atualizar item:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Excluir item de template
+  async excluirItemTemplate(itemId) {
+    try {
+      const { error } = await supabase
+        .from('execucao_templates_etapas_itens')
+        .delete()
+        .eq('id', itemId);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Erro ao excluir item:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // Duplicar template existente
+  async duplicarTemplate(templateId, novoNome) {
+    try {
+      // Buscar template original
+      const { data: original, error: fetchError } = await supabase
+        .from('execucao_templates_etapas')
+        .select(`
+          *,
+          itens:execucao_templates_etapas_itens(*)
+        `)
+        .eq('id', templateId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Criar cópia
+      const { id, created_at, updated_at, itens, ...dadosTemplate } = original;
+      const novoTemplate = {
+        ...dadosTemplate,
+        nome: novoNome || `${original.nome} (Cópia)`
+      };
+
+      const { data: templateCriado, error: createError } = await supabase
+        .from('execucao_templates_etapas')
+        .insert(novoTemplate)
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      // Copiar itens
+      if (itens && itens.length > 0) {
+        const novosItens = itens.map(item => ({
+          template_id: templateCriado.id,
+          nome: item.nome,
+          descricao: item.descricao,
+          tipo: item.tipo,
+          duracao_dias: item.duracao_dias,
+          ordem: item.ordem
+        }));
+
+        const { error: itensError } = await supabase
+          .from('execucao_templates_etapas_itens')
+          .insert(novosItens);
+
+        if (itensError) throw itensError;
+      }
+
+      return { success: true, data: templateCriado };
+    } catch (error) {
+      console.error('Erro ao duplicar template:', error);
       return { success: false, message: error.message };
     }
   }

@@ -17,7 +17,9 @@ import {
   FaUser,
   FaMapMarkerAlt,
   FaCalendarDay,
-  FaHistory
+  FaHistory,
+  FaBox,
+  FaClipboardList
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
 
@@ -33,6 +35,8 @@ const ExecucaoHome = ({ usuario, isAdmin, onNavigate }) => {
   });
   const [atividadesHoje, setAtividadesHoje] = useState([]);
   const [atividadesPausadas, setAtividadesPausadas] = useState([]);
+  const [pedidosEstoquePendentes, setPedidosEstoquePendentes] = useState([]);
+  const [pedidosConcluidos, setPedidosConcluidos] = useState([]);
   
   // Estado para edição de data
   const [editandoData, setEditandoData] = useState(null); // ID da atividade sendo editada
@@ -93,6 +97,28 @@ const ExecucaoHome = ({ usuario, isAdmin, onNavigate }) => {
         const pausadasResult = await execucaoService.buscarAtividadesPausadas();
         if (pausadasResult.success) {
           setAtividadesPausadas(pausadasResult.data);
+        }
+
+        // Carregar pedidos de estoque pendentes (vinculados a obras)
+        const pedidosResult = await execucaoService.buscarPedidosMaterial();
+        if (pedidosResult.success) {
+          // Filtrar pedidos de obras que ainda não têm lista preenchida (status concluido mas sem itens)
+          const pendentes = pedidosResult.data.filter(p => 
+            p.obra_id && 
+            p.status === 'concluido' &&
+            (!p.itens || p.itens.length === 0 || p.itens.every(i => !i.nome))
+          );
+          setPedidosEstoquePendentes(pendentes);
+          
+          // Filtrar pedidos concluídos com itens preenchidos (atualizados hoje)
+          const hoje = new Date().toISOString().split('T')[0];
+          const concluidos = pedidosResult.data.filter(p => 
+            p.obra_id && 
+            p.status === 'concluido' &&
+            p.itens && p.itens.length > 0 && p.itens.some(i => i.nome) &&
+            p.updated_at && p.updated_at.startsWith(hoje)
+          );
+          setPedidosConcluidos(concluidos);
         }
       }
     } catch (error) {
@@ -217,7 +243,7 @@ const ExecucaoHome = ({ usuario, isAdmin, onNavigate }) => {
           </div>
           <div className="execucao-stat-content">
             <div className="execucao-stat-label">Total Hoje</div>
-            <div className="execucao-stat-value">{stats.total}</div>
+            <div className="execucao-stat-value">{stats.total + pedidosConcluidos.length + pedidosEstoquePendentes.length}</div>
           </div>
         </div>
 
@@ -227,7 +253,7 @@ const ExecucaoHome = ({ usuario, isAdmin, onNavigate }) => {
           </div>
           <div className="execucao-stat-content">
             <div className="execucao-stat-label">Pendentes</div>
-            <div className="execucao-stat-value">{stats.pendentes}</div>
+            <div className="execucao-stat-value">{stats.pendentes + pedidosEstoquePendentes.length}</div>
           </div>
         </div>
 
@@ -257,7 +283,7 @@ const ExecucaoHome = ({ usuario, isAdmin, onNavigate }) => {
           </div>
           <div className="execucao-stat-content">
             <div className="execucao-stat-label">Concluídas</div>
-            <div className="execucao-stat-value">{stats.concluidas}</div>
+            <div className="execucao-stat-value">{stats.concluidas + pedidosConcluidos.length}</div>
           </div>
         </div>
       </div>
@@ -431,6 +457,160 @@ const ExecucaoHome = ({ usuario, isAdmin, onNavigate }) => {
         </div>
       </div>
 
+      {/* Card de Pedidos de Estoque Pendentes - Apenas para Admin */}
+      {isAdmin && pedidosEstoquePendentes.length > 0 && (
+        <div className="execucao-card mt-6">
+          <div className="execucao-card-header">
+            <h3 className="execucao-card-title flex items-center gap-2">
+              <FaBox className="text-amber-400" />
+              📦 Listas de Materiais Pendentes
+              <span className="text-sm bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">
+                {pedidosEstoquePendentes.length}
+              </span>
+            </h3>
+            <button 
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+              onClick={() => onNavigate('pedido-material')}
+            >
+              Ver todos <FaArrowRight size={12} />
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-400 mb-4">
+            Listas de obras aguardando preenchimento. Acesse "Pedido de Material" para incluir os itens.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {pedidosEstoquePendentes.slice(0, 4).map((pedido) => {
+              const hoje = new Date().toISOString().split('T')[0];
+              const atrasada = pedido.data_lista_pronta && pedido.data_lista_pronta < hoje;
+              
+              return (
+                <div 
+                  key={pedido.id} 
+                  className={`rounded-xl p-4 border-2 ${
+                    atrasada 
+                      ? 'bg-red-900/20 border-red-500/50' 
+                      : 'bg-amber-900/20 border-amber-500/30'
+                  }`}
+                >
+                  {/* Nome do Cliente */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      atrasada ? 'bg-red-500/20' : 'bg-amber-500/20'
+                    }`}>
+                      <FaClipboardList className={atrasada ? 'text-red-400' : 'text-amber-400'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-slate-100 font-bold truncate">
+                        {pedido.cliente_nome || 'Cliente não definido'}
+                      </h4>
+                      {pedido.endereco_obra && (
+                        <p className="text-xs text-slate-400 truncate flex items-center gap-1">
+                          <FaMapMarkerAlt size={8} />
+                          {pedido.endereco_obra}
+                        </p>
+                      )}
+                    </div>
+                    {atrasada && (
+                      <span className="text-xs bg-red-500/30 text-red-400 px-2 py-1 rounded-full font-semibold animate-pulse">
+                        Atrasada!
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Data Limite */}
+                  <div className={`flex items-center gap-2 p-2 rounded-lg mb-3 ${
+                    atrasada ? 'bg-red-500/10' : 'bg-slate-700/50'
+                  }`}>
+                    <FaCalendarAlt className={atrasada ? 'text-red-400' : 'text-amber-400'} size={12} />
+                    <span className="text-xs text-slate-400">Lista até:</span>
+                    <span className={`text-sm font-semibold ${atrasada ? 'text-red-400' : 'text-slate-100'}`}>
+                      {pedido.data_lista_pronta 
+                        ? new Date(pedido.data_lista_pronta + 'T12:00:00').toLocaleDateString('pt-BR')
+                        : 'Não definida'
+                      }
+                    </span>
+                  </div>
+
+                  {/* Botão de Ação */}
+                  <button
+                    onClick={() => onNavigate('pedido-material')}
+                    className={`w-full py-2 px-3 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+                      atrasada
+                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                        : 'bg-amber-500 hover:bg-amber-600 text-white'
+                    }`}
+                  >
+                    <FaClipboardList size={12} />
+                    Preencher Lista
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Card de Listas de Materiais Concluídas Hoje */}
+      {pedidosConcluidos.length > 0 && (
+        <div className="execucao-card mt-6">
+          <div className="execucao-card-header">
+            <h3 className="execucao-card-title flex items-center gap-2">
+              <FaCheckCircle className="text-green-400" />
+              ✅ Listas de Materiais Concluídas Hoje
+              <span className="text-sm bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+                {pedidosConcluidos.length}
+              </span>
+            </h3>
+            <button 
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+              onClick={() => onNavigate('pedido-material')}
+            >
+              Ver todos <FaArrowRight size={12} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {pedidosConcluidos.slice(0, 4).map((pedido) => (
+              <div 
+                key={pedido.id} 
+                className="rounded-xl p-4 border-2 bg-green-900/20 border-green-500/30"
+              >
+                {/* Nome do Cliente */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-green-500/20">
+                    <FaCheckCircle className="text-green-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-slate-100 font-bold truncate">
+                      {pedido.cliente_nome || 'Cliente não definido'}
+                    </h4>
+                    <p className="text-xs text-slate-400 truncate">
+                      {pedido.itens?.filter(i => i.nome).length || 0} itens na lista
+                    </p>
+                  </div>
+                  <span className="text-xs bg-green-500/30 text-green-400 px-2 py-1 rounded-full font-semibold">
+                    Concluída
+                  </span>
+                </div>
+
+                {/* Data Limite de Materiais */}
+                {pedido.data_material_disponivel && (
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-700/50">
+                    <FaCalendarAlt className="text-green-400" size={12} />
+                    <span className="text-xs text-slate-400">Materiais até:</span>
+                    <span className="text-sm font-semibold text-slate-100">
+                      {new Date(pedido.data_material_disponivel + 'T12:00:00').toLocaleDateString('pt-BR')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Progresso do Dia */}
       <div className="execucao-card mt-6">
         <div className="execucao-card-header">
@@ -438,7 +618,9 @@ const ExecucaoHome = ({ usuario, isAdmin, onNavigate }) => {
             Progresso do Dia
           </h3>
           <span className="text-sm text-slate-400">
-            {stats.total > 0 ? Math.round((stats.concluidas / stats.total) * 100) : 0}% concluído
+            {(stats.total + pedidosConcluidos.length + pedidosEstoquePendentes.length) > 0 
+              ? Math.round(((stats.concluidas + pedidosConcluidos.length) / (stats.total + pedidosConcluidos.length + pedidosEstoquePendentes.length)) * 100) 
+              : 0}% concluído
           </span>
         </div>
 
@@ -446,17 +628,19 @@ const ExecucaoHome = ({ usuario, isAdmin, onNavigate }) => {
           <div 
             className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-500"
             style={{ 
-              width: `${stats.total > 0 ? (stats.concluidas / stats.total) * 100 : 0}%` 
+              width: `${(stats.total + pedidosConcluidos.length + pedidosEstoquePendentes.length) > 0 
+                ? ((stats.concluidas + pedidosConcluidos.length) / (stats.total + pedidosConcluidos.length + pedidosEstoquePendentes.length)) * 100 
+                : 0}%` 
             }}
           />
         </div>
 
         <div className="flex justify-between mt-3 text-sm">
           <span className="text-slate-400">
-            {stats.concluidas} de {stats.total} atividades
+            {stats.concluidas + pedidosConcluidos.length} de {stats.total + pedidosConcluidos.length + pedidosEstoquePendentes.length} atividades
           </span>
           <span className="text-slate-400">
-            {stats.total - stats.concluidas} restantes
+            {(stats.total - stats.concluidas) + pedidosEstoquePendentes.length} restantes
           </span>
         </div>
       </div>

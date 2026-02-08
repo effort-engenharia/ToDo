@@ -23,6 +23,7 @@ const menuItemsAdmin = [
   { id: 'agenda-eletrica', label: 'Agenda Elétrica', icon: FaBolt, rota: 'execucao/agenda-eletrica' },
   { id: 'agenda-civil', label: 'Agenda Civil', icon: FaHardHat, rota: 'execucao/agenda-civil' },
   { id: 'agenda-galpao', label: 'Agenda Galpão', icon: FaWarehouse, rota: 'execucao/agenda-galpao' },
+  { id: 'agenda-gestao', label: 'Agenda Gestão', icon: FaClipboardList, rota: 'execucao/agenda-gestao' },
   { id: 'pedido-material', label: 'Pedido de Material', icon: FaBoxOpen, rota: 'execucao/pedido-material' },
   { id: 'desempenho-individual', label: 'Desempenho Individual', icon: FaChartLine, rota: 'execucao/desempenho-individual' },
   { id: 'desempenho-time', label: 'Desempenho do Time', icon: FaUsers, rota: 'execucao/desempenho-time' },

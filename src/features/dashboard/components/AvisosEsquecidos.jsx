@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FaBell, FaExclamationTriangle, FaChevronDown, FaChevronUp, FaClock, FaUserTie, FaSearch, FaCheck, FaSpinner } from 'react-icons/fa';
+import { FaBell, FaExclamationTriangle, FaChevronDown, FaChevronUp, FaClock, FaUserTie, FaSearch, FaCheck, FaSpinner, FaCalendarAlt } from 'react-icons/fa';
 import { apontamentosService } from '../../../services/supabaseService';
+import AlinhamentoModal from '../../../components/AlinhamentoModal';
 
 const AvisosEsquecidos = () => {
   const [avisos, setAvisos] = useState([]);
@@ -8,6 +9,13 @@ const AvisosEsquecidos = () => {
   const [expanded, setExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [processando, setProcessando] = useState({});
+  
+  // Estado para o modal de alinhamento
+  const [modalAlinhamento, setModalAlinhamento] = useState({
+    isOpen: false,
+    apontamentoId: null,
+    nomeCliente: ''
+  });
 
   // Filtrar avisos pelo termo de busca
   const avisosFiltrados = avisos.filter(aviso =>
@@ -49,14 +57,37 @@ const AvisosEsquecidos = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Função para registrar alinhamento
-  const handleAlinhamento = async (apontamentoId, nomeCliente) => {
+  // Abrir modal de alinhamento
+  const abrirModalAlinhamento = (apontamentoId, nomeCliente) => {
+    setModalAlinhamento({
+      isOpen: true,
+      apontamentoId,
+      nomeCliente
+    });
+  };
+
+  // Fechar modal de alinhamento
+  const fecharModalAlinhamento = () => {
+    setModalAlinhamento({
+      isOpen: false,
+      apontamentoId: null,
+      nomeCliente: ''
+    });
+  };
+
+  // Confirmar alinhamento (chamado pelo modal)
+  const confirmarAlinhamento = async ({ dataRetomada, observacao }) => {
+    const { apontamentoId } = modalAlinhamento;
+    
     try {
       setProcessando(prev => ({ ...prev, [apontamentoId]: true }));
-      await apontamentosService.registrarAlinhamento(apontamentoId);
+      await apontamentosService.registrarAlinhamento(apontamentoId, dataRetomada, observacao);
       
       // Remover o aviso da lista local
       setAvisos(prev => prev.filter(a => a.id !== apontamentoId));
+      
+      // Fechar modal
+      fecharModalAlinhamento();
       
     } catch (error) {
       console.error('Erro ao registrar alinhamento:', error);
@@ -164,8 +195,13 @@ const AvisosEsquecidos = () => {
                                 <FaClock className="text-xs" />
                                 <span className="text-xs font-semibold">{aviso.dias_sem_atualizacao} dias</span>
                               </div>
+                              {aviso.tipo_atraso === 'retomada' && (
+                                <div className="flex items-center space-x-1 text-purple-600 bg-purple-50 px-2 py-1 rounded-lg" title="Atraso desde data de retomada agendada">
+                                  <FaCalendarAlt className="text-xs" />
+                                </div>
+                              )}
                               <button
-                                onClick={() => handleAlinhamento(aviso.id, aviso.nome_cliente)}
+                                onClick={() => abrirModalAlinhamento(aviso.id, aviso.nome_cliente)}
                                 disabled={processando[aviso.id]}
                                 className="flex items-center space-x-1 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white px-2 py-1 rounded-lg transition-colors text-xs font-medium"
                                 title="Marcar alinhamento realizado"
@@ -189,6 +225,15 @@ const AvisosEsquecidos = () => {
           </div>
         )}
       </div>
+
+      {/* Modal de Alinhamento */}
+      <AlinhamentoModal
+        isOpen={modalAlinhamento.isOpen}
+        onClose={fecharModalAlinhamento}
+        onConfirm={confirmarAlinhamento}
+        nomeCliente={modalAlinhamento.nomeCliente}
+        isProcessing={processando[modalAlinhamento.apontamentoId]}
+      />
     </div>
   );
 };

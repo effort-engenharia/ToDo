@@ -21,6 +21,7 @@ import {
   FaCalendarAlt
 } from 'react-icons/fa';
 import { apontamentosService, adminService } from '../services/supabaseService';
+import AlinhamentoModal from './AlinhamentoModal';
 
 const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
   const [apontamentos, setApontamentos] = useState([]);
@@ -50,6 +51,13 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
     proprietario: '',
     origem: '',
     fase: ''
+  });
+
+  // Estado para o modal de alinhamento
+  const [modalAlinhamento, setModalAlinhamento] = useState({
+    isOpen: false,
+    apontamentoId: null,
+    nomeCliente: ''
   });
 
   // Função para mostrar toast
@@ -148,12 +156,31 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
     carregarVendedores();
   }, []);
 
-  // Realizar alinhamento
-  const realizarAlinhamento = async (apontamentoId) => {
+  // Abrir modal de alinhamento
+  const abrirModalAlinhamento = (apontamentoId, nomeCliente) => {
+    setModalAlinhamento({
+      isOpen: true,
+      apontamentoId,
+      nomeCliente
+    });
+  };
+
+  // Fechar modal de alinhamento
+  const fecharModalAlinhamento = () => {
+    setModalAlinhamento({
+      isOpen: false,
+      apontamentoId: null,
+      nomeCliente: ''
+    });
+  };
+
+  // Confirmar alinhamento (chamado pelo modal)
+  const confirmarAlinhamento = async ({ dataRetomada, observacao }) => {
+    const { apontamentoId } = modalAlinhamento;
     setProcessandoAlinhamento(prev => ({ ...prev, [apontamentoId]: true }));
     
     try {
-      await apontamentosService.registrarAlinhamento(apontamentoId);
+      await apontamentosService.registrarAlinhamento(apontamentoId, dataRetomada, observacao);
       
       // Atualizar apenas o registro específico localmente (otimização)
       setApontamentos(prev => 
@@ -163,14 +190,24 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
                 ...apontamento, 
                 ultimo_alinhamento_realizado: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
+                data_retomada_prevista: dataRetomada || null,
+                observacao_retomada: observacao || null,
                 pode_realizar_alinhamento: false 
               }
             : apontamento
         )
       );
       
+      // Fechar modal
+      fecharModalAlinhamento();
+      
       // Mostrar feedback visual via toast
-      showToast('✅ Alinhamento realizado com sucesso!', 'success');
+      if (dataRetomada) {
+        const dataFormatada = new Date(dataRetomada + 'T00:00:00').toLocaleDateString('pt-BR');
+        showToast(`✅ Alinhamento realizado! Retomada agendada para ${dataFormatada}`, 'success');
+      } else {
+        showToast('✅ Alinhamento realizado com sucesso!', 'success');
+      }
     } catch (error) {
       console.error('Erro ao realizar alinhamento:', error);
       if (error.message.includes('já foi realizado hoje')) {
@@ -785,7 +822,7 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
                         <FaHistory />
                       </button>
                       <button
-                        onClick={() => realizarAlinhamento(apontamento.id)}
+                        onClick={() => abrirModalAlinhamento(apontamento.id, apontamento.nome_cliente)}
                         disabled={!apontamento.pode_realizar_alinhamento || processandoAlinhamento[apontamento.id]}
                         className={`p-1 rounded transition-all duration-200 ${
                           apontamento.pode_realizar_alinhamento && !processandoAlinhamento[apontamento.id]
@@ -1494,6 +1531,15 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
           </div>
         </div>
       )}
+
+      {/* Modal de Alinhamento */}
+      <AlinhamentoModal
+        isOpen={modalAlinhamento.isOpen}
+        onClose={fecharModalAlinhamento}
+        onConfirm={confirmarAlinhamento}
+        nomeCliente={modalAlinhamento.nomeCliente}
+        isProcessing={processandoAlinhamento[modalAlinhamento.apontamentoId]}
+      />
 
       {/* Toast Component */}
       <Toast 

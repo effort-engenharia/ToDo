@@ -292,15 +292,15 @@ export const apontamentosService = {
     }
   },
 
-  // Registrar alinhamento realizado
-  async registrarAlinhamento(apontamentoId) {
+  // Registrar alinhamento realizado (com suporte a data de retomada)
+  async registrarAlinhamento(apontamentoId, dataRetomada = null, observacaoRetomada = null) {
     try {
       const agora = new Date();
       
-      // Verificar se já foi realizado alinhamento hoje
+      // Verificar registro atual
       const { data: registroAtual, error: errorBusca } = await supabase
         .from('apontamentos_comerciais')
-        .select('ultimo_alinhamento_realizado')
+        .select('ultimo_alinhamento_realizado, data_retomada_prevista')
         .eq('id', apontamentoId)
         .single();
 
@@ -310,7 +310,9 @@ export const apontamentosService = {
       }
 
       // Verificar se já foi realizado alinhamento hoje
-      if (registroAtual.ultimo_alinhamento_realizado) {
+      // EXCEÇÃO: Permitir se o apontamento tem data de retomada agendada (está em Próximos Eventos)
+      // Isso permite reagendar ou concluir eventos já agendados
+      if (registroAtual.ultimo_alinhamento_realizado && !registroAtual.data_retomada_prevista) {
         const ultimoAlinhamento = new Date(registroAtual.ultimo_alinhamento_realizado);
         const hoje = new Date();
         hoje.setHours(0, 0, 0, 0);
@@ -321,13 +323,26 @@ export const apontamentosService = {
         }
       }
 
+      // Preparar dados de atualização
+      const updateData = {
+        ultimo_alinhamento_realizado: agora.toISOString(),
+        updated_at: agora.toISOString()
+      };
+
+      // Adicionar data de retomada se fornecida
+      if (dataRetomada) {
+        updateData.data_retomada_prevista = dataRetomada;
+        updateData.observacao_retomada = observacaoRetomada || null;
+      } else {
+        // Se não há data de retomada, limpar campos anteriores
+        updateData.data_retomada_prevista = null;
+        updateData.observacao_retomada = null;
+      }
+
       // Atualizar o campo de último alinhamento e updated_at
       const { data, error } = await supabase
         .from('apontamentos_comerciais')
-        .update({
-          ultimo_alinhamento_realizado: agora.toISOString(),
-          updated_at: agora.toISOString()
-        })
+        .update(updateData)
         .eq('id', apontamentoId)
         .select();
 
@@ -337,13 +352,22 @@ export const apontamentosService = {
       }
 
       // Registrar no histórico de alterações
+      let valorNovo = `Realizado em ${agora.toLocaleString('pt-BR')}`;
+      if (dataRetomada) {
+        const dataFormatada = new Date(dataRetomada + 'T00:00:00').toLocaleDateString('pt-BR');
+        valorNovo += ` | Retomada agendada: ${dataFormatada}`;
+        if (observacaoRetomada) {
+          valorNovo += ` | Obs: ${observacaoRetomada}`;
+        }
+      }
+
       const { error: errorHistorico } = await supabase
         .from('historico_alteracoes_apontamentos')
         .insert({
           apontamento_id: apontamentoId,
           campo_alterado: 'alinhamento_realizado',
           valor_anterior: 'Não realizado',
-          valor_novo: `Realizado em ${agora.toLocaleString('pt-BR')}`,
+          valor_novo: valorNovo,
           data_alteracao: agora.toISOString()
         });
 
@@ -417,17 +441,24 @@ export const apontamentosService = {
     }
   },
 
-  // Buscar apontamentos esquecidos (sem atualização há mais de 8 dias)
+  // Buscar apontamentos esquecidos (sem atualização há mais de 8 dias OU com data de retomada vencida há mais de 8 dias)
   async buscarApontamentosEsquecidos(diasSemAtualizacao = 8) {
     try {
-      const dataLimite = new Date();
-      dataLimite.setDate(dataLimite.getDate() - diasSemAtualizacao);
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      
+      const dataLimiteUpdated = new Date();
+      dataLimiteUpdated.setDate(dataLimiteUpdated.getDate() - diasSemAtualizacao);
 
+      const dataLimiteRetomada = new Date();
+      dataLimiteRetomada.setDate(dataLimiteRetomada.getDate() - diasSemAtualizacao);
+      const dataLimiteRetomadaStr = dataLimiteRetomada.toISOString().split('T')[0];
+
+      // Buscar todos os apontamentos em fases ativas
       const { data, error } = await supabase
         .from('apontamentos_comerciais')
-        .select('id, nome_cliente, proprietario_relacionamento, fase, tipo_oportunidade, updated_at, valor_total_servico')
+        .select('id, nome_cliente, proprietario_relacionamento, fase, tipo_oportunidade, updated_at, valor_total_servico, data_retomada_prevista, observacao_retomada')
         .in('fase', ['PROSPECÇÃO', 'QUALIFICAÇÃO', 'NEGOCIAÇÃO'])
-        .lt('updated_at', dataLimite.toISOString())
         .order('updated_at', { ascending: true });
 
       if (error) {
@@ -435,21 +466,96 @@ export const apontamentosService = {
         throw error;
       }
 
-      // Calcular dias sem atualização para cada registro
+      // Filtrar e calcular dias de atraso
       const agora = new Date();
-      const dataComDias = data.map(item => {
-        const updatedAt = new Date(item.updated_at);
-        const diffTime = Math.abs(agora - updatedAt);
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const esquecidos = data.filter(item => {
+        // Se tem data de retomada prevista
+        if (item.data_retomada_prevista) {
+          const dataRetomada = new Date(item.data_retomada_prevista + 'T00:00:00');
+          // Só é esquecido se passou 8 dias da data de retomada
+          const diffTime = agora - dataRetomada;
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          return diffDays >= diasSemAtualizacao;
+        } else {
+          // Sem data de retomada: usa lógica antiga (updated_at)
+          const updatedAt = new Date(item.updated_at);
+          return updatedAt < dataLimiteUpdated;
+        }
+      }).map(item => {
+        let diasAtraso;
+        let dataReferencia;
+        
+        if (item.data_retomada_prevista) {
+          // Calcular dias desde a data de retomada
+          const dataRetomada = new Date(item.data_retomada_prevista + 'T00:00:00');
+          const diffTime = agora - dataRetomada;
+          diasAtraso = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          dataReferencia = 'retomada';
+        } else {
+          // Calcular dias desde última atualização
+          const updatedAt = new Date(item.updated_at);
+          const diffTime = Math.abs(agora - updatedAt);
+          diasAtraso = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          dataReferencia = 'atualizacao';
+        }
+        
         return {
           ...item,
-          dias_sem_atualizacao: diffDays
+          dias_sem_atualizacao: diasAtraso,
+          tipo_atraso: dataReferencia
         };
       });
 
-      return dataComDias;
+      return esquecidos;
     } catch (error) {
       console.error('Erro no serviço de apontamentos esquecidos:', error);
+      throw error;
+    }
+  },
+
+  // Buscar próximos eventos (apontamentos com data de retomada futura ou hoje)
+  async buscarProximosEventos() {
+    try {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const hojeStr = hoje.toISOString().split('T')[0];
+
+      // Data limite: 8 dias após hoje (para não mostrar retomadas muito distantes)
+      const dataLimite = new Date();
+      dataLimite.setDate(dataLimite.getDate() + 8);
+      const dataLimiteStr = dataLimite.toISOString().split('T')[0];
+
+      const { data, error } = await supabase
+        .from('apontamentos_comerciais')
+        .select('id, nome_cliente, proprietario_relacionamento, fase, tipo_oportunidade, updated_at, valor_total_servico, data_retomada_prevista, observacao_retomada')
+        .in('fase', ['PROSPECÇÃO', 'QUALIFICAÇÃO', 'NEGOCIAÇÃO'])
+        .not('data_retomada_prevista', 'is', null)
+        .gte('data_retomada_prevista', hojeStr)
+        .lt('data_retomada_prevista', dataLimiteStr)
+        .order('data_retomada_prevista', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao buscar próximos eventos:', error);
+        throw error;
+      }
+
+      // Calcular dias até a retomada
+      const agora = new Date();
+      agora.setHours(0, 0, 0, 0);
+      
+      const eventosComDias = data.map(item => {
+        const dataRetomada = new Date(item.data_retomada_prevista + 'T00:00:00');
+        const diffTime = dataRetomada - agora;
+        const diasAteRetomada = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return {
+          ...item,
+          dias_ate_retomada: diasAteRetomada
+        };
+      });
+
+      return eventosComDias;
+    } catch (error) {
+      console.error('Erro no serviço de próximos eventos:', error);
       throw error;
     }
   }

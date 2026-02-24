@@ -16,6 +16,7 @@ import ChartsThirdRow from './ChartsThirdRow';
 import SalesTables from './SalesTables';
 import StatusFooter from './StatusFooter';
 import AvisosEsquecidos from './AvisosEsquecidos';
+import ProximosEventos from './ProximosEventos';
 
 const Dashboard = ({ setCurrentPage }) => {
   // Função para obter o mês atual em português - FIXED 
@@ -138,6 +139,9 @@ const Dashboard = ({ setCurrentPage }) => {
       
       {/* Main Content */}
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
+        {/* Próximos Eventos (retomadas agendadas) */}
+        <ProximosEventos />
+
         {/* Avisos de Oportunidades Esquecidas */}
         <AvisosEsquecidos />
 

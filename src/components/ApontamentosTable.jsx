@@ -18,10 +18,12 @@ import {
   FaAngleDoubleRight,
   FaBuilding,
   FaMapMarkerAlt,
-  FaCalendarAlt
+  FaCalendarAlt,
+  FaClone
 } from 'react-icons/fa';
 import { apontamentosService, adminService } from '../services/supabaseService';
 import AlinhamentoModal from './AlinhamentoModal';
+import GerenciarDuplicadosModal from './GerenciarDuplicadosModal';
 
 const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
   const [apontamentos, setApontamentos] = useState([]);
@@ -59,6 +61,9 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
     apontamentoId: null,
     nomeCliente: ''
   });
+
+  // Estado para o modal de duplicados
+  const [showDuplicadosModal, setShowDuplicadosModal] = useState(false);
 
   // Função para mostrar toast
   const showToast = (message, type = 'success') => {
@@ -649,6 +654,16 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
                 title="Limpar todos os filtros"
               >
                 Limpar
+              </button>
+
+              {/* Botão Gerenciar Duplicados */}
+              <button
+                onClick={() => setShowDuplicadosModal(true)}
+                className="px-3 py-1 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded border border-orange-400 transition-colors flex items-center space-x-1"
+                title="Gerenciar registros duplicados"
+              >
+                <FaClone />
+                <span>Duplicados</span>
               </button>
             </div>
           </div>
@@ -1539,6 +1554,13 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
         onConfirm={confirmarAlinhamento}
         nomeCliente={modalAlinhamento.nomeCliente}
         isProcessing={processandoAlinhamento[modalAlinhamento.apontamentoId]}
+      />
+
+      {/* Modal de Gerenciamento de Duplicados */}
+      <GerenciarDuplicadosModal
+        isOpen={showDuplicadosModal}
+        onClose={() => setShowDuplicadosModal(false)}
+        onSuccess={() => carregarApontamentos()}
       />
 
       {/* Toast Component */}

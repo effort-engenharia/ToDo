@@ -73,9 +73,17 @@ export const apontamentosService = {
           uf,
           cep,
           cronograma_data_inicio,
-          cronograma_data_termino
+          cronograma_data_termino,
+          ativo,
+          motivo_inativacao,
+          duplicado_de
         `)
         .order('created_at', { ascending: false });
+
+      // Por padrão, buscar apenas registros ativos (a menos que explicitamente solicite todos)
+      if (filtros.incluirInativos !== true) {
+        query = query.eq('ativo', true);
+      }
 
       // Aplicar filtros se fornecidos
       if (filtros.fase) {
@@ -400,7 +408,8 @@ export const apontamentosService = {
           valor_entrada_servico,
           proprietario_relacionamento,
           tipo_oportunidade
-        `);
+        `)
+        .eq('ativo', true);
 
       if (error) {
         console.error('Erro ao buscar estatísticas:', error);
@@ -458,6 +467,7 @@ export const apontamentosService = {
       const { data, error } = await supabase
         .from('apontamentos_comerciais')
         .select('id, nome_cliente, proprietario_relacionamento, fase, tipo_oportunidade, updated_at, valor_total_servico, data_retomada_prevista, observacao_retomada')
+        .eq('ativo', true)
         .in('fase', ['PROSPECÇÃO', 'QUALIFICAÇÃO', 'NEGOCIAÇÃO'])
         .order('updated_at', { ascending: true });
 
@@ -528,6 +538,7 @@ export const apontamentosService = {
       const { data, error } = await supabase
         .from('apontamentos_comerciais')
         .select('id, nome_cliente, proprietario_relacionamento, fase, tipo_oportunidade, updated_at, valor_total_servico, data_retomada_prevista, observacao_retomada')
+        .eq('ativo', true)
         .in('fase', ['PROSPECÇÃO', 'QUALIFICAÇÃO', 'NEGOCIAÇÃO'])
         .not('data_retomada_prevista', 'is', null)
         .gte('data_retomada_prevista', hojeStr)
@@ -556,6 +567,185 @@ export const apontamentosService = {
       return eventosComDias;
     } catch (error) {
       console.error('Erro no serviço de próximos eventos:', error);
+      throw error;
+    }
+  },
+
+  // Buscar duplicados com critérios configuráveis
+  async buscarDuplicados(criterios = ['nome_cliente', 'tipo_oportunidade']) {
+    try {
+      // Buscar todos os registros ativos
+      const { data, error } = await supabase
+        .from('apontamentos_comerciais')
+        .select(`
+          id,
+          nome_cliente,
+          tipo_oportunidade,
+          fase,
+          origem_cliente,
+          proprietario_relacionamento,
+          valor_total_servico,
+          valor_entrada_servico,
+          cidade_atendimento,
+          created_at,
+          updated_at,
+          ativo
+        `)
+        .eq('ativo', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao buscar registros para duplicados:', error);
+        throw error;
+      }
+
+      // Agrupar por critérios selecionados
+      const grupos = {};
+      
+      data.forEach(registro => {
+        // Criar chave de agrupamento normalizada (case-insensitive, trim)
+        const chave = criterios.map(criterio => {
+          const valor = registro[criterio];
+          if (valor === null || valor === undefined) return '';
+          return valor.toString().toUpperCase().trim();
+        }).join('|||');
+        
+        if (!grupos[chave]) {
+          grupos[chave] = [];
+        }
+        grupos[chave].push(registro);
+      });
+
+      // Filtrar apenas grupos com mais de 1 registro (duplicados)
+      const duplicados = Object.entries(grupos)
+        .filter(([_, registros]) => registros.length > 1)
+        .map(([chave, registros]) => ({
+          chave,
+          criteriosUsados: criterios,
+          quantidade: registros.length,
+          registros: registros.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+        }))
+        .sort((a, b) => b.quantidade - a.quantidade);
+
+      return {
+        totalGrupos: duplicados.length,
+        totalRegistrosDuplicados: duplicados.reduce((sum, g) => sum + g.quantidade, 0),
+        grupos: duplicados
+      };
+    } catch (error) {
+      console.error('Erro no serviço de busca de duplicados:', error);
+      throw error;
+    }
+  },
+
+  // Inativar apontamento (marcar como duplicado)
+  async inativarApontamento(id, motivo, duplicadoDeId = null) {
+    try {
+      const agora = new Date();
+
+      // Atualizar o registro para inativo
+      const { data, error } = await supabase
+        .from('apontamentos_comerciais')
+        .update({
+          ativo: false,
+          motivo_inativacao: motivo,
+          duplicado_de: duplicadoDeId,
+          updated_at: agora.toISOString()
+        })
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('Erro ao inativar apontamento:', error);
+        throw error;
+      }
+
+      // Registrar no histórico de alterações
+      const { error: errorHistorico } = await supabase
+        .from('historico_alteracoes_apontamentos')
+        .insert({
+          apontamento_id: id,
+          campo_alterado: 'ativo',
+          valor_anterior: 'true',
+          valor_novo: 'false',
+          data_alteracao: agora.toISOString()
+        });
+
+      if (errorHistorico) {
+        console.error('Erro ao salvar histórico de inativação:', errorHistorico);
+        // Não falhar a operação por causa do histórico
+      }
+
+      // Disparar evento de atualização
+      window.dispatchEvent(new CustomEvent('apontamento-inativado', { 
+        detail: data[0] 
+      }));
+
+      return data[0];
+    } catch (error) {
+      console.error('Erro no serviço de inativação:', error);
+      throw error;
+    }
+  },
+
+  // Inativar múltiplos apontamentos de uma vez
+  async inativarMultiplos(ids, motivo, manterRegistroId = null) {
+    try {
+      const resultados = [];
+      
+      for (const id of ids) {
+        if (id === manterRegistroId) continue; // Pular o registro que será mantido
+        
+        const resultado = await this.inativarApontamento(id, motivo, manterRegistroId);
+        resultados.push(resultado);
+      }
+
+      return {
+        success: true,
+        inativados: resultados.length,
+        registros: resultados
+      };
+    } catch (error) {
+      console.error('Erro ao inativar múltiplos:', error);
+      throw error;
+    }
+  },
+
+  // Reativar apontamento (reverter inativação)
+  async reativarApontamento(id) {
+    try {
+      const agora = new Date();
+
+      const { data, error } = await supabase
+        .from('apontamentos_comerciais')
+        .update({
+          ativo: true,
+          motivo_inativacao: null,
+          duplicado_de: null,
+          updated_at: agora.toISOString()
+        })
+        .eq('id', id)
+        .select();
+
+      if (error) {
+        console.error('Erro ao reativar apontamento:', error);
+        throw error;
+      }
+
+      // Registrar no histórico
+      await supabase
+        .from('historico_alteracoes_apontamentos')
+        .insert({
+          apontamento_id: id,
+          campo_alterado: 'ativo',
+          valor_anterior: 'false',
+          valor_novo: 'true',
+          data_alteracao: agora.toISOString()
+        });
+
+      return data[0];
+    } catch (error) {
+      console.error('Erro no serviço de reativação:', error);
       throw error;
     }
   }

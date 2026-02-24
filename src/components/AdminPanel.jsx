@@ -40,7 +40,8 @@ const AdminPanel = ({ isOpen, onClose }) => {
   // Estados para edição de usuários
   const [editingUser, setEditingUser] = useState(null);
   const [editUserData, setEditUserData] = useState({
-    nivel_acesso_id: ''
+    nivel_acesso_id: '',
+    nome_vendedor_comercial: ''
   });
 
   // Estados para logs
@@ -221,7 +222,8 @@ const AdminPanel = ({ isOpen, onClose }) => {
   const handleEditUser = (user) => {
     setEditingUser(user);
     setEditUserData({
-      nivel_acesso_id: user.nivel_acesso_id || ''
+      nivel_acesso_id: user.nivel_acesso_id || '',
+      nome_vendedor_comercial: user.nome_vendedor_comercial || ''
     });
   };
 
@@ -236,7 +238,7 @@ const AdminPanel = ({ isOpen, onClose }) => {
       if (resultado.success) {
         showMessage('success', 'Usuário atualizado com sucesso!');
         setEditingUser(null);
-        setEditUserData({ nivel_acesso_id: '' });
+        setEditUserData({ nivel_acesso_id: '', nome_vendedor_comercial: '' });
         await loadUsuarios();
       } else {
         showMessage('error', resultado.message);
@@ -485,12 +487,31 @@ const AdminPanel = ({ isOpen, onClose }) => {
                         ))}
                       </select>
                     </div>
+                    
+                    {/* Campo Nome Vendedor Comercial */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Nome Vendedor Comercial
+                        <span className="text-gray-400 text-xs ml-2">(usado nos apontamentos)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editUserData.nome_vendedor_comercial}
+                        onChange={(e) => setEditUserData({...editUserData, nome_vendedor_comercial: e.target.value.toUpperCase()})}
+                        placeholder="Ex: VITOR, EDGAR, EDUARDA..."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Deixe em branco se o usuário não for do time comercial
+                      </p>
+                    </div>
+                    
                     <div className="flex justify-end space-x-3">
                       <button
                         type="button"
                         onClick={() => {
                           setEditingUser(null);
-                          setEditUserData({ nivel_acesso_id: '' });
+                          setEditUserData({ nivel_acesso_id: '', nome_vendedor_comercial: '' });
                         }}
                         className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
                       >
@@ -517,6 +538,9 @@ const AdminPanel = ({ isOpen, onClose }) => {
                         Usuário
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Nome Vendedor
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Nível de Acesso
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -538,6 +562,15 @@ const AdminPanel = ({ isOpen, onClose }) => {
                             <div className="text-sm font-medium text-gray-900">{user.nome_completo}</div>
                             <div className="text-sm text-gray-500">{user.email}</div>
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {user.nome_vendedor_comercial ? (
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                              {user.nome_vendedor_comercial}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

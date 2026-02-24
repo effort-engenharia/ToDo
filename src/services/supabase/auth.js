@@ -1019,6 +1019,38 @@ export const adminService = {
         message: 'Erro ao enviar email de recuperação. Tente novamente mais tarde.'
       };
     }
+  },
+
+  // Listar vendedores comerciais ativos (usuários com nome_vendedor_comercial preenchido e ativo = true)
+  async listarVendedoresComerciais(incluirInativos = false) {
+    try {
+      let query = supabase
+        .from('usuarios')
+        .select('id, nome_completo, nome_vendedor_comercial, ativo')
+        .not('nome_vendedor_comercial', 'is', null)
+        .order('nome_vendedor_comercial');
+
+      // Se não incluir inativos, filtrar apenas ativos
+      if (!incluirInativos) {
+        query = query.eq('ativo', true);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      return {
+        success: true,
+        vendedores: data.map(u => u.nome_vendedor_comercial)
+      };
+    } catch (error) {
+      console.error('Erro ao listar vendedores comerciais:', error);
+      return {
+        success: false,
+        vendedores: [],
+        message: error.message
+      };
+    }
   }
 };
 

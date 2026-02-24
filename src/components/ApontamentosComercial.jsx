@@ -16,7 +16,7 @@ import {
   FaTimes,
   FaCalendarAlt
 } from 'react-icons/fa';
-import { apontamentosService } from '../services/supabaseService';
+import { apontamentosService, adminService } from '../services/supabaseService';
 import ApontamentosTable from './ApontamentosTable';
 import ProfileButton from './ProfileButton';
 import { useAuth } from '../contexts/AuthContext';
@@ -85,12 +85,7 @@ const ORIGENS_CLIENTE = [
   'OUTROS'
 ];
 
-const PROPRIETARIOS = [
-  'PAMELLI',
-  'EDUARDA',
-  'FÁBIO',
-  'EDGAR'
-];
+// PROPRIETARIOS agora é carregado dinamicamente do banco de dados
 
 const CIDADES = [
   'GUARUJÁ',
@@ -177,12 +172,39 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
   const [isLoadingCnpj, setIsLoadingCnpj] = useState(false);
   const [isLoadingCep, setIsLoadingCep] = useState(false);
+  
+  // Estado para vendedores dinâmicos (carregados do banco)
+  const [vendedoresComerciais, setVendedoresComerciais] = useState([]);
+  const [isLoadingVendedores, setIsLoadingVendedores] = useState(true);
 
   // Estados para controlar os valores formatados dos inputs monetários
   const [displayValues, setDisplayValues] = useState({
     valorTotalServico: 'R$ 0,00',
     valorEntradaServico: 'R$ 0,00'
   });
+
+  // Carregar vendedores comerciais do banco de dados
+  useEffect(() => {
+    const carregarVendedores = async () => {
+      setIsLoadingVendedores(true);
+      try {
+        const resultado = await adminService.listarVendedoresComerciais();
+        if (resultado.success) {
+          setVendedoresComerciais(resultado.vendedores);
+        } else {
+          console.error('Erro ao carregar vendedores:', resultado.message);
+          // Fallback vazio em caso de erro
+          setVendedoresComerciais([]);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar vendedores:', error);
+        setVendedoresComerciais([]);
+      } finally {
+        setIsLoadingVendedores(false);
+      }
+    };
+    carregarVendedores();
+  }, []);
 
   // Verificar se usuário tem acesso ao dashboard para mostrar botão voltar
   useEffect(() => {
@@ -921,9 +943,10 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
                 value={formData.proprietarioRelacionamento}
                 onChange={(e) => setFormData(prev => ({ ...prev, proprietarioRelacionamento: e.target.value }))}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isLoadingVendedores}
               >
-                <option value="">Selecione o proprietário</option>
-                {PROPRIETARIOS.map((proprietario) => (
+                <option value="">{isLoadingVendedores ? 'Carregando...' : 'Selecione o proprietário'}</option>
+                {vendedoresComerciais.map((proprietario) => (
                   <option key={proprietario} value={proprietario}>{proprietario}</option>
                 ))}
               </select>

@@ -20,7 +20,7 @@ import {
   FaMapMarkerAlt,
   FaCalendarAlt
 } from 'react-icons/fa';
-import { apontamentosService } from '../services/supabaseService';
+import { apontamentosService, adminService } from '../services/supabaseService';
 
 const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
   const [apontamentos, setApontamentos] = useState([]);
@@ -94,8 +94,13 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
 
   const fases = ['PROSPECÇÃO', 'QUALIFICAÇÃO', 'NEGOCIAÇÃO', 'CONTRATO/VENDA', 'CANCELADO/PERCA'];
   const origensCliente = ['PROSPECÇÃO', 'INDICAÇÃO', 'GOOGLE', 'CARTEIRA', 'ADM', 'OUTROS'];
-  const proprietarios = ['PAMELLI', 'EDUARDA', 'FÁBIO', 'EDGAR'];
+  // proprietarios agora é carregado dinamicamente (ver estados abaixo)
   const cidades = ['GUARUJÁ', 'BERTIOGA', 'SANTOS', 'SÃO VICENTE', 'PRAIA GRANDE', 'CUBATÃO', 'SÃO SEBASTIÃO', 'OUTRAS'];
+  
+  // Estado para vendedores dinâmicos
+  const [proprietariosAtivos, setProprietariosAtivos] = useState([]);
+  const [proprietariosTodos, setProprietariosTodos] = useState([]);
+  const [loadingVendedores, setLoadingVendedores] = useState(true);
 
   // Gerar opções de parcelas
   const parcelas = Array.from({ length: 100 }, (_, i) => {
@@ -117,6 +122,31 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
       setLoading(false);
     }
   };
+
+  // Carregar vendedores comerciais do banco
+  useEffect(() => {
+    const carregarVendedores = async () => {
+      setLoadingVendedores(true);
+      try {
+        // Carregar vendedores ativos (para edição)
+        const resultadoAtivos = await adminService.listarVendedoresComerciais(false);
+        if (resultadoAtivos.success) {
+          setProprietariosAtivos(resultadoAtivos.vendedores);
+        }
+        
+        // Carregar todos os vendedores incluindo inativos (para filtros - dados históricos)
+        const resultadoTodos = await adminService.listarVendedoresComerciais(true);
+        if (resultadoTodos.success) {
+          setProprietariosTodos(resultadoTodos.vendedores);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar vendedores:', error);
+      } finally {
+        setLoadingVendedores(false);
+      }
+    };
+    carregarVendedores();
+  }, []);
 
   // Realizar alinhamento
   const realizarAlinhamento = async (apontamentoId) => {
@@ -452,9 +482,9 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
       
       case 'select-proprietario':
         return (
-          <select {...commonProps}>
-            <option value="">Selecione...</option>
-            {proprietarios.map(prop => (
+          <select {...commonProps} disabled={loadingVendedores}>
+            <option value="">{loadingVendedores ? 'Carregando...' : 'Selecione...'}</option>
+            {proprietariosAtivos.map(prop => (
               <option key={prop} value={prop}>{prop}</option>
             ))}
           </select>
@@ -546,7 +576,7 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
                 className="px-3 py-1 text-sm rounded border border-white/20 bg-white/10 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50"
               >
                 <option value="" className="text-gray-900">Todos os Proprietários</option>
-                {proprietarios.map(prop => (
+                {proprietariosTodos.map(prop => (
                   <option key={prop} value={prop} className="text-gray-900">{prop}</option>
                 ))}
               </select>
@@ -1275,9 +1305,10 @@ const ApontamentosTable = ({ reloadTrigger, searchTerm }) => {
                         value={editData.proprietarioRelacionamento || ''}
                         onChange={(e) => setEditData(prev => ({ ...prev, proprietarioRelacionamento: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        disabled={loadingVendedores}
                       >
-                        <option value="">Selecione...</option>
-                        {proprietarios.map(prop => (
+                        <option value="">{loadingVendedores ? 'Carregando...' : 'Selecione...'}</option>
+                        {proprietariosAtivos.map(prop => (
                           <option key={prop} value={prop}>{prop}</option>
                         ))}
                       </select>

@@ -21,6 +21,7 @@ export {
   apontamentosService, 
   metasService, 
   arsenalService, 
-  administradorasService, 
+  administradorasService,
+  adminService,
   supabaseService 
 } from './index.js';

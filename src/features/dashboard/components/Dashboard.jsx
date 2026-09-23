@@ -4,6 +4,7 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { useMetaPersistence } from '../hooks/useMetaPersistence';
 import { getMetaFromCode, updateMetaInCode, DEFAULT_METAS } from '../../../utils/codeUpdater';
 import { getCurrentMetas, salvarMeta } from '../../../config/metas';
+import { mesComercialAtual } from '../../../utils/periodoComercial';
 import MetasDebugPanel from '../../../components/MetasDebugPanel';
 
 // Componentes do Dashboard
@@ -19,19 +20,25 @@ import AvisosEsquecidos from './AvisosEsquecidos';
 import ProximosEventos from './ProximosEventos';
 
 const Dashboard = ({ setCurrentPage }) => {
-  // Função para obter o mês atual em português - FIXED 
+  // Retorna o nome do MÊS COMERCIAL vigente (regra de fechamento no dia 22 a
+  // partir de 23/07/2026). Antes dessa data cai no mês calendário normal.
   const getCurrentMonth = () => {
     const meses = [
       'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
       'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
     ];
-    const agora = new Date();
-    const mesAtual = meses[agora.getMonth()];
-    return mesAtual;
+    const { mes } = mesComercialAtual();
+    return meses[mes];
+  };
+
+  // Ano correspondente ao mês comercial vigente (importante na virada dez→jan)
+  const getCurrentYear = () => {
+    const { ano } = mesComercialAtual();
+    return ano.toString();
   };
 
   const [selectedMonth, setSelectedMonth] = useState(() => getCurrentMonth());
-  const [selectedYear, setSelectedYear] = useState(() => new Date().getFullYear().toString());
+  const [selectedYear, setSelectedYear] = useState(() => getCurrentYear());
   const [isDataChanging, setIsDataChanging] = useState(false);
   
   // Meta editável pelo usuário com persistência no localStorage
@@ -97,7 +104,9 @@ const Dashboard = ({ setCurrentPage }) => {
     totalClientesAtendidos,
     taxaDeSucesso,
     availableYears,
-    availableMonths
+    availableMonths,
+    vendasPorMes,
+    clientesPorVendedor
   } = useDashboardData(data, allData, metaPersonalizada, selectedMonth, selectedYear);
   
   // Efeito para mostrar indicador visual quando dados mudarem
@@ -192,6 +201,8 @@ const Dashboard = ({ setCurrentPage }) => {
         <SalesTables 
           regioes={dashboardData?.regioes}
           vendedores={dashboardData?.vendedores}
+          vendasPorMes={vendasPorMes}
+          clientesPorVendedor={clientesPorVendedor}
         />
 
         {/* Status e última atualização */}

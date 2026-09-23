@@ -1,24 +1,28 @@
 import React, { useState } from 'react';
-import { FaCheck, FaTimes, FaSpinner, FaCalendarAlt, FaStickyNote } from 'react-icons/fa';
+import { FaCheck, FaSpinner, FaCalendarAlt, FaStickyNote } from 'react-icons/fa';
 
 /**
- * Modal reutilizável para registrar alinhamento com opção de agendar retomada
- * Usado em: AvisosEsquecidos, ApontamentosTable
+ * Modal reutilizável para registrar alinhamento.
+ * Regra de negócio (2026-07): TODO alinhamento exige uma data de próximo contato.
+ * O sistema só volta a lembrar o vendedor quando a data escolhida chegar.
+ * Usado em: AvisosEsquecidos, ProximosEventos, ApontamentosTable
  */
-const AlinhamentoModal = ({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  nomeCliente, 
-  isProcessing = false 
+
+// Atalhos de dias (não pré-selecionados — apenas preenchem o campo de data ao clicar)
+const ATALHOS_DIAS = [7, 15, 30, 60];
+
+const AlinhamentoModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  nomeCliente,
+  isProcessing = false
 }) => {
-  const [agendarRetomada, setAgendarRetomada] = useState(false);
   const [dataRetomada, setDataRetomada] = useState('');
   const [observacao, setObservacao] = useState('');
 
   // Limpar formulário ao fechar
   const handleClose = () => {
-    setAgendarRetomada(false);
     setDataRetomada('');
     setObservacao('');
     onClose();
@@ -26,23 +30,36 @@ const AlinhamentoModal = ({
 
   // Confirmar alinhamento
   const handleConfirm = () => {
-    if (agendarRetomada && !dataRetomada) {
-      alert('Por favor, informe a data de retomada.');
-      return;
-    }
-
+    if (!dataRetomada) return; // Guard: botão já fica desabilitado, mas garante segurança
     onConfirm({
-      dataRetomada: agendarRetomada ? dataRetomada : null,
-      observacao: agendarRetomada ? observacao : null
+      dataRetomada,
+      observacao: observacao || null
     });
   };
 
-  // Calcular data mínima (amanhã)
+  // Calcular data mínima (amanhã) para o input de data
   const getMinDate = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     return tomorrow.toISOString().split('T')[0];
   };
+
+  // Aplica um atalho: hoje + N dias
+  const aplicarAtalho = (dias) => {
+    const alvo = new Date();
+    alvo.setDate(alvo.getDate() + dias);
+    setDataRetomada(alvo.toISOString().split('T')[0]);
+  };
+
+  // Formata a data escolhida para preview em pt-BR
+  const preview = dataRetomada
+    ? new Date(dataRetomada + 'T00:00:00').toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      })
+    : null;
 
   if (!isOpen) return null;
 
@@ -64,68 +81,75 @@ const AlinhamentoModal = ({
 
         {/* Content */}
         <div className="p-6 space-y-4">
-          {/* Checkbox para agendar retomada */}
-          <label className="flex items-center space-x-3 cursor-pointer group">
-            <input
-              type="checkbox"
-              checked={agendarRetomada}
-              onChange={(e) => setAgendarRetomada(e.target.checked)}
-              className="w-5 h-5 rounded border-gray-300 text-green-500 focus:ring-green-500 cursor-pointer"
-            />
-            <span className="text-gray-700 group-hover:text-gray-900 transition-colors">
-              Agendar próximo contato
-            </span>
-          </label>
+          {/* Instrução principal */}
+          <p className="text-sm text-gray-700">
+            Escolha <strong>quando você quer ser lembrado</strong> deste cliente novamente.
+            O apontamento sai das listas até essa data.
+          </p>
 
-          {/* Campos de retomada (aparecem se checkbox marcado) */}
-          {agendarRetomada && (
-            <div className="space-y-4 pl-8 border-l-2 border-green-200 animate-in slide-in-from-top duration-200">
-              {/* Data de retomada */}
-              <div>
-                <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-2">
-                  <FaCalendarAlt className="text-green-500" />
-                  <span>Data de Retomada *</span>
-                </label>
-                <input
-                  type="date"
-                  value={dataRetomada}
-                  onChange={(e) => setDataRetomada(e.target.value)}
-                  min={getMinDate()}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
-                />
-              </div>
-
-              {/* Observação */}
-              <div>
-                <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-2">
-                  <FaStickyNote className="text-green-500" />
-                  <span>Observação (opcional)</span>
-                </label>
-                <textarea
-                  value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
-                  placeholder="Ex: Cliente solicitou retorno após análise do orçamento..."
-                  maxLength={500}
-                  rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent resize-none"
-                />
-                <p className="text-xs text-gray-400 mt-1 text-right">{observacao.length}/500</p>
-              </div>
+          {/* Atalhos rápidos (não pré-selecionados) */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
+              Atalhos
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {ATALHOS_DIAS.map(dias => (
+                <button
+                  key={dias}
+                  type="button"
+                  onClick={() => aplicarAtalho(dias)}
+                  disabled={isProcessing}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 text-gray-700 transition-colors disabled:opacity-50"
+                >
+                  +{dias} dias
+                </button>
+              ))}
             </div>
-          )}
+          </div>
 
-          {/* Informação */}
-          <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
-            {agendarRetomada ? (
-              <p>
-                📅 O apontamento será movido para <strong>"Próximos Eventos"</strong> até a data de retomada. 
-                Após a data, voltará a contar os 8 dias para aparecer em "Oportunidades Esquecidas".
-              </p>
-            ) : (
-              <p>
-                ✅ O alinhamento será registrado e o contador de dias será reiniciado.
+          {/* Data de retomada */}
+          <div>
+            <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-2">
+              <FaCalendarAlt className="text-green-500" />
+              <span>Data para próximo contato *</span>
+            </label>
+            <input
+              type="date"
+              value={dataRetomada}
+              onChange={(e) => setDataRetomada(e.target.value)}
+              min={getMinDate()}
+              disabled={isProcessing}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent disabled:opacity-50"
+            />
+            {preview && (
+              <p className="text-xs text-gray-500 mt-1">
+                Você será lembrado em <strong className="text-gray-700">{preview}</strong>.
               </p>
             )}
+          </div>
+
+          {/* Observação (opcional) */}
+          <div>
+            <label className="flex items-center space-x-2 text-sm font-medium text-gray-700 mb-2">
+              <FaStickyNote className="text-green-500" />
+              <span>Observação (opcional)</span>
+            </label>
+            <textarea
+              value={observacao}
+              onChange={(e) => setObservacao(e.target.value)}
+              placeholder="Ex: Cliente solicitou retorno após análise do orçamento…"
+              maxLength={500}
+              rows={3}
+              disabled={isProcessing}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent resize-none disabled:opacity-50"
+            />
+            <p className="text-xs text-gray-400 mt-1 text-right">{observacao.length}/500</p>
+          </div>
+
+          {/* Aviso sobre efeito */}
+          <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+            📅 O apontamento vai para <strong>Próximos Eventos</strong> até a data escolhida.
+            Depois disso, se você não retomar o contato, ele aparece em <strong>Oportunidades Esquecidas</strong>.
           </div>
         </div>
 
@@ -140,8 +164,8 @@ const AlinhamentoModal = ({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={isProcessing || (agendarRetomada && !dataRetomada)}
-            className="px-6 py-2 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
+            disabled={isProcessing || !dataRetomada}
+            className="px-6 py-2 bg-green-500 hover:bg-green-600 disabled:bg-green-300 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center space-x-2"
           >
             {isProcessing ? (
               <>

@@ -1,5 +1,6 @@
 // Funções de extração de dados específicos do Google Sheets
 import { formatCurrency } from './formatters.js';
+import { mesComercial } from './periodoComercial.js';
 
 export const extractReceitas = (data) => {
   console.log('💰 Extraindo receitas de', data.length, 'registros');
@@ -684,4 +685,81 @@ export const extractDistributionData = (data) => {
       { name: 'Erro nos Dados', value: 1, color: '#EF4444' }
     ];
   }
+};
+
+/**
+ * Matriz de vendas por mês/vendedor para o ano informado.
+ * Usa created_at do apontamento como "data da venda" (padrão do sistema).
+ * Retorna:
+ *   {
+ *     ano,
+ *     vendedores: [{ vendedor, meses: number[12], totalAno }],
+ *     totaisPorMes: number[12],
+ *     totalConsolidado
+ *   }
+ */
+export const extractVendasPorMes = (data, ano) => {
+  const anoRef = ano || new Date().getFullYear();
+  const dadosVendas = (data || []).filter(
+    item => item.fase === 'CONTRATO/VENDA' && item.ativo !== false
+  );
+
+  const matriz = {};
+  const totaisPorMes = new Array(12).fill(0);
+  let totalConsolidado = 0;
+
+  dadosVendas.forEach(item => {
+    if (!item.created_at) return;
+    const d = new Date(item.created_at);
+    if (isNaN(d.getTime())) return;
+    // Usa mês comercial (regra de fechamento de folha no dia 22 a partir de 23/07/2026)
+    const bucket = mesComercial(d);
+    if (!bucket || bucket.ano !== anoRef) return;
+    const mes = bucket.mes;
+    const vendedor = (item.proprietario_relacionamento || 'SEM PROPRIETÁRIO').trim();
+    const valor = parseFloat(item.valor_total_servico) || 0;
+
+    if (!matriz[vendedor]) {
+      matriz[vendedor] = { vendedor, meses: new Array(12).fill(0), totalAno: 0 };
+    }
+    matriz[vendedor].meses[mes] += valor;
+    matriz[vendedor].totalAno += valor;
+    totaisPorMes[mes] += valor;
+    totalConsolidado += valor;
+  });
+
+  const vendedores = Object.values(matriz).sort((a, b) => b.totalAno - a.totalAno);
+  return { ano: anoRef, vendedores, totaisPorMes, totalConsolidado };
+};
+
+/**
+ * Clientes fechados por vendedor.
+ * O filtro de período é aplicado no consumidor (UI) — retornamos TUDO para
+ * permitir toggles rápidos entre mês/ano/intervalo sem refetch.
+ * Retorna { [vendedor]: [{ id, cliente, valor, data, tipo }, ...] } ordenado por valor DESC.
+ */
+export const extractClientesPorVendedor = (data) => {
+  const dadosVendas = (data || []).filter(
+    item => item.fase === 'CONTRATO/VENDA' && item.ativo !== false
+  );
+
+  const porVendedor = {};
+
+  dadosVendas.forEach(item => {
+    const vendedor = (item.proprietario_relacionamento || 'SEM PROPRIETÁRIO').trim();
+    if (!porVendedor[vendedor]) porVendedor[vendedor] = [];
+    porVendedor[vendedor].push({
+      id: item.id,
+      cliente: item.nome_cliente || '—',
+      valor: parseFloat(item.valor_total_servico) || 0,
+      data: item.created_at,
+      tipo: item.tipo_oportunidade || null
+    });
+  });
+
+  Object.keys(porVendedor).forEach(v =>
+    porVendedor[v].sort((a, b) => b.valor - a.valor)
+  );
+
+  return porVendedor;
 };

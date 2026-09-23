@@ -1151,7 +1151,7 @@ const RoteiroViagem = ({
 };
 
 const ArsenalDeGuerra = ({ onVoltar }) => {
-  const { usuario, temPermissao } = useAuth();
+  const { usuario, temPermissao, impersonando } = useAuth();
   
   // Estados para a tabela de links (Div 1)
   const [links, setLinks] = useState([]);
@@ -1388,6 +1388,10 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
 
   // Funções de manipulação de links otimizadas
   const handleSaveLink = useCallback(async () => {
+    if (impersonando) {
+      addNotification('🎭 Modo teste ativo — escrita bloqueada.', 'warning');
+      return;
+    }
     if (!newLink.nome || !newLink.url) return;
     
     try {
@@ -1400,7 +1404,7 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
       console.error('Erro ao salvar link:', error);
       addNotification('Erro ao salvar link. Tente novamente.', 'error');
     }
-  }, [newLink]);
+  }, [newLink, impersonando]);
 
   const handleLinkChange = (id, field, value) => {
     setLinks(links.map(link => 
@@ -1409,6 +1413,10 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
   };
 
   const handleSaveEditLink = useCallback(async (id) => {
+    if (impersonando) {
+      addNotification('🎭 Modo teste ativo — escrita bloqueada.', 'warning');
+      return;
+    }
     try {
       await arsenalService.atualizarLink(id, editingLinkData);
       setLinks(prev => prev.map(link => 
@@ -1421,7 +1429,7 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
       console.error('Erro ao atualizar link:', error);
       addNotification('Erro ao atualizar link. Tente novamente.', 'error');
     }
-  }, [editingLinkData]);
+  }, [editingLinkData, impersonando]);
 
   const handleDeleteLinkClick = useCallback((link) => {
     setLinkToDelete(link);
@@ -1430,6 +1438,10 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
   }, []);
 
   const handleConfirmDeleteLink = useCallback(async () => {
+    if (impersonando) {
+      addNotification('🎭 Modo teste ativo — escrita bloqueada.', 'warning');
+      return;
+    }
     if (deleteLinkConfirmName === linkToDelete?.nome) {
       try {
         await arsenalService.excluirLink(linkToDelete.id);
@@ -1453,6 +1465,11 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
 
   // Funções de manipulação de arquivos
   const handleFileUpload = async (event) => {
+    if (impersonando) {
+      addNotification('🎭 Modo teste ativo — escrita bloqueada.', 'warning');
+      event.target.value = '';
+      return;
+    }
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
@@ -1576,6 +1593,10 @@ const ArsenalDeGuerra = ({ onVoltar }) => {
   };
 
   const handleConfirmDelete = async () => {
+    if (impersonando) {
+      addNotification('🎭 Modo teste ativo — escrita bloqueada.', 'warning');
+      return;
+    }
     if (deleteConfirmName === fileToDelete?.nome) {
       try {
         await arsenalService.excluirArquivo(fileToDelete.id, fileToDelete.caminho_storage);

@@ -136,7 +136,7 @@ const formatCurrency = (numericValue) => {
 };
 
 const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
-  const { usuario, temPermissao } = useAuth();
+  const { usuario, temPermissao, impersonando } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormVisible, setIsFormVisible] = useState(false); // Estado inicial oculto
   const [hasBackButton, setHasBackButton] = useState(true);
@@ -485,7 +485,12 @@ const ApontamentosComercial = ({ onVoltar, onDataUpdate }) => {
   // Função para submeter o formulário
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
+    if (impersonando) {
+      showToast('🎭 Modo teste (impersonation) ativo — escrita bloqueada. Saia da impersonation para salvar.', 'warning');
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }

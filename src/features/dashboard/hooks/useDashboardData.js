@@ -1,5 +1,7 @@
 import { useMemo } from 'react';
 import { processSheetData } from '../../../utils/dataProcessing';
+import { extractVendasPorMes, extractClientesPorVendedor } from '../../../utils/extractors';
+import { mesComercial, mesComercialAtual } from '../../../utils/periodoComercial';
 
 /**
  * Hook para processar e preparar dados do dashboard
@@ -59,13 +61,14 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
   
   // Extrair anos e meses disponíveis dos dados
   const { availableYears, availableMonths } = useMemo(() => {
-    // Função para obter mês atual
+    // Função para obter mês atual (comercial — respeita a regra do dia 22)
     const getCurrentMonthFallback = () => {
       const monthNames = [
         'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
         'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
       ];
-      return monthNames[new Date().getMonth()];
+      const { mes } = mesComercialAtual();
+      return monthNames[mes];
     };
 
     if (!allData || !Array.isArray(allData)) {
@@ -84,17 +87,20 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
       'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
     ];
 
-    // Extrair anos e meses agrupados por ano
+    // Extrair anos e meses agrupados por ano (usando mês COMERCIAL a partir de Ago/2026)
     allData.forEach(item => {
       if (item.created_at) {
         try {
           const date = new Date(item.created_at);
           if (!isNaN(date.getTime())) {
-            const year = date.getFullYear().toString();
-            const month = date.getMonth(); // 0-based
-            
+            // mesComercial retorna { ano, mes } respeitando a regra do dia 22
+            const bucket = mesComercial(date);
+            if (!bucket) return;
+            const year = bucket.ano.toString();
+            const month = bucket.mes; // 0-based
+
             yearsSet.add(year);
-            
+
             // Agrupar meses por ano
             if (!monthsByYear[year]) {
               monthsByYear[year] = new Set();
@@ -124,10 +130,10 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
       ? monthsForSelectedYear 
       : [getCurrentMonthFallback()];
     
-    // Se o ano selecionado for o ano atual, sempre incluir o mês atual
+    // Se o ano selecionado for o ano atual, sempre incluir o mês comercial vigente
     const getCurrentMonth = () => {
-      const agora = new Date();
-      return monthNames[agora.getMonth()];
+      const { mes } = mesComercialAtual();
+      return monthNames[mes];
     };
     
     const currentYear = new Date().getFullYear().toString();
@@ -151,11 +157,27 @@ export const useDashboardData = (data, allData, metaPersonalizada, selectedMonth
     };
   }, [allData, selectedYear]);
 
+  // Vendas por mês/vendedor + clientes por vendedor no ano vigente.
+  // Usa allData (não filtrado pelo período selecionado) — visão anual sempre.
+  const anoVigente = new Date().getFullYear();
+
+  const vendasPorMes = useMemo(
+    () => extractVendasPorMes(allData, anoVigente),
+    [allData, anoVigente]
+  );
+
+  const clientesPorVendedor = useMemo(
+    () => extractClientesPorVendedor(allData),
+    [allData]
+  );
+
   return {
     dashboardData,
     totalClientesAtendidos,
     taxaDeSucesso,
     availableYears,
-    availableMonths
+    availableMonths,
+    vendasPorMes,
+    clientesPorVendedor
   };
 };

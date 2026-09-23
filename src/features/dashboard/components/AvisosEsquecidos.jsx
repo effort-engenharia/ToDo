@@ -2,8 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { FaBell, FaExclamationTriangle, FaChevronDown, FaChevronUp, FaClock, FaUserTie, FaSearch, FaCheck, FaSpinner, FaCalendarAlt } from 'react-icons/fa';
 import { apontamentosService } from '../../../services/supabaseService';
 import AlinhamentoModal from '../../../components/AlinhamentoModal';
+import { useAuth } from '../../../contexts/AuthContext';
 
 const AvisosEsquecidos = () => {
+  const { usuario, isAdmin } = useAuth();
+  const nomeVendedor = usuario?.nome_vendedor_comercial;
+  const admin = typeof isAdmin === 'function' ? isAdmin() : false;
+
   const [avisos, setAvisos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -17,8 +22,13 @@ const AvisosEsquecidos = () => {
     nomeCliente: ''
   });
 
+  // Aplica escopo por vendedor (não-admins só vêem os próprios)
+  const avisosDoEscopo = admin
+    ? avisos
+    : avisos.filter(a => a.proprietario_relacionamento === nomeVendedor);
+
   // Filtrar avisos pelo termo de busca
-  const avisosFiltrados = avisos.filter(aviso =>
+  const avisosFiltrados = avisosDoEscopo.filter(aviso =>
     aviso.nome_cliente?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -97,12 +107,12 @@ const AvisosEsquecidos = () => {
     }
   };
 
-  // Se não houver avisos ou estiver carregando, não exibir nada
-  if (loading || avisos.length === 0) {
+  // Se não houver avisos (no escopo do usuário) ou estiver carregando, não exibir nada
+  if (loading || avisosDoEscopo.length === 0) {
     return null;
   }
 
-  const totalAvisos = avisos.length;
+  const totalAvisos = avisosDoEscopo.length;
   const totalFiltrados = avisosFiltrados.length;
   const proprietarios = Object.keys(avisosAgrupados);
 
@@ -124,7 +134,7 @@ const AvisosEsquecidos = () => {
                 Oportunidades Esquecidas
               </h3>
               <p className="text-sm text-amber-600">
-                {totalAvisos} {totalAvisos === 1 ? 'oportunidade' : 'oportunidades'} sem atualização há mais de 8 dias
+                {totalAvisos} {totalAvisos === 1 ? 'oportunidade' : 'oportunidades'} com retomada vencida ou sem contato registrado
               </p>
             </div>
           </div>

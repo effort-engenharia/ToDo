@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { FaChevronDown, FaSignOutAlt, FaUserCircle } from 'react-icons/fa';
 import { useAuth } from '../../../contexts/AuthContext';
+import { rangeCurtoMesComercial } from '../../../utils/periodoComercial';
+
+const MESES_INDICE = {
+  janeiro: 0, fevereiro: 1, 'março': 2, marco: 2, abril: 3,
+  maio: 4, junho: 5, julho: 6, agosto: 7,
+  setembro: 8, outubro: 9, novembro: 10, dezembro: 11
+};
 
 const DashboardHeader = ({ 
   selectedMonth, 
@@ -119,11 +126,18 @@ const DashboardHeader = ({
                   onChange={(e) => setSelectedMonth(e.target.value)}
                   className="appearance-none bg-white/20 backdrop-blur-sm text-white px-3 py-2 pr-7 rounded-md border border-white/30 focus:outline-none focus:ring-2 focus:ring-yellow-300 font-medium text-xs sm:text-sm w-full sm:w-auto"
                 >
-                  {availableMonths.map((mes) => (
-                    <option key={mes} value={mes} className="text-gray-800 text-xs sm:text-sm">
-                      {mes.charAt(0).toUpperCase() + mes.slice(1)}
-                    </option>
-                  ))}
+                  {availableMonths.map((mes) => {
+                    const nome = mes.charAt(0).toUpperCase() + mes.slice(1);
+                    const idx = MESES_INDICE[mes.toLowerCase()];
+                    const range = idx != null
+                      ? rangeCurtoMesComercial(parseInt(selectedYear), idx)
+                      : null;
+                    return (
+                      <option key={mes} value={mes} className="text-gray-800 text-xs sm:text-sm">
+                        {range ? `${nome} (${range})` : nome}
+                      </option>
+                    );
+                  })}
                 </select>
                 <FaChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 text-white/70 text-xs" />
               </div>

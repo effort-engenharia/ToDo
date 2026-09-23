@@ -3,12 +3,16 @@ import RegionSalesTable from '../../../components/RegionSalesTable';
 import VendorSalesTable from '../../../components/VendorSalesTable';
 import SalesPodium from '../../../components/SalesPodium';
 
-const SalesTables = ({ regioes, vendedores }) => (
+const SalesTables = ({ regioes, vendedores, vendasPorMes, clientesPorVendedor }) => (
   <>
     {/* Tabelas de vendas divididas */}
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
       <RegionSalesTable regionData={regioes} />
-      <VendorSalesTable vendorData={vendedores} />
+      <VendorSalesTable
+        vendorData={vendedores}
+        vendasPorMes={vendasPorMes}
+        clientesPorVendedor={clientesPorVendedor}
+      />
     </div>
 
     {/* Podium dos Campeões */}

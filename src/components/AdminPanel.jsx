@@ -2,13 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { 
   FaTimes, FaUser, FaUserPlus, FaUserCheck, FaUserTimes, 
   FaTrash, FaEye, FaEyeSlash, FaCog, FaShieldAlt, FaHistory,
-  FaUsers, FaKey, FaClipboardList, FaEdit, FaPlus
+  FaUsers, FaKey, FaClipboardList, FaEdit, FaPlus, FaPalette, FaCheck,
+  FaUserSecret
 } from 'react-icons/fa';
 import { adminService } from '../services/supabase/auth.js';
 import { useAuth } from '../contexts/AuthContext';
+import { useLayout } from '../contexts/LayoutContext';
+import { effortColors } from '../utils/effortTheme';
+import AparenciaTab from './AparenciaTab';
 
 const AdminPanel = ({ isOpen, onClose }) => {
-  const { usuario } = useAuth();
+  const { usuario, impersonar, impersonando } = useAuth();
   const [activeTab, setActiveTab] = useState('usuarios');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -227,6 +231,42 @@ const AdminPanel = ({ isOpen, onClose }) => {
     });
   };
 
+  const handleImpersonate = async (user) => {
+    if (!user?.id) return;
+    if (user.id === usuario?.id) {
+      showMessage('error', 'Você já está logado como este usuário.');
+      return;
+    }
+    if (!user.ativo) {
+      showMessage('error', 'Não é possível impersonar um usuário inativo.');
+      return;
+    }
+    const nome = user.nome_completo || user.email;
+    if (!window.confirm(
+      `Entrar como "${nome}"?\n\n` +
+      `Você vai visualizar o sistema como esse usuário. ` +
+      `Todas as ações de escrita (criar/editar/excluir) ficarão bloqueadas. ` +
+      `Para voltar, clique em "Voltar para admin" na barra vermelha do topo.`
+    )) return;
+
+    setLoading(true);
+    try {
+      const res = await impersonar(user);
+      if (res?.success) {
+        // Fecha o modal e recarrega o app para garantir que todo o estado reinicialize
+        onClose?.();
+        setTimeout(() => window.location.reload(), 100);
+      } else {
+        showMessage('error', res?.message || 'Erro ao iniciar impersonation.');
+      }
+    } catch (err) {
+      console.error(err);
+      showMessage('error', 'Erro ao iniciar impersonation.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdateUser = async (e) => {
     e.preventDefault();
     if (!editingUser) return;
@@ -320,6 +360,17 @@ const AdminPanel = ({ isOpen, onClose }) => {
               >
                 <FaHistory className="inline w-4 h-4 mr-2" />
                 Logs
+              </button>
+              <button
+                onClick={() => setActiveTab('aparencia')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'aparencia'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <FaPalette className="inline w-4 h-4 mr-2" />
+                Aparência
               </button>
             </nav>
           </div>
@@ -603,6 +654,23 @@ const AdminPanel = ({ isOpen, onClose }) => {
                             Editar
                           </button>
                           <button
+                            onClick={() => handleImpersonate(user)}
+                            className="inline-flex items-center px-2 py-1 rounded text-xs bg-purple-100 text-purple-800 hover:bg-purple-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                            disabled={loading || impersonando || user.id === usuario?.id || !user.ativo}
+                            title={
+                              user.id === usuario?.id
+                                ? 'Você já está logado como este usuário'
+                                : !user.ativo
+                                ? 'Usuário inativo'
+                                : impersonando
+                                ? 'Já está impersonando alguém'
+                                : `Entrar como ${user.nome_completo}`
+                            }
+                          >
+                            <FaUserSecret className="w-3 h-3 mr-1" />
+                            Entrar como
+                          </button>
+                          <button
                             onClick={() => handleToggleUser(user.id, user.ativo)}
                             className={`inline-flex items-center px-2 py-1 rounded text-xs ${
                               user.ativo
@@ -822,6 +890,11 @@ const AdminPanel = ({ isOpen, onClose }) => {
                 </table>
               </div>
             </div>
+          )}
+
+          {/* Tab Aparência */}
+          {activeTab === 'aparencia' && (
+            <AparenciaTab />
           )}
         </div>
       </div>

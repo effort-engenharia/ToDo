@@ -1,7 +1,8 @@
 import { supabase } from './config.js';
+import { wrapServiceWithImpersonationGuard } from '../../utils/impersonationGuard.js';
 
 // Serviços para administradoras e síndicos profissionais
-export const administradorasService = {
+const _administradorasService = {
   // Buscar administradoras e síndicos
   async buscarAdministradoras(cidade = null) {
     try {
@@ -339,3 +340,9 @@ export const administradorasService = {
     }
   }
 };
+export const administradorasService = wrapServiceWithImpersonationGuard(_administradorasService, {
+  label: 'administradorasService',
+  throwOnBlock: true
+});
+
+export default administradorasService;

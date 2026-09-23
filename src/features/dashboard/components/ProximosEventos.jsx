@@ -1,28 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { FaCalendarCheck, FaChevronDown, FaChevronUp, FaClock, FaUserTie, FaSearch, FaStickyNote, FaCalendarAlt, FaCheck, FaSpinner } from 'react-icons/fa';
 import { apontamentosService } from '../../../services/supabaseService';
-import AlinhamentoModal from '../../../components/AlinhamentoModal';
+import ProximoEventoModal from '../../../components/ProximoEventoModal';
+import { useAuth } from '../../../contexts/AuthContext';
 
 /**
  * Componente para exibir próximos eventos (retomadas agendadas)
  * Exibe oportunidades com data de retomada futura ou para hoje
+ *
+ * Filtro por vendedor:
+ *  - Admin (não impersonando) vê tudo.
+ *  - Vendedor comum (ou admin impersonando um vendedor) vê apenas os próprios.
  */
 const ProximosEventos = () => {
+  const { usuario, isAdmin } = useAuth();
+  const nomeVendedor = usuario?.nome_vendedor_comercial;
+  const admin = typeof isAdmin === 'function' ? isAdmin() : false;
+
   const [eventos, setEventos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [processando, setProcessando] = useState({});
-  
-  // Estado para o modal de alinhamento
-  const [modalAlinhamento, setModalAlinhamento] = useState({
+
+  // Estado para o modal de trabalho de evento
+  const [modalEvento, setModalEvento] = useState({
     isOpen: false,
-    apontamentoId: null,
-    nomeCliente: ''
+    evento: null
   });
 
+  // Aplica escopo por vendedor (não-admins só vêem os próprios)
+  const eventosDoEscopo = admin
+    ? eventos
+    : eventos.filter(ev => ev.proprietario_relacionamento === nomeVendedor);
+
   // Filtrar eventos pelo termo de busca
-  const eventosFiltrados = eventos.filter(evento =>
+  const eventosFiltrados = eventosDoEscopo.filter(evento =>
     evento.nome_cliente?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -61,56 +74,63 @@ const ProximosEventos = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Abrir modal de alinhamento
-  const abrirModalAlinhamento = (apontamentoId, nomeCliente) => {
-    setModalAlinhamento({
-      isOpen: true,
-      apontamentoId,
-      nomeCliente
-    });
+  // Abrir modal de trabalho de evento
+  const abrirModalEvento = (evento) => {
+    setModalEvento({ isOpen: true, evento });
   };
 
-  // Fechar modal de alinhamento
-  const fecharModalAlinhamento = () => {
-    setModalAlinhamento({
-      isOpen: false,
-      apontamentoId: null,
-      nomeCliente: ''
-    });
+  // Fechar modal
+  const fecharModalEvento = () => {
+    setModalEvento({ isOpen: false, evento: null });
   };
 
-  // Confirmar alinhamento (chamado pelo modal)
-  const confirmarAlinhamento = async ({ dataRetomada, observacao }) => {
-    const { apontamentoId } = modalAlinhamento;
-    
+  // Confirmar ação do modal (dispatcher)
+  const confirmarAcaoEvento = async ({ acao, dataNova, observacao }) => {
+    const evento = modalEvento.evento;
+    if (!evento) return;
+    const apontamentoId = evento.id;
+
     try {
       setProcessando(prev => ({ ...prev, [apontamentoId]: true }));
-      await apontamentosService.registrarAlinhamento(apontamentoId, dataRetomada, observacao);
-      
-      // Se agendou nova data, recarregar eventos; senão, remover da lista
-      if (dataRetomada) {
-        await carregarEventos();
-      } else {
-        setEventos(prev => prev.filter(e => e.id !== apontamentoId));
+
+      switch (acao) {
+        case 'realizado_manter':
+          // Registra alinhamento e agenda próximo contato
+          await apontamentosService.registrarAlinhamento(apontamentoId, dataNova, observacao);
+          break;
+        case 'realizado_contrato':
+          await apontamentosService.concluirEventoMudandoFase(apontamentoId, 'CONTRATO/VENDA', observacao);
+          break;
+        case 'realizado_perca':
+          await apontamentosService.concluirEventoMudandoFase(apontamentoId, 'CANCELADO/PERCA', observacao);
+          break;
+        case 'reagendar':
+          await apontamentosService.reagendarEvento(apontamentoId, dataNova, observacao);
+          break;
+        case 'cancelar':
+          await apontamentosService.cancelarEvento(apontamentoId, observacao);
+          break;
+        default:
+          throw new Error(`Ação desconhecida: ${acao}`);
       }
-      
-      // Fechar modal
-      fecharModalAlinhamento();
-      
+
+      // Recarrega a lista — quase todas as ações removem/alteram o item
+      await carregarEventos();
+      fecharModalEvento();
     } catch (error) {
-      console.error('Erro ao registrar alinhamento:', error);
-      alert('Erro ao registrar alinhamento. Tente novamente.');
+      console.error('Erro ao processar evento:', error);
+      alert(error.message || 'Erro ao processar evento. Tente novamente.');
     } finally {
       setProcessando(prev => ({ ...prev, [apontamentoId]: false }));
     }
   };
 
-  // Se não houver eventos ou estiver carregando, não exibir nada
-  if (loading || eventos.length === 0) {
+  // Se não houver eventos (no escopo do usuário) ou estiver carregando, não exibir nada
+  if (loading || eventosDoEscopo.length === 0) {
     return null;
   }
 
-  const totalEventos = eventos.length;
+  const totalEventos = eventosDoEscopo.length;
   const totalFiltrados = eventosFiltrados.length;
   const proprietarios = Object.keys(eventosAgrupados);
 
@@ -125,10 +145,17 @@ const ProximosEventos = () => {
   };
 
   // Obter classe de cor baseada nos dias até retomada
+  //  0 dias         → verde (hoje)
+  //  1-2 dias       → azul forte (iminente)
+  //  3-7 dias       → azul claro (semana)
+  //  8-30 dias      → cinza-azulado (médio prazo)
+  //  > 30 dias      → cinza (longo prazo)
   const getCorDias = (dias) => {
-    if (dias === 0) return 'bg-green-500 text-white'; // Hoje
-    if (dias <= 2) return 'bg-blue-500 text-white'; // Próximos 2 dias
-    return 'bg-blue-100 text-blue-700'; // Mais de 2 dias
+    if (dias === 0) return 'bg-green-500 text-white';
+    if (dias <= 2) return 'bg-blue-500 text-white';
+    if (dias <= 7) return 'bg-blue-100 text-blue-700';
+    if (dias <= 30) return 'bg-slate-100 text-slate-700';
+    return 'bg-gray-100 text-gray-600';
   };
 
   // Obter texto do badge de dias
@@ -156,7 +183,7 @@ const ProximosEventos = () => {
                 Próximos Eventos
               </h3>
               <p className="text-sm text-blue-600">
-                {totalEventos} {totalEventos === 1 ? 'retomada agendada' : 'retomadas agendadas'} nos próximos dias
+                {totalEventos} {totalEventos === 1 ? 'retomada agendada' : 'retomadas agendadas'}
               </p>
             </div>
           </div>
@@ -239,17 +266,17 @@ const ProximosEventos = () => {
                                 </span>
                               </div>
                               <button
-                                onClick={() => abrirModalAlinhamento(evento.id, evento.nome_cliente)}
+                                onClick={() => abrirModalEvento(evento)}
                                 disabled={processando[evento.id]}
-                                className="flex items-center space-x-1 bg-green-500 hover:bg-green-600 disabled:bg-green-300 text-white px-2 py-1 rounded-lg transition-colors text-xs font-medium"
-                                title="Marcar alinhamento realizado ou reagendar"
+                                className="flex items-center space-x-1 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white px-2 py-1 rounded-lg transition-colors text-xs font-medium"
+                                title="Editar este evento agendado"
                               >
                                 {processando[evento.id] ? (
                                   <FaSpinner className="animate-spin" />
                                 ) : (
                                   <FaCheck />
                                 )}
-                                <span className="hidden sm:inline">Alinhamento</span>
+                                <span className="hidden sm:inline">Editar Evento</span>
                               </button>
                             </div>
                           </div>
@@ -264,13 +291,13 @@ const ProximosEventos = () => {
         )}
       </div>
 
-      {/* Modal de Alinhamento */}
-      <AlinhamentoModal
-        isOpen={modalAlinhamento.isOpen}
-        onClose={fecharModalAlinhamento}
-        onConfirm={confirmarAlinhamento}
-        nomeCliente={modalAlinhamento.nomeCliente}
-        isProcessing={processando[modalAlinhamento.apontamentoId]}
+      {/* Modal de Trabalho de Evento */}
+      <ProximoEventoModal
+        isOpen={modalEvento.isOpen}
+        onClose={fecharModalEvento}
+        onConfirm={confirmarAcaoEvento}
+        evento={modalEvento.evento}
+        isProcessing={modalEvento.evento ? processando[modalEvento.evento.id] : false}
       />
     </div>
   );

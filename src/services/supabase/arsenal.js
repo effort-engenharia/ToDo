@@ -1,7 +1,8 @@
 import { supabase } from './config.js';
+import { wrapServiceWithImpersonationGuard } from '../../utils/impersonationGuard.js';
 
 // Serviços para Arsenal de Guerra
-export const arsenalService = {
+const _arsenalService = {
   // Serviços para Links
   async criarLink(dadosLink) {
     try {
@@ -320,3 +321,9 @@ export const arsenalService = {
     }
   }
 };
+export const arsenalService = wrapServiceWithImpersonationGuard(_arsenalService, {
+  label: 'arsenalService',
+  throwOnBlock: true
+});
+
+export default arsenalService;

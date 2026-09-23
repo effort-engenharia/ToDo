@@ -1,0 +1,78 @@
+/* Effort Dashboard V2 — animações e utilitários */
+
+@keyframes v2-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes v2-pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 184, 65, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(245, 184, 65, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 184, 65, 0);
+  }
+}
+
+@keyframes v2-shine {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.v2-card {
+  animation: v2-fade-up 0.4s ease-out both;
+}
+
+.v2-card-delay-1 { animation-delay: 0.05s; }
+.v2-card-delay-2 { animation-delay: 0.1s; }
+.v2-card-delay-3 { animation-delay: 0.15s; }
+.v2-card-delay-4 { animation-delay: 0.2s; }
+.v2-card-delay-5 { animation-delay: 0.25s; }
+
+.v2-pulse {
+  animation: v2-pulse-ring 2s infinite;
+}
+
+.v2-shine {
+  background: linear-gradient(
+    90deg,
+    #F5B841 0%,
+    #FFD97A 50%,
+    #F5B841 100%
+  );
+  background-size: 200% auto;
+  animation: v2-shine 3s linear infinite;
+}
+
+/* Custom scrollbar V2 (webkit) */
+.v2-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.v2-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.v2-scroll::-webkit-scrollbar-thumb {
+  background: #E5E7EB;
+  border-radius: 3px;
+}
+
+.v2-scroll::-webkit-scrollbar-thumb:hover {
+  background: #D1D5DB;
+}
+
+/* Hide-on-print helper */
+@media print {
+  .v2-sidebar { display: none !important; }
+}

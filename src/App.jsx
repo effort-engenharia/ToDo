@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Dashboard from './features/dashboard/components/Dashboard';
+import DashboardV2 from './features/dashboard-v2/DashboardV2';
 import ApontamentosComercial from './components/ApontamentosComercial';
 import ArsenalDeGuerra from './components/ArsenalDeGuerra';
 import AuthGuard from './components/AuthGuard';
@@ -8,7 +9,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import SmartRedirect from './components/SmartRedirect';
 import ResetPasswordPage from './components/ResetPasswordPage';
 import ExecucaoDashboard from './features/execucao/components/ExecucaoDashboard';
+import ImpersonationBar from './components/ImpersonationBar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { LayoutProvider, useLayout } from './contexts/LayoutContext';
 import { useGoogleSheetsData } from './hooks/useGoogleSheetsData';
 
 function AppContent() {
@@ -25,6 +28,13 @@ function AppContent() {
   const [isRedirecting, setIsRedirecting] = useState(true);
   const { refreshData } = useGoogleSheetsData();
   const { usuario, obterPaginasPermitidas, isAuthenticated } = useAuth();
+
+  // Escutar evento global de abertura do admin (usado pelo Dashboard V2)
+  useEffect(() => {
+    const handler = () => setShowAdminPanel(true);
+    window.addEventListener('effort:open-admin', handler);
+    return () => window.removeEventListener('effort:open-admin', handler);
+  }, []);
 
   // Determinar página inicial baseada nas permissões
   useEffect(() => {
@@ -173,7 +183,7 @@ function AppContent() {
         requiredRoute="dashboard" 
         onRedirect={setCurrentPage}
       >
-        <Dashboard setCurrentPage={setCurrentPage} />
+        <DashboardSelector setCurrentPage={setCurrentPage} />
       </ProtectedRoute>
       <AdminPanel 
         isOpen={showAdminPanel} 
@@ -183,10 +193,26 @@ function AppContent() {
   );
 }
 
+/**
+ * Escolhe entre Dashboard clássico (V1) e Dashboard moderno (V2) com base
+ * na preferência global salva em Supabase (context: LayoutContext).
+ * Enquanto o valor está carregando, mostra V1 (cache do localStorage).
+ */
+function DashboardSelector({ setCurrentPage }) {
+  const { layout, LAYOUT_MODERNO } = useLayout();
+  if (layout === LAYOUT_MODERNO) {
+    return <DashboardV2 setCurrentPage={setCurrentPage} />;
+  }
+  return <Dashboard setCurrentPage={setCurrentPage} />;
+}
+
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <LayoutProvider>
+        <ImpersonationBar />
+        <AppContent />
+      </LayoutProvider>
     </AuthProvider>
   );
 }

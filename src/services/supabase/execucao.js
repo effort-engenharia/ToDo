@@ -1,7 +1,9 @@
 import { supabase } from './config.js';
+import { wrapServiceWithImpersonationGuard } from '../../utils/impersonationGuard.js';
 
-// Serviços de execução para o Dashboard Execução
-export const execucaoService = {
+// Métodos do serviço de execução. Um Proxy no final adiciona bloqueio
+// automático de operações de escrita quando o admin está impersonando.
+const _execucaoService = {
   // ==========================================
   // ATIVIDADES
   // ==========================================
@@ -2180,5 +2182,9 @@ export const execucaoService = {
     }
   }
 };
+
+export const execucaoService = wrapServiceWithImpersonationGuard(_execucaoService, {
+  label: 'execucaoService'
+});
 
 export default execucaoService;

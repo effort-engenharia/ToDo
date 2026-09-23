@@ -1,7 +1,8 @@
 import { supabase } from './config.js';
+import { wrapServiceWithImpersonationGuard } from '../../utils/impersonationGuard.js';
 
 // Serviços para metas comerciais
-export const metasService = {
+const _metasService = {
   // Buscar meta por tipo, mês e ano
   async buscarMeta(tipoMeta, mes = null, ano = null) {
     try {
@@ -169,3 +170,9 @@ export const metasService = {
     }
   }
 };
+export const metasService = wrapServiceWithImpersonationGuard(_metasService, {
+  label: 'metasService',
+  throwOnBlock: true
+});
+
+export default metasService;

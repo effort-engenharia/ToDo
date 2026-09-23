@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/supabase/auth.js';
+import { setImpersonating } from '../utils/impersonationGuard';
 
 const AuthContext = createContext();
 
@@ -15,10 +16,13 @@ export const AuthProvider = ({ children }) => {
   const [usuario, setUsuario] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Impersonation: quando admin "entra como" outro usuário, salvamos aqui a sessão real
+  const [adminOriginal, setAdminOriginal] = useState(null);
 
   // Verificar se há usuário logado no localStorage
   useEffect(() => {
     const usuarioArmazenado = localStorage.getItem('usuario_dashboard');
+    const adminArmazenado = localStorage.getItem('admin_original_dashboard');
     if (usuarioArmazenado) {
       try {
         const dadosUsuario = JSON.parse(usuarioArmazenado);
@@ -27,6 +31,14 @@ export const AuthProvider = ({ children }) => {
       } catch (error) {
         console.error('Erro ao carregar usuário do localStorage:', error);
         localStorage.removeItem('usuario_dashboard');
+      }
+    }
+    if (adminArmazenado) {
+      try {
+        setAdminOriginal(JSON.parse(adminArmazenado));
+      } catch (error) {
+        console.error('Erro ao carregar admin original:', error);
+        localStorage.removeItem('admin_original_dashboard');
       }
     }
     setLoading(false);
@@ -132,7 +144,9 @@ export const AuthProvider = ({ children }) => {
       // Sempre limpar dados locais, mesmo se houver erro
       setUsuario(null);
       setIsAuthenticated(false);
+      setAdminOriginal(null);
       localStorage.removeItem('usuario_dashboard');
+      localStorage.removeItem('admin_original_dashboard');
       setLoading(false);
     }
   };
@@ -198,6 +212,98 @@ export const AuthProvider = ({ children }) => {
     return usuario?.nivel_acesso?.nome === 'Administrador';
   };
 
+  // ==== IMPERSONATION ====
+  const impersonando = !!adminOriginal;
+
+  // Espelha o estado no guard compartilhado (usado por services de escrita)
+  useEffect(() => {
+    setImpersonating(impersonando);
+  }, [impersonando]);
+
+  // Admin "entra como" outro usuário para testes. Guarda a sessão admin original
+  // em localStorage e coloca o alvo como usuário corrente. Não mexe no Supabase Auth
+  // (token permanece do admin), é uma troca só no estado da aplicação.
+  const impersonar = async (usuarioAlvo) => {
+    if (!usuario) {
+      return { success: false, message: 'Nenhum usuário logado.' };
+    }
+    if (usuario?.nivel_acesso?.nome !== 'Administrador') {
+      return { success: false, message: 'Apenas administradores podem impersonar.' };
+    }
+    if (adminOriginal) {
+      return { success: false, message: 'Já está impersonando alguém. Volte primeiro.' };
+    }
+    if (!usuarioAlvo?.id) {
+      return { success: false, message: 'Usuário alvo inválido.' };
+    }
+    if (usuarioAlvo.id === usuario.id) {
+      return { success: false, message: 'Você já está logado como este usuário.' };
+    }
+
+    try {
+      const adminAtual = usuario;
+      setAdminOriginal(adminAtual);
+      setUsuario(usuarioAlvo);
+      localStorage.setItem('admin_original_dashboard', JSON.stringify(adminAtual));
+      localStorage.setItem('usuario_dashboard', JSON.stringify(usuarioAlvo));
+
+      // Log de auditoria (não interrompe se falhar)
+      try {
+        await authService.registrarLog(adminAtual.email, 'ADMIN_IMPERSONATE_START', {
+          alvo_email: usuarioAlvo.email,
+          alvo_id: usuarioAlvo.id,
+          alvo_nome: usuarioAlvo.nome_completo,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (logErr) {
+        console.warn('Falha ao registrar log de impersonation:', logErr);
+      }
+
+      return { success: true, message: `Impersonando ${usuarioAlvo.nome_completo}` };
+    } catch (error) {
+      console.error('Erro ao impersonar:', error);
+      // Rollback em caso de erro
+      setAdminOriginal(null);
+      localStorage.removeItem('admin_original_dashboard');
+      return { success: false, message: 'Erro ao iniciar impersonation.' };
+    }
+  };
+
+  // Volta pra sessão admin original
+  const sairImpersonation = async () => {
+    if (!adminOriginal) {
+      return { success: false, message: 'Você não está impersonando ninguém.' };
+    }
+    try {
+      const alvo = usuario;
+      const admin = adminOriginal;
+
+      setUsuario(admin);
+      setAdminOriginal(null);
+      localStorage.setItem('usuario_dashboard', JSON.stringify(admin));
+      localStorage.removeItem('admin_original_dashboard');
+
+      try {
+        await authService.registrarLog(admin.email, 'ADMIN_IMPERSONATE_STOP', {
+          alvo_email: alvo?.email,
+          alvo_id: alvo?.id,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (logErr) {
+        console.warn('Falha ao registrar log de fim de impersonation:', logErr);
+      }
+
+      return { success: true, message: 'Voltou para a sessão admin.' };
+    } catch (error) {
+      console.error('Erro ao sair da impersonation:', error);
+      return { success: false, message: 'Erro ao voltar.' };
+    }
+  };
+
+  // Utilitário para bloquear ações de escrita durante impersonation.
+  // Uso: if (!podeEscrever()) return;
+  const podeEscrever = () => !impersonando;
+
   const value = {
     usuario,
     isAuthenticated,
@@ -207,7 +313,13 @@ export const AuthProvider = ({ children }) => {
     logout,
     temPermissao,
     obterPaginasPermitidas,
-    isAdmin
+    isAdmin,
+    // Impersonation
+    impersonando,
+    adminOriginal,
+    impersonar,
+    sairImpersonation,
+    podeEscrever,
   };
 
   return (

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { intervaloDoMesComercial } from '../../../utils/periodoComercial';
 import { semanasDoMesComercial } from '../../../utils/semanasComercial';
 import { medalhaPara } from '../../../utils/effortTheme';
+import { CLASSIFICACOES } from '../../../config/premiacao';
 
 /**
  * useGamification — Agrega métricas de gamificação do vendedor logado.
@@ -22,6 +23,7 @@ export function useGamification({
   ano,
   mes,
   nomeVendedor,
+  premiacao,
 }) {
   return useMemo(() => {
     const vendedores = dashboardData?.vendedores || [];
@@ -32,9 +34,11 @@ export function useGamification({
     // (o card "Suas conquistas" mede o vendedor contra a fatia dele, não contra o time)
     const metaTime = Number(metaPersonalizada) || 0;
     const qtdVendedores = vendedores.length || 1;
-    const metaIndividual = metaTime / qtdVendedores;
-    const percentual = metaIndividual > 0 ? (meuValor / metaIndividual) * 100 : 0;
-    const medalhaAtual = medalhaPara(percentual);
+    const regra = premiacao?.ativo && premiacao.resultado?.configurado ? premiacao.resultado : null;
+    const foraDaMeta = !!regra && premiacao.classificacaoDe(nomeVendedor) !== CLASSIFICACOES.EFETIVO;
+    const metaIndividual = regra ? regra.metaIndividual : metaTime / qtdVendedores;
+    const percentual = !foraDaMeta && metaIndividual > 0 ? (meuValor / metaIndividual) * 100 : 0;
+    const medalhaAtual = foraDaMeta ? null : medalhaPara(percentual);
 
     // Filtra vendas do vendedor no mês comercial
     const { de, ate } = intervaloDoMesComercial(ano, mes);
@@ -137,7 +141,7 @@ export function useGamification({
       metaIndividual, // fatia individual = metaTime / qtdVendedores
       metaTime,
     };
-  }, [allData, dashboardData, metaPersonalizada, ano, mes, nomeVendedor]);
+  }, [allData, dashboardData, metaPersonalizada, ano, mes, nomeVendedor, premiacao]);
 }
 
 export default useGamification;

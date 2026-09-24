@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useGoogleSheetsData } from '../../../hooks/useGoogleSheetsData';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { useMetaPersistence } from '../hooks/useMetaPersistence';
+import { usePremiacao } from '../hooks/usePremiacao';
 import { getMetaFromCode, updateMetaInCode, DEFAULT_METAS } from '../../../utils/codeUpdater';
 import { getCurrentMetas, salvarMeta } from '../../../config/metas';
 import { mesComercialAtual } from '../../../utils/periodoComercial';
@@ -18,6 +19,11 @@ import SalesTables from './SalesTables';
 import StatusFooter from './StatusFooter';
 import AvisosEsquecidos from './AvisosEsquecidos';
 import ProximosEventos from './ProximosEventos';
+
+const MESES_FILTRO = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+];
 
 const Dashboard = ({ setCurrentPage }) => {
   // Retorna o nome do MÊS COMERCIAL vigente (regra de fechamento no dia 22 a
@@ -108,6 +114,12 @@ const Dashboard = ({ setCurrentPage }) => {
     vendasPorMes,
     clientesPorVendedor
   } = useDashboardData(data, allData, metaPersonalizada, selectedMonth, selectedYear);
+
+  const premiacao = usePremiacao({
+    data,
+    ano: parseInt(selectedYear, 10),
+    mes: MESES_FILTRO.indexOf(selectedMonth),
+  });
   
   // Efeito para mostrar indicador visual quando dados mudarem
   useEffect(() => {
@@ -203,6 +215,9 @@ const Dashboard = ({ setCurrentPage }) => {
           vendedores={dashboardData?.vendedores}
           vendasPorMes={vendasPorMes}
           clientesPorVendedor={clientesPorVendedor}
+          premiacao={premiacao}
+          anoPremiacao={parseInt(selectedYear, 10)}
+          mesPremiacao={MESES_FILTRO.indexOf(selectedMonth)}
         />
 
         {/* Status e última atualização */}

@@ -8,7 +8,7 @@ import { mesComercialAtual } from '../../../utils/periodoComercial';
 /**
  * BadgesVendedor — Gamificação individual: medalha atual, próxima, streak semanal, badges especiais.
  */
-const BadgesVendedor = ({ dashboardData, metaPersonalizada, allData = [] }) => {
+const BadgesVendedor = ({ dashboardData, metaPersonalizada, allData = [], premiacao }) => {
   const { usuario } = useAuth();
   const nomeUsuario = usuario?.nome_vendedor_comercial;
   const { ano, mes } = mesComercialAtual();
@@ -20,6 +20,7 @@ const BadgesVendedor = ({ dashboardData, metaPersonalizada, allData = [] }) => {
     ano,
     mes,
     nomeVendedor: nomeUsuario,
+    premiacao,
   });
 
   const { medalhaAtual, percentual, streakSemanas, totalSemanasAteAgora, badgesEspeciais } = gam;

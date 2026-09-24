@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useGoogleSheetsData } from '../../hooks/useGoogleSheetsData';
 import { useDashboardData } from '../dashboard/hooks/useDashboardData';
 import { useMetaPersistence } from '../dashboard/hooks/useMetaPersistence';
+import { usePremiacao } from '../dashboard/hooks/usePremiacao';
 import { getCurrentMetas, salvarMeta } from '../../config/metas';
 import { DEFAULT_METAS, updateMetaInCode, getMetaFromCode } from '../../utils/codeUpdater';
 import { mesComercialAtual } from '../../utils/periodoComercial';
@@ -22,6 +23,8 @@ import ClientesFechados from './components/ClientesFechados';
 import BadgesVendedor from './components/BadgesVendedor';
 import ProximosEventos from '../dashboard/components/ProximosEventos';
 import AvisosEsquecidos from '../dashboard/components/AvisosEsquecidos';
+import PremiacaoTimeCard from '../../components/premiacao/PremiacaoTimeCard';
+import ComissaoPJCard from '../../components/premiacao/ComissaoPJCard';
 import './styles/dashboardV2.css';
 
 /**
@@ -104,6 +107,8 @@ const DashboardV2 = ({ setCurrentPage }) => {
     return idx >= 0 ? idx : mesAtual;
   }, [selectedMonth, mesAtual]);
   const anoSel = useMemo(() => parseInt(selectedYear, 10) || anoAtual, [selectedYear, anoAtual]);
+
+  const premiacao = usePremiacao({ data, ano: anoSel, mes: mesSel });
 
   const semanas = useMemo(
     () => semanasDoMesComercial(anoSel, mesSel),
@@ -218,6 +223,7 @@ const DashboardV2 = ({ setCurrentPage }) => {
                 dashboardData={dashboardData}
                 metaPersonalizada={metaPersonalizada}
                 allData={allData}
+                premiacao={premiacao}
               />
             </div>
           </div>
@@ -229,8 +235,21 @@ const DashboardV2 = ({ setCurrentPage }) => {
               metaPersonalizada={metaPersonalizada}
               ano={anoSel}
               mes={mesSel}
+              premiacao={premiacao}
             />
           </div>
+
+          {premiacao.ativo && premiacao.resultado && (
+            <div className="v2-card v2-card-delay-2">
+              <PremiacaoTimeCard premiacao={premiacao} ano={anoSel} mes={mesSel} />
+            </div>
+          )}
+
+          {premiacao.ativo && premiacao.resultado?.pjs.some((p) => premiacao.podeVer(p.nome)) && (
+            <div className="v2-card v2-card-delay-3">
+              <ComissaoPJCard premiacao={premiacao} />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-5">
             <div className="lg:col-span-8 v2-card v2-card-delay-2">
@@ -261,6 +280,7 @@ const DashboardV2 = ({ setCurrentPage }) => {
                 dashboardData={dashboardData}
                 metaPersonalizada={metaPersonalizada}
                 allData={allData}
+                premiacao={premiacao}
               />
             </div>
           </div>

@@ -3,13 +3,14 @@ import {
   FaTimes, FaUser, FaUserPlus, FaUserCheck, FaUserTimes, 
   FaTrash, FaEye, FaEyeSlash, FaCog, FaShieldAlt, FaHistory,
   FaUsers, FaKey, FaClipboardList, FaEdit, FaPlus, FaPalette, FaCheck,
-  FaUserSecret
+  FaUserSecret, FaTrophy
 } from 'react-icons/fa';
 import { adminService } from '../services/supabase/auth.js';
 import { useAuth } from '../contexts/AuthContext';
 import { useLayout } from '../contexts/LayoutContext';
 import { effortColors } from '../utils/effortTheme';
 import AparenciaTab from './AparenciaTab';
+import PremiacaoTab from './PremiacaoTab';
 
 const AdminPanel = ({ isOpen, onClose }) => {
   const { usuario, impersonar, impersonando } = useAuth();
@@ -371,6 +372,17 @@ const AdminPanel = ({ isOpen, onClose }) => {
               >
                 <FaPalette className="inline w-4 h-4 mr-2" />
                 Aparência
+              </button>
+              <button
+                onClick={() => setActiveTab('premiacao')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'premiacao'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <FaTrophy className="inline w-4 h-4 mr-2" />
+                Premiação
               </button>
             </nav>
           </div>
@@ -895,6 +907,10 @@ const AdminPanel = ({ isOpen, onClose }) => {
           {/* Tab Aparência */}
           {activeTab === 'aparencia' && (
             <AparenciaTab />
+          )}
+
+          {activeTab === 'premiacao' && (
+            <PremiacaoTab />
           )}
         </div>
       </div>

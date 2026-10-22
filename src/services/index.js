@@ -9,6 +9,7 @@ import { administradorasService } from './supabase/administradoras.js';
 import { authService, adminService } from './supabase/auth.js';
 import { execucaoService } from './supabase/execucao.js';
 import { configuracoesService } from './supabase/configuracoes.js';
+import { premiacaoService } from './supabase/premiacao.js';
 
 // Re-exportar tudo para manter compatibilidade com importações existentes
 export { supabase };
@@ -20,6 +21,7 @@ export { authService };
 export { adminService };
 export { execucaoService };
 export { configuracoesService };
+export { premiacaoService };
 
 // Exportar o objeto de serviço principal para compatibilidade
 export const supabaseService = {
@@ -31,7 +33,8 @@ export const supabaseService = {
   auth: authService,
   admin: adminService,
   execucao: execucaoService,
-  configuracoes: configuracoesService
+  configuracoes: configuracoesService,
+  premiacao: premiacaoService
 };
 
 // Export default para uso simplificado

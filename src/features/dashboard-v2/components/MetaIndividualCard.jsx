@@ -17,16 +17,36 @@ const MetaIndividualCard = ({
   metaPersonalizada,
   ano,
   mes,
+  premiacao,
 }) => {
   const { usuario, isAdmin } = useAuth();
   const admin = typeof isAdmin === 'function' ? isAdmin() : !!isAdmin;
   const meuNome = usuario?.nome_vendedor_comercial;
+  const regra = premiacao?.ativo && premiacao.resultado?.configurado ? premiacao.resultado : null;
 
   const { linhas, metaIndividual, diasUteis } = useMemo(() => {
+    const dias = diasUteisRestantesNoMes(ano, mes);
+
+    if (regra) {
+      const todasRegra = regra.linhas.map((l) => ({
+        nome: l.nome,
+        entrada: l.entrada,
+        faltam: l.faltaParaMeta,
+        percentual: l.atingimento,
+        ritmoDia: dias > 0 ? l.faltaParaMeta / dias : l.faltaParaMeta,
+        medalha: medalhaPara(l.atingimento),
+        elegivel: l.elegivel,
+        premioFinal: l.premioFinal,
+      }));
+      const visiveis = admin
+        ? todasRegra
+        : todasRegra.filter((l) => (l.nome || '').toUpperCase() === (meuNome || '').toUpperCase().trim());
+      return { linhas: visiveis, metaIndividual: regra.metaIndividual, diasUteis: dias };
+    }
+
     const vendedores = dashboardData?.vendedores || [];
     const metaTime = Number(metaPersonalizada) || 0;
     const metaInd = vendedores.length > 0 ? metaTime / vendedores.length : 0;
-    const dias = diasUteisRestantesNoMes(ano, mes);
 
     const todas = [...vendedores]
       .map((v) => {
@@ -51,7 +71,7 @@ const MetaIndividualCard = ({
       : todas.filter((l) => l.nome === meuNome);
 
     return { linhas: filtradas, metaIndividual: metaInd, diasUteis: dias };
-  }, [dashboardData, metaPersonalizada, ano, mes, admin, meuNome]);
+  }, [dashboardData, metaPersonalizada, ano, mes, admin, meuNome, regra]);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 h-full flex flex-col">
@@ -92,6 +112,8 @@ const MetaIndividualCard = ({
         <div className="flex-1 flex items-center justify-center text-sm text-gray-400 py-6 text-center">
           {admin ? (
             <span>Sem vendedores com vendas neste mês.</span>
+          ) : regra && meuNome && !premiacao.souEfetivo ? (
+            <span>Seu perfil não participa da meta individual do time.</span>
           ) : meuNome ? (
             <span>
               Você ainda não aparece nas vendas deste mês. Assim que registrar uma entrada,
@@ -151,8 +173,20 @@ const MetaIndividualCard = ({
                       </span>
                     )}
                   </div>
-                  <div className="text-sm font-bold shrink-0" style={{ color: barCor }}>
-                    {l.percentual.toFixed(0)}%
+                  <div className="flex items-center gap-2 shrink-0">
+                    {regra && (
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                          l.elegivel ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'
+                        }`}
+                        title="Elegível à premiação quando a entrada líquida ≥ meta individual"
+                      >
+                        {l.elegivel ? 'Elegível' : 'Não elegível'}
+                      </span>
+                    )}
+                    <div className="text-sm font-bold" style={{ color: barCor }}>
+                      {l.percentual.toFixed(0)}%
+                    </div>
                   </div>
                 </div>
 
@@ -188,6 +222,12 @@ const MetaIndividualCard = ({
                     </div>
                   </div>
                 </div>
+                {regra && (
+                  <div className="mt-2 pt-2 border-t border-gray-200 flex justify-between text-[10px]">
+                    <span className="text-gray-400 uppercase tracking-wider">Prêmio (prévia)</span>
+                    <span className="text-gray-800 font-bold">{formatCurrency(l.premioFinal)}</span>
+                  </div>
+                )}
               </li>
             );
           })}
@@ -195,8 +235,17 @@ const MetaIndividualCard = ({
       )}
 
       <div className="mt-3 pt-3 border-t border-gray-100 text-[10px] text-gray-400">
-        Meta individual = meta do time <strong>{formatCurrency(Number(metaPersonalizada) || 0)}</strong>{' '}
-        ÷ {dashboardData?.vendedores?.length || 0} vendedor(es).
+        {regra ? (
+          <>
+            Meta individual = Meta Ideal <strong>{formatCurrency(regra.metas.ideal)}</strong>{' '}
+            ÷ {regra.qtdEfetivos} vendedor(es) efetivo(s). PJ e líder não entram no divisor.
+          </>
+        ) : (
+          <>
+            Meta individual = meta do time <strong>{formatCurrency(Number(metaPersonalizada) || 0)}</strong>{' '}
+            ÷ {dashboardData?.vendedores?.length || 0} vendedor(es).
+          </>
+        )}
       </div>
     </div>
   );

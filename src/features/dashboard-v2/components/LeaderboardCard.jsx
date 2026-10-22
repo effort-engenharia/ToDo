@@ -3,17 +3,20 @@ import { FaTrophy, FaCrown } from 'react-icons/fa';
 import { formatCurrency } from '../../../utils/dataProcessing';
 import { effortColors, medalhaPara } from '../../../utils/effortTheme';
 import { useAuth } from '../../../contexts/AuthContext';
+import { CLASSIFICACOES } from '../../../config/premiacao';
 
 /**
  * LeaderboardCard — Ranking gamificado dos vendedores no mês.
  * Todos veem todos. Meta individual = meta do time / número de vendedores ativos.
  */
-const LeaderboardCard = ({ dashboardData, metaPersonalizada }) => {
+const LeaderboardCard = ({ dashboardData, metaPersonalizada, premiacao }) => {
   const { usuario } = useAuth();
   const nomeUsuario = usuario?.nome_vendedor_comercial;
+  const semPJ = premiacao?.ativo ? premiacao.classificacaoDe : null;
 
   const ranking = useMemo(() => {
-    const vendedores = dashboardData?.vendedores || [];
+    const todos = dashboardData?.vendedores || [];
+    const vendedores = semPJ ? todos.filter((v) => semPJ(v.vendedor) !== CLASSIFICACOES.PJ) : todos;
     if (!vendedores.length) return [];
 
     // Meta é do TIME e cada vendedor contribui um pedaço
@@ -42,7 +45,7 @@ const LeaderboardCard = ({ dashboardData, metaPersonalizada }) => {
           medalha: medalhaPara(pct),
         };
       });
-  }, [dashboardData, metaPersonalizada]);
+  }, [dashboardData, metaPersonalizada, semPJ]);
 
   const medalhasPodio = ['🥇', '🥈', '🥉'];
 

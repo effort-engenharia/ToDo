@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { FaUsers, FaTrophy, FaCalendarAlt, FaUserFriends, FaSearch } from 'react-icons/fa';
 import { formatCurrency } from '../utils/dataProcessing';
-import FitText from './FitText';
 import { useAuth } from '../contexts/AuthContext';
 import {
   mesComercialAtual,
@@ -260,7 +259,7 @@ const VendorSalesTable = ({ vendorData, vendasPorMes, clientesPorVendedor }) => 
 
               {/* Estatísticas resumidas */}
               <div className="mt-6 pt-4 border-t border-gray-200">
-                <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-4 text-center">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
                   <div className="bg-purple-50 p-4 rounded-lg">
                     <div className="text-2xl font-bold text-purple-600">
                       {rankingVisivel.length}
@@ -269,16 +268,16 @@ const VendorSalesTable = ({ vendorData, vendasPorMes, clientesPorVendedor }) => 
                       {admin ? 'Vendedores Ativos' : 'Sua conta'}
                     </div>
                   </div>
-                  <div className="bg-blue-50 p-4 rounded-lg min-w-0">
-                    <FitText className="font-bold text-blue-600">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">
                       {formatCurrency(rankingVisivel.reduce((s, i) => s + (i.valorEntrada || 0), 0))}
-                    </FitText>
+                    </div>
                     <div className="text-blue-600 text-sm font-medium">Total Valor Entrada</div>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg min-w-0">
-                    <FitText className="font-bold text-green-600">
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">
                       {formatCurrency(rankingVisivel.reduce((s, i) => s + (i.valor || 0), 0))}
-                    </FitText>
+                    </div>
                     <div className="text-green-600 text-sm font-medium">Valor Total</div>
                   </div>
                 </div>

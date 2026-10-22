@@ -7,11 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "jev": "node scripts/jev.mjs",
-    "graph:update": "graphify update . && node scripts/graph-link-db.mjs && graphify cluster-only . --no-label",
-    "graph:rebuild": "graphify extract . --code-only && node scripts/graph-link-db.mjs && graphify cluster-only . --no-label",
-    "graph:hooks": "sh scripts/install-graph-hooks.sh"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",

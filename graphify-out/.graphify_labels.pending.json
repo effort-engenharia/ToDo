@@ -1,7 +1,6 @@
 {
-  "4": "VendorSalesTable.jsx",
-  "24": "PlanejamentoMacro.jsx",
-  "28": "public.execucao_pedidos_material",
-  "32": "tailwind.config.js",
-  "33": "Como regenerar"
+  "14": "public.usuarios",
+  "28": "supabaseService.js",
+  "34": "public.metas_comerciais",
+  "35": "public.execucao_planejamento_macro"
 }

@@ -1,9 +1,7 @@
 # Graph Report - ToDo  (2026-10-22)
 
 ## Corpus Check
-- 130 files · ~121,575 words
-- Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 7 file(s) not represented in the graph (top: (none) 3, .css 3, .example 1)
+- cluster-only mode — file stats not available
 
 ## Summary
 - 687 nodes · 1741 edges · 34 communities (28 shown, 6 thin omitted)
@@ -61,12 +59,12 @@
 10. `intervaloDoMesComercial()` - 17 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `6. Checklist obrigatório antes de cada alteração` --references--> `useGoogleSheetsData()`  [INFERRED]
+  DASHBOARD_COMERCIAL_CONTEXTO.md → src/hooks/useGoogleSheetsData.js
 - `11. Backups e segurança` --references--> `LayoutProvider()`  [INFERRED]
   PLANO_NOVO_DASHBOARD.md → src/contexts/LayoutContext.jsx
 - `**Fase 3: Widgets principais**` --references--> `useDashboardData()`  [INFERRED]
   PLANO_NOVO_DASHBOARD.md → src/features/dashboard/hooks/useDashboardData.js
-- `6. Checklist obrigatório antes de cada alteração` --references--> `useGoogleSheetsData()`  [INFERRED]
-  DASHBOARD_COMERCIAL_CONTEXTO.md → src/hooks/useGoogleSheetsData.js
 - `3. Arquitetura de Arquivos` --references--> `useMetaPersistence()`  [INFERRED]
   PLANO_NOVO_DASHBOARD.md → src/features/dashboard/hooks/useMetaPersistence.js
 - `Metas — 3 camadas de persistência` --references--> `getCurrentMetas()`  [INFERRED]
@@ -190,7 +188,7 @@ Cohesion: 0.33
 Nodes (5): Como regenerar, logic.sql, Quando regenerar, Snapshot do schema Supabase (para o graphify), tables.sql
 
 ## Knowledge Gaps
-- **9 isolated node(s):** `@emoji-mart/data`, `@emoji-mart/react`, `@tailwindcss/typography`, `axios`, `@types/react` (+4 more)
+- **9 isolated node(s):** `autoprefixer`, `axios`, `@emoji-mart/data`, `@emoji-mart/react`, `postcss` (+4 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 205 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -201,7 +199,7 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.235) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `DashboardV2()` (e.g. with `salvarMeta()` and `updateMetaInCode()`) actually correct?**
   _`DashboardV2()` has 2 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `@emoji-mart/data`, `@emoji-mart/react`, `@tailwindcss/typography` to the rest of the system?**
+- **What connects `autoprefixer`, `axios`, `@emoji-mart/data` to the rest of the system?**
   _9 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `DashboardV2.jsx` be split into smaller, more focused modules?**
   _Cohesion score 0.10491803278688525 - nodes in this community are weakly interconnected._

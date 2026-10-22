@@ -174,3 +174,50 @@ src/
 - **Exportação Avançada**: PDF/Excel com relatórios customizados
 - **Analytics Avançados**: KPIs e insights automáticos
 - **Integração CRM**: Conexão com sistemas externos
+
+## graphify
+
+For any question about this repo's architecture, structure, components, or how to add/modify/find
+code, your first action should be `graphify query "<question>"` when `graphify-out/graph.json`
+exists. Use `graphify path "<A>" "<B>"` for relationship questions and `graphify explain "<concept>"`
+for focused-concept questions. These return a scoped subgraph, usually much smaller than the full
+report or raw grep output.
+
+Triggers: "how do I…", "where is…", "what does … do", "add/modify a <component>",
+"explain the architecture", or anything that depends on how files or classes relate.
+
+If `graphify-out/wiki/index.md` exists, use it for broad navigation. Read `graphify-out/GRAPH_REPORT.md`
+only for broad architecture review or when query/path/explain do not surface enough context. Only read
+source files when (a) modifying/debugging specific code, (b) the graph lacks the needed detail, or
+(c) the graph is missing or stale.
+
+Type `/graphify` in Copilot Chat to build or update the graph.
+
+Atualização local sem LLM: `npm run graph:update` (os git hooks do graphify já reconstroem o grafo após commit/checkout/merge). Reconstrução completa: `npm run graph:rebuild`. Reinstalar hooks: `npm run graph:hooks`.
+
+### Banco de dados no grafo
+
+O grafo também cobre o schema Supabase: `supabase/schema/*.sql` é um snapshot (gerado via MCP do Supabase; não é migration) com tabelas, FKs, triggers, policies e índices, e `scripts/graph-link-db.mjs` liga cada arquivo/função de `src/` às tabelas que usa (arestas `uses` com `context: supabase.from`). Exemplos:
+
+- `graphify explain "public.apontamentos_comerciais"` — quem usa a tabela, FKs, índices, triggers.
+- `graphify path "ApontamentosComercial()" "public.historico_alteracoes_apontamentos"` — do componente até a tabela.
+- `graphify affected "public.execucao_obras"` — impacto de mudar a tabela.
+
+Ao alterar o schema (migrations via MCP), regenere o snapshot conforme `supabase/schema/README.md`.
+
+## Jev (TypeSafe AI) — decisões rápidas e economia de tokens
+
+Uso restrito ao fluxo de desenvolvimento (não integrar no app/bundle Vite). A chave fica em `API_JEV_AI` no `.env`.
+
+Quando uma decisão for um julgamento curto e bem delimitado (escolher entre opções conhecidas, pontuar em uma escala, verificar se uma afirmação é verdadeira), prefira consultar o Jev em vez de raciocinar longamente:
+
+```bash
+npm run jev -- --state "<contexto curto ou @arquivo>" --questions '<json>'
+```
+
+- `choice`: escolher uma opção (ex.: qual camada/arquivo/abordagem). Retorna `choice` + `confidence`.
+- `score`: posicionar em níveis ordenados (ex.: risco, complexidade). Retorna `score` (0..n-1) + `confidence`.
+- `noul`: probabilidade (0–1) de uma afirmação ser verdadeira (ex.: "a mudança quebra a API pública").
+- Faça várias perguntas independentes numa única chamada; cada pergunta deve ser atômica e o `state` deve conter o contexto necessário (combine com a saída de `graphify query`).
+- Aja automaticamente só com confiança alta (choice/score ≥ 0.8, noul ≥ 0.8 ou ≤ 0.2); caso contrário, investigue no código ou pergunte ao usuário.
+- Para detalhes da API e padrões, use a skill `typesafe-ai` em `.agents/skills/typesafe-ai/`.

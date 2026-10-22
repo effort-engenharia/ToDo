@@ -1,6 +1,7 @@
 import React from 'react';
 import { FaMapMarkerAlt, FaTrophy } from 'react-icons/fa';
 import { formatCurrency } from '../utils/dataProcessing';
+import FitText from './FitText';
 
 const RegionSalesTable = ({ regionData }) => {
   // Log detalhado dos dados da tabela de vendas por região
@@ -120,7 +121,7 @@ const RegionSalesTable = ({ regionData }) => {
 
         {/* Estatísticas resumidas */}
         <div className="mt-6 pt-4 border-t border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-4 text-center">
             <div className="bg-blue-50 p-4 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">
                 {new Set(regions.map(item => (item.cidade || item.regiao || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))).size}
@@ -135,10 +136,10 @@ const RegionSalesTable = ({ regionData }) => {
               </div>
               <div className="text-green-600 text-sm font-medium">Total de Vendas</div>
             </div>
-            <div className="bg-yellow-50 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-yellow-600">
+            <div className="bg-yellow-50 p-4 rounded-lg min-w-0">
+              <FitText className="font-bold text-yellow-600">
                 {formatCurrency(regions.reduce((sum, item) => sum + item.valor, 0))}
-              </div>
+              </FitText>
               <div className="text-yellow-600 text-sm font-medium">Valor Total</div>
             </div>
           </div>

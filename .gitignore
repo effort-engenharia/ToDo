@@ -25,3 +25,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# graphify (cache local; graph.json/GRAPH_REPORT.md/graph.html são versionados)
+graphify-out/cache/
+graphify-out/manifest.json
+graphify-out/.graphify_analysis.json

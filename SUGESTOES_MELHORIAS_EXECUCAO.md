@@ -1308,3 +1308,13 @@ Não há mais perguntas em aberto que bloqueiem o início. Os valores dos descon
 | Dados | `execucao_atividades`, RPC `alterar_status_atividade` | Colunas `data_fim`, `solicita_replanejamento`, `replanejamento_resolvido_em`; `data_inicio_real`/`data_fim_real` em etapas; `checklist` em POPs; `motivo_codigo` no histórico; parâmetros `p_ocorrido_em` e `p_id_cliente` na RPC |
 
 Toda tabela nova deve seguir o padrão de RLS aplicado na auditoria anterior (`is_admin_execucao()` / `current_usuario_id()`).
+
+---
+
+## 12. Status da implementação
+
+Implementado na branch `feat/melhorias-execucao` (migrações `20261023_04..11`, já aplicadas em produção, todas aditivas):
+0.1, 0.3, 0.4, 0.5, 1.1–1.5, 1.7, 2.1–2.10, 3.1–3.5 (3.3 com compressão no celular), 3.6 (offline), 4.1–4.4, 5.1–5.3.
+
+Pendências conhecidas (não implementadas): 0.6 (decisão de plano/armazenamento: migrar ao Supabase Pro antes de liberar vídeos), foto na falta de material, marcos de material na linha do tempo, notificação ao técnico no reagendamento manual (só `deslocar_etapas` notifica), aviso ao vendedor na conclusão/atraso da obra (4.4 item 3), evidências enviadas junto da conclusão offline fora da fila principal (usam fila própria).
+Itens de dados (1.6 templates) dependem do preenchimento pelo time.

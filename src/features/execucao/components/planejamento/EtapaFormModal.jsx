@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FaProjectDiagram } from 'react-icons/fa';
 import Modal from '../ui/Modal';
+import SeletorEquipe from './cadastro/SeletorEquipe';
 
 const EtapaFormModal = ({ etapa, inicial, tecnicos, salvando, onSalvar, onClose }) => {
   const [form, setForm] = useState(inicial);
@@ -81,13 +82,18 @@ const EtapaFormModal = ({ etapa, inicial, tecnicos, salvando, onSalvar, onClose 
               </select>
             </div>
             <div className="execucao-form-group">
-              <label htmlFor="etapa-responsavel" className="execucao-form-label">Responsável</label>
-              <select id="etapa-responsavel" className="execucao-form-select" value={form.responsavel_id} onChange={campo('responsavel_id')}>
-                <option value="">Selecione...</option>
-                {tecnicos.map((t) => (
-                  <option key={t.id} value={t.id}>{t.nome_completo}</option>
-                ))}
-              </select>
+              <span className="execucao-form-label block">Responsável / equipe</span>
+              <SeletorEquipe
+                tecnicos={tecnicos}
+                liderId={form.responsavel_id}
+                apoioIds={(form.equipe_ids || []).filter((id) => id !== form.responsavel_id)}
+                rotulo="Responsável / equipe"
+                onChange={({ liderId, apoioIds }) => setForm((prev) => ({
+                  ...prev,
+                  responsavel_id: liderId,
+                  equipe_ids: liderId ? [liderId, ...apoioIds] : apoioIds
+                }))}
+              />
             </div>
           </div>
 

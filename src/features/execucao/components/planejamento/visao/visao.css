@@ -1,0 +1,306 @@
+/* Visão do todo do Planejamento Macro: painel da carteira, pendências, linha do tempo, previsto × realizado */
+
+/* ---------- Painel da carteira ---------- */
+.visao-painel { margin-bottom: 1.5rem; }
+
+.visao-painel-grade {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.visao-cartao {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-left-width: 4px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.visao-cartao-ativo { box-shadow: 0 0 0 2px var(--accent-blue); }
+
+.visao-tom-azul { border-left-color: var(--accent-blue); }
+.visao-tom-ciano { border-left-color: var(--accent-cyan); }
+.visao-tom-verde { border-left-color: var(--accent-green); }
+.visao-tom-vermelho { border-left-color: var(--accent-red); }
+.visao-tom-laranja { border-left-color: var(--accent-orange); }
+.visao-tom-amarelo { border-left-color: var(--accent-yellow); }
+.visao-tom-roxo { border-left-color: var(--accent-purple); }
+
+.visao-cartao-botao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.125rem;
+  width: 100%;
+  padding: 0.75rem 1rem 0.25rem;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.visao-cartao-botao:hover:not(:disabled) { background: var(--bg-card-hover); }
+.visao-cartao-botao:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: -2px; }
+.visao-cartao-botao:disabled { cursor: default; }
+.visao-cartao-estatico { cursor: default; }
+.visao-cartao-estatico:hover { background: transparent !important; }
+
+.visao-cartao-rotulo { font-size: 0.75rem; color: var(--text-muted); }
+.visao-cartao-valor { font-size: 1.75rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+
+.visao-cartao-detalhe {
+  padding: 0 1rem 0.75rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.visao-lista-detalhe { margin: 0; padding: 0; list-style: none; }
+
+.visao-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent-blue);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+}
+
+.visao-painel-estado {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+}
+
+.visao-painel-erro { color: #fca5a5; border-color: rgba(239, 68, 68, 0.4); }
+
+.visao-carga {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 0.75rem;
+}
+
+.visao-carga-titulo { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); }
+.visao-carga-itens { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; flex: 1; }
+.visao-carga-item { font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 9999px; background: var(--bg-tertiary); color: var(--text-secondary); }
+.visao-carga-alta { background: rgba(234, 179, 8, 0.18); color: #fde68a; }
+.visao-carga-acoes { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+
+.visao-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0.375rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.visao-icone:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-tertiary); }
+.visao-icone:disabled { opacity: 0.35; cursor: default; }
+
+/* ---------- Filtro ativo / controles da lista ---------- */
+.visao-filtro-ativo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 9999px;
+}
+
+/* ---------- Pendências de replanejamento ---------- */
+.visao-pendencias {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  border-radius: 0.75rem;
+}
+
+.visao-pendencias-titulo { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+.visao-pendencias-lista { margin: 0; padding: 0; list-style: none; }
+
+.visao-pendencia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border-color);
+}
+.visao-pendencia:first-child { border-top: 0; }
+.visao-pendencia-texto { flex: 1; min-width: 14rem; font-size: 0.875rem; }
+.visao-pendencia-acoes { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* ---------- Obra: previsto × realizado e motivos ---------- */
+.visao-previsto-realizado {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.visao-motivos { margin: 0 0 0.75rem; padding-left: 1.1rem; font-size: 0.8rem; color: #fcd34d; }
+
+.visao-previsto-fantasma { opacity: 0.55; outline: 1px dashed rgba(255, 255, 255, 0.45); }
+
+/* ---------- Tabela da prévia ---------- */
+.visao-tabela { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
+.visao-tabela th { text-align: left; padding: 0.4rem 0.5rem; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border-color); }
+.visao-tabela td { padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(51, 65, 85, 0.6); white-space: nowrap; }
+.visao-tabela td:first-child { white-space: normal; }
+
+/* ---------- Linha do tempo ---------- */
+.visao-timeline-controles { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+.visao-timeline-rolagem { overflow-x: auto; border: 1px solid var(--border-color); border-radius: 0.5rem; }
+.visao-timeline-corpo { position: relative; }
+
+.visao-timeline-cabecalho { display: flex; border-bottom: 1px solid var(--border-color); background: var(--bg-tertiary); }
+
+.visao-timeline-rotulo {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0.5rem;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+.visao-timeline-rotulo-cab { background: var(--bg-tertiary); font-weight: 600; min-height: 2.25rem; }
+.visao-timeline-rotulo-etapa { padding-left: 2.25rem; font-size: 0.75rem; color: var(--text-muted); white-space: nowrap; text-overflow: ellipsis; display: block; line-height: 1.75rem; }
+
+.visao-timeline-trilha { position: relative; flex: none; }
+.visao-timeline-cabecalho .visao-timeline-trilha { height: 2.25rem; }
+
+.visao-timeline-mes {
+  position: absolute;
+  top: 0;
+  height: 1.25rem;
+  padding-left: 0.375rem;
+  font-size: 0.7rem;
+  line-height: 1.25rem;
+  color: var(--text-secondary);
+  text-transform: capitalize;
+  border-left: 1px solid var(--border-light);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.visao-timeline-semana {
+  position: absolute;
+  top: 1.25rem;
+  padding-left: 0.125rem;
+  font-size: 0.6rem;
+  line-height: 1rem;
+  color: var(--text-muted);
+  border-left: 1px solid rgba(71, 85, 105, 0.5);
+  height: 1rem;
+}
+
+.visao-timeline-linhas { position: relative; }
+
+.visao-timeline-linha { display: flex; height: 2.25rem; border-bottom: 1px solid rgba(51, 65, 85, 0.6); }
+.visao-timeline-linha:hover .visao-timeline-rotulo { background: var(--bg-card-hover); }
+.visao-timeline-linha-etapa { height: 1.75rem; background: rgba(15, 23, 42, 0.35); }
+.visao-timeline-linha-etapa .visao-timeline-rotulo { background: #17213a; }
+
+.visao-timeline-grupo {
+  position: sticky;
+  left: 0;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.visao-timeline-nome {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.visao-timeline-nome:hover { text-decoration: underline; color: #93c5fd; }
+.visao-timeline-nome:focus-visible { outline: 2px solid var(--accent-blue); }
+
+.visao-timeline-barra {
+  position: absolute;
+  top: 0.4rem;
+  height: 1.1rem;
+  min-width: 6px;
+  border-radius: 0.25rem;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.visao-timeline-barra-etapa { top: 0.4rem; height: 0.8rem; opacity: 0.85; }
+
+.visao-timeline-progresso { position: absolute; inset: 0 auto 0 0; background: rgba(0, 0, 0, 0.32); }
+.visao-timeline-pct { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+
+.visao-timeline-real { position: absolute; bottom: 0.2rem; height: 0.3rem; min-width: 4px; border-radius: 9999px; background: #34d399; }
+.visao-timeline-real-curso { background: #fbbf24; }
+
+.visao-timeline-hoje {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(239, 68, 68, 0.8);
+  pointer-events: none;
+}
+.visao-timeline-hoje span {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 0.25rem;
+  font-size: 0.55rem;
+  color: #fff;
+  background: #ef4444;
+  border-radius: 0.2rem;
+}
+
+.visao-timeline-legenda { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin-top: 0.75rem; font-size: 0.75rem; color: var(--text-secondary); }
+.visao-timeline-legenda span { display: inline-flex; align-items: center; gap: 0.375rem; }
+.visao-timeline-legenda i { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 0.2rem; }
+.visao-timeline-legenda .visao-legenda-real { height: 0.3rem; background: #34d399; border-radius: 9999px; width: 1rem; }

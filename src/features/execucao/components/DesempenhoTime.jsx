@@ -18,6 +18,7 @@ import { execucaoService } from '../../../services/supabase/execucao';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { Carregando, ErroCarregamento } from './ui/Estados';
 import Grafico from './desempenho/Grafico';
+import IndicadoresAcionaveis from './desempenho/IndicadoresAcionaveis';
 import { CORES, TIPOS, opcaoBarrasEmpilhadas, opcaoLinhas, rotuloDia } from './desempenho/opcoesGraficos';
 
 const PERIODOS = [
@@ -244,6 +245,8 @@ const DesempenhoTime = () => {
           );
         })}
       </div>
+
+      <IndicadoresAcionaveis periodo={periodo} />
     </div>
   );
 };

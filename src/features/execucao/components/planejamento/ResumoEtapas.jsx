@@ -8,6 +8,7 @@ import {
   FaFileExcel,
   FaFilePdf,
   FaListAlt,
+  FaStream,
   FaTasks,
   FaUsers
 } from 'react-icons/fa';
@@ -15,6 +16,7 @@ import { addDias, dataLocalISO, parseDataLocal } from '../../utils/datas';
 import { useExecucaoUI } from '../ui/ExecucaoUI';
 import { exportarEtapasExcel, exportarEtapasPDF } from './exportacao';
 import ResumoVisaoAno from './ResumoVisaoAno';
+import ResumoVisaoLinhaDoTempo from './ResumoVisaoLinhaDoTempo';
 import ResumoVisaoMes from './ResumoVisaoMes';
 import ResumoVisaoSemana from './ResumoVisaoSemana';
 import ResumoVisaoTabela from './ResumoVisaoTabela';
@@ -24,8 +26,11 @@ const MODOS = [
   { id: 'tabela', rotulo: 'Tabela', icone: <FaListAlt size={12} aria-hidden="true" />, titulo: null },
   { id: 'agenda', rotulo: 'Semana', icone: <FaCalendarAlt size={12} aria-hidden="true" />, titulo: 'Visualização semanal' },
   { id: 'mensal', rotulo: 'Mês', icone: <FaCalendarAlt size={12} aria-hidden="true" />, titulo: 'Visualização mensal' },
-  { id: 'anual', rotulo: 'Ano', icone: <FaCalendarAlt size={12} aria-hidden="true" />, titulo: 'Visualização anual' }
+  { id: 'anual', rotulo: 'Ano', icone: <FaCalendarAlt size={12} aria-hidden="true" />, titulo: 'Visualização anual' },
+  { id: 'linha', rotulo: 'Linha do tempo', icone: <FaStream size={12} aria-hidden="true" />, titulo: 'Todas as obras, do início ao fim, com progresso e saúde' }
 ];
+
+const SEM_SAUDE = new Map();
 
 const NAV_BOTOES = 'execucao-btn execucao-btn-secondary execucao-btn-sm';
 const NAV_CONTAINER = 'flex items-center justify-between mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700';
@@ -60,11 +65,11 @@ const distribuirNosDias = (obras, filtroTipo, dias) => {
   });
 };
 
-const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
+const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade, saudePorObra = SEM_SAUDE, onAbrirObra }) => {
   const { toast } = useExecucaoUI();
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [ordenacao, setOrdenacao] = useState('data'); // data, cliente, equipe
-  const [modoVisualizacao, setModoVisualizacao] = useState('tabela'); // tabela, agenda, mensal, anual
+  const [modoVisualizacao, setModoVisualizacao] = useState('tabela'); // tabela, agenda, mensal, anual, linha
   const [semanaOffset, setSemanaOffset] = useState(0);
   const [mesOffset, setMesOffset] = useState(0);
   const [anoOffset, setAnoOffset] = useState(0);
@@ -407,7 +412,14 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade }) => {
       </div>
 
       {/* Conteúdo baseado no modo de visualização */}
-      {todasEtapas.length === 0 ? (
+      {modoVisualizacao === 'linha' ? (
+        <ResumoVisaoLinhaDoTempo
+          obras={obras}
+          filtroTipo={filtroTipo}
+          saudePorObra={saudePorObra}
+          onAbrirObra={onAbrirObra}
+        />
+      ) : todasEtapas.length === 0 ? (
         <div className="execucao-card text-center py-12">
           <FaCalendarAlt className="mx-auto text-slate-600 mb-4" size={48} aria-hidden="true" />
           <h3 className="text-lg font-medium text-slate-400 mb-2">Nenhuma etapa no período</h3>

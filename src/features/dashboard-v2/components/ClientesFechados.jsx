@@ -3,11 +3,13 @@ import { FaHandshake } from 'react-icons/fa';
 import { formatCurrency } from '../../../utils/dataProcessing';
 import { effortColors } from '../../../utils/effortTheme';
 import { intervaloDoMesComercial } from '../../../utils/periodoComercial';
+import SeloExecucao from './SeloExecucao';
 
 /**
  * ClientesFechados — Últimos contratos fechados no mês comercial vigente.
+ * `statusExecucao` (opcional): mapa { [apontamento_id]: linha da RPC } para exibir o selo da obra.
  */
-const ClientesFechados = ({ allData = [], ano, mes }) => {
+const ClientesFechados = ({ allData = [], ano, mes, statusExecucao }) => {
   const fechados = useMemo(() => {
     if (!Array.isArray(allData)) return [];
     const { de, ate } = intervaloDoMesComercial(ano, mes);
@@ -75,6 +77,11 @@ const ClientesFechados = ({ allData = [], ano, mes }) => {
                   <div className="text-[10px] text-gray-500 truncate">
                     {c.proprietario_relacionamento || 'sem vendedor'} · {dataFmt}
                   </div>
+                  {statusExecucao?.[c.id] && (
+                    <div className="mt-0.5">
+                      <SeloExecucao info={statusExecucao[c.id]} />
+                    </div>
+                  )}
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-xs font-bold text-emerald-600">

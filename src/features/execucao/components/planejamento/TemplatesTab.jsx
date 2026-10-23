@@ -1,6 +1,7 @@
 import React from 'react';
 import { FaCopy, FaEdit, FaMagic, FaPlus, FaTrash } from 'react-icons/fa';
 import { IconeTemplate } from './icones';
+import { ROTULO_TIPO_ETAPA, ROTULO_TIPO_OBRA_TEMPLATE } from './constants';
 
 const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) => (
   <div
@@ -60,7 +61,7 @@ const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) 
 
     <div className="flex items-center gap-2 mb-3">
       <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
-        {template.tipo_obra || 'Geral'}
+        {ROTULO_TIPO_OBRA_TEMPLATE[template.tipo_obra] || template.tipo_obra || 'Geral'}
       </span>
       <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
         {template.itens?.length || 0} etapas
@@ -74,8 +75,13 @@ const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) 
           key={etapa.id ?? idx}
           className="flex items-center justify-between text-xs p-1.5 bg-slate-900/50 rounded"
         >
-          <span className="text-slate-300 truncate">{idx + 1}. {etapa.nome}</span>
-          <span className="text-slate-500 shrink-0 ml-2">{etapa.duracao_dias}d</span>
+          <span className="text-slate-300 truncate">
+            {idx + 1}. {etapa.nome}
+            <span className="text-slate-500"> · {ROTULO_TIPO_ETAPA[etapa.tipo] || etapa.tipo}</span>
+          </span>
+          <span className="text-slate-500 shrink-0 ml-2">
+            {etapa.duracao_dias}d{etapa.horas_previstas ? ` · ${Number(etapa.horas_previstas)}h` : ''}{etapa.qtd_tecnicos > 1 ? ` · ${etapa.qtd_tecnicos} téc.` : ''}
+          </span>
         </div>
       ))}
       {template.itens?.length > 5 && (

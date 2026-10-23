@@ -101,6 +101,63 @@ export const montarEtapasDoTemplate = (template, obraId, dataInicioISO) => {
   });
 };
 
+// ---------------------------------------------------
+// Dias úteis (seg–sex, sem feriados) — espelha execucao_dia_util / execucao_add_dias_uteis do banco
+// ---------------------------------------------------
+
+// Comparação sem maiúsculas/acentos (mesma ideia de execucao_norm)
+export const normalizarTexto = (texto) =>
+  String(texto ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+// `cidade` = { id, uf } da obra (opcional). Nacionais + estaduais da UF (padrão SP) + municipais da cidade.
+export const criarCalendario = (feriados = [], cidade = null) => {
+  const uf = cidade?.uf || 'SP';
+  const datas = new Set();
+  feriados.forEach((f) => {
+    if (f.considerar_feriado === false) return;
+    const vale = f.abrangencia === 'nacional'
+      || (f.abrangencia === 'estadual' && f.uf === uf)
+      || (f.abrangencia === 'municipal' && cidade?.id && f.cidade_id === cidade.id);
+    if (vale) datas.add(String(f.data).slice(0, 10));
+  });
+  return { feriados: datas, carregado: feriados.length > 0 };
+};
+
+export const ehFeriado = (data, calendario) => Boolean(calendario?.feriados?.has(dataLocalISO(data)));
+
+export const ehDiaUtil = (data, calendario) => {
+  const diaSemana = data.getDay();
+  return diaSemana !== 0 && diaSemana !== 6 && !ehFeriado(data, calendario);
+};
+
+export const addDiasUteis = (data, n, calendario) => {
+  const passo = n < 0 ? -1 : 1;
+  let restante = Math.abs(n);
+  let atual = new Date(data);
+  for (let guarda = 0; restante > 0 && guarda < 3660; guarda += 1) {
+    atual = addDias(atual, passo);
+    if (ehDiaUtil(atual, calendario)) restante -= 1;
+  }
+  return atual;
+};
+
+export const proximoDiaUtil = (data, calendario) => (ehDiaUtil(data, calendario) ? data : addDiasUteis(data, 1, calendario));
+
+// Quantidade de dias úteis entre as datas, contando as duas pontas
+export const diasUteisEntre = (inicio, fim, calendario) => {
+  let total = 0;
+  for (let d = new Date(inicio), guarda = 0; d <= fim && guarda < 3660; d = addDias(d, 1), guarda += 1) {
+    if (ehDiaUtil(d, calendario)) total += 1;
+  }
+  return total;
+};
+
+// Deslocamento (com sinal) em dias úteis de `de` para `para`
+export const deslocamentoUteis = (de, para, calendario) => {
+  if (para >= de) return diasUteisEntre(addDias(de, 1), para, calendario);
+  return -diasUteisEntre(addDias(para, 1), de, calendario);
+};
+
 // Chave estável para itens editáveis que ainda não têm id (itens de template, arquivos)
 let sequencia = 0;
 export const novaChave = () => `k${Date.now().toString(36)}-${++sequencia}`;

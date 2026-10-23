@@ -81,6 +81,42 @@ export const LEGENDA_TIPOS = [
   { chave: 'administrativo', cor: 'bg-green-500', label: 'Administrativo' }
 ];
 
+// Tipos aceitos pelo banco para etapas e itens de template (o tipo define a agenda e, em "estoque", gera o pedido de material)
+export const TIPOS_ETAPA = [
+  { valor: 'eletrica', rotulo: 'Elétrica' },
+  { valor: 'civil', rotulo: 'Civil' },
+  { valor: 'galpao', rotulo: 'Galpão' },
+  { valor: 'gestao', rotulo: 'Gestão' },
+  { valor: 'administrativo', rotulo: 'Administrativo' },
+  { valor: 'estoque', rotulo: 'Material (estoque)' },
+  { valor: 'geral', rotulo: 'Geral' }
+];
+
+export const ROTULO_TIPO_ETAPA = Object.fromEntries(TIPOS_ETAPA.map((t) => [t.valor, t.rotulo]));
+
+// Tipos de obra aceitos no template (CHECK do banco)
+export const TIPOS_OBRA_TEMPLATE = [
+  { valor: 'eletrica', rotulo: 'Elétrica' },
+  { valor: 'civil', rotulo: 'Civil' },
+  { valor: 'galpao', rotulo: 'Galpão' },
+  { valor: 'misto', rotulo: 'Misto' },
+  { valor: 'spda', rotulo: 'SPDA' },
+  { valor: 'manutencao', rotulo: 'Manutenção' }
+];
+
+export const ROTULO_TIPO_OBRA_TEMPLATE = Object.fromEntries(TIPOS_OBRA_TEMPLATE.map((t) => [t.valor, t.rotulo]));
+
+// A obra só aceita eletrica/civil/galpao/misto
+export const tipoObraDoTemplate = (tipoTemplate) => (
+  ['eletrica', 'civil', 'galpao', 'misto'].includes(tipoTemplate) ? tipoTemplate : 'eletrica'
+);
+
+export const MOTIVOS_NAO_PLANEJAR = [
+  'Já concluído antes do sistema',
+  'Cancelado',
+  'Outro'
+];
+
 export const DIAS_SEMANA_CURTO = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 
 export const DURACAO_PADRAO_ETAPA_TEMPLATE = 3;
@@ -98,7 +134,10 @@ export const FORM_OBRA_VAZIO = {
   contato_cliente: '',
   apontamento_id: '',
   arquivos_pdf: [],
-  template_id: ''
+  template_id: '',
+  cidade_id: '',
+  tipo_servico_codigo: '',
+  valor_contrato: ''
 };
 
 export const FORM_ETAPA_VAZIO = {
@@ -109,7 +148,8 @@ export const FORM_ETAPA_VAZIO = {
   data_fim: '',
   responsavel_id: '',
   ordem: 0,
-  etapa_pai_id: null
+  etapa_pai_id: null,
+  equipe_ids: []
 };
 
 export const FORM_ATIVIDADE_VAZIO = {
@@ -127,6 +167,7 @@ export const FORM_TEMPLATE_VAZIO = {
   nome: '',
   descricao: '',
   tipo_obra: 'eletrica',
+  tipo_servico_codigo: '',
   icone: 'FaBolt',
   cor: '#eab308',
   ativo: true,

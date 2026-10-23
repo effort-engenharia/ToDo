@@ -7,9 +7,15 @@ import {
   FaExclamationTriangle,
   FaClipboardList,
   FaCheckDouble,
-  FaSpinner
+  FaSpinner,
+  FaBoxOpen,
+  FaRegClock,
+  FaCalendarAlt,
+  FaExchangeAlt
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
+import { execucaoTecnicoService } from '../../../services/supabase/execucaoTecnico';
+import { destinoDaNotificacao, irParaDestino } from './tecnico/navegacaoNotificacao';
 import '../styles/execucao.css';
 
 const INTERVALO_MS = 30000;
@@ -20,7 +26,12 @@ const ICONES = {
   retomada: <FaPlay className="text-blue-400" aria-hidden="true" />,
   atraso: <FaExclamationTriangle className="text-red-400" aria-hidden="true" />,
   pendente: <FaClipboardList className="text-slate-400" aria-hidden="true" />,
-  urgente: <FaExclamationTriangle className="text-orange-400" aria-hidden="true" />
+  urgente: <FaExclamationTriangle className="text-orange-400" aria-hidden="true" />,
+  material: <FaBoxOpen className="text-orange-400" aria-hidden="true" />,
+  hora_extra: <FaRegClock className="text-blue-400" aria-hidden="true" />,
+  replanejamento: <FaCalendarAlt className="text-purple-400" aria-hidden="true" />,
+  transferencia: <FaExchangeAlt className="text-cyan-400" aria-hidden="true" />,
+  pendencia: <FaClipboardList className="text-yellow-400" aria-hidden="true" />
 };
 
 const FUNDOS = {
@@ -28,7 +39,12 @@ const FUNDOS = {
   conclusao: 'bg-green-900/30',
   retomada: 'bg-blue-900/30',
   atraso: 'bg-red-900/30',
-  urgente: 'bg-orange-900/30'
+  urgente: 'bg-orange-900/30',
+  material: 'bg-orange-900/30',
+  hora_extra: 'bg-blue-900/30',
+  replanejamento: 'bg-purple-900/30',
+  transferencia: 'bg-cyan-900/30',
+  pendencia: 'bg-yellow-900/30'
 };
 
 const getIcone = (tipo) => ICONES[tipo] ?? <FaBell className="text-slate-400" aria-hidden="true" />;
@@ -68,8 +84,8 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
     if (!silencioso) setLoading(true);
     try {
       const [notifResult, contadorResult] = await Promise.all([
-        execucaoService.buscarNotificacoes(20),
-        execucaoService.contarNotificacoesNaoLidas()
+        execucaoTecnicoService.buscarNotificacoesUsuario(usuarioId, { isAdmin, limite: 20 }),
+        execucaoTecnicoService.contarNotificacoesUsuario(usuarioId, { isAdmin })
       ]);
       if (id !== requisicao.current) return;
 
@@ -82,11 +98,11 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
     } finally {
       if (id === requisicao.current) setLoading(false);
     }
-  }, []);
+  }, [usuarioId, isAdmin]);
 
   // Rodadas encadeadas: a próxima só é agendada quando a anterior termina; pausa com a aba oculta
   useEffect(() => {
-    if (!isAdmin) return undefined;
+    if (!usuarioId) return undefined;
 
     let ativo = true;
     let timer = null;
@@ -96,11 +112,13 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
       timer = null;
       if (!ativo || emExecucao || document.visibilityState === 'hidden') return;
       emExecucao = true;
-      try {
-        const atrasos = await execucaoService.verificarECriarNotificacoesAtraso();
-        if (atrasos && atrasos.success === false) console.error('Erro ao verificar atrasos:', atrasos.message);
-      } catch (error) {
-        console.error('Erro ao verificar atrasos:', error);
+      if (isAdmin) {
+        try {
+          const atrasos = await execucaoService.verificarECriarNotificacoesAtraso();
+          if (atrasos && atrasos.success === false) console.error('Erro ao verificar atrasos:', atrasos.message);
+        } catch (error) {
+          console.error('Erro ao verificar atrasos:', error);
+        }
       }
       if (ativo) await carregarNotificacoes({ silencioso: true });
       emExecucao = false;
@@ -120,7 +138,7 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', aoMudarVisibilidade);
     };
-  }, [isAdmin, carregarNotificacoes]);
+  }, [usuarioId, isAdmin, carregarNotificacoes]);
 
   // Fechar ao clicar fora ou com Esc (listeners só existem enquanto aberto)
   useEffect(() => {
@@ -166,11 +184,28 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
     }
   };
 
+  // Marca como lida e leva à atividade/tela da notificação
+  const handleAbrirNotificacao = async (notif) => {
+    setIsOpen(false);
+    if (!notif.lida) {
+      try {
+        const result = await execucaoService.marcarNotificacaoLida(notif.id, usuarioId);
+        if (result.success) {
+          setNotificacoes((prev) => prev.map((n) => (n.id === notif.id ? { ...n, lida: true } : n)));
+          setContadorNaoLidas((prev) => Math.max(0, prev - 1));
+        }
+      } catch (error) {
+        console.error('Erro ao marcar notificação como lida:', error);
+      }
+    }
+    irParaDestino(destinoDaNotificacao(notif, isAdmin));
+  };
+
   const handleMarcarTodasLidas = async () => {
     if (marcandoTodas) return;
     setMarcandoTodas(true);
     try {
-      const result = await execucaoService.marcarTodasNotificacoesLidas(usuarioId);
+      const result = await execucaoTecnicoService.marcarNotificacoesUsuarioLidas(usuarioId, { isAdmin });
       if (!result.success) {
         setErro(result.message || 'Não foi possível marcar todas como lidas.');
         return;
@@ -185,19 +220,6 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
       setMarcandoTodas(false);
     }
   };
-
-  if (!isAdmin) {
-    return (
-      <button
-        type="button"
-        className="execucao-header-btn relative opacity-50"
-        disabled
-        aria-label="Notificações indisponíveis"
-      >
-        <FaBell aria-hidden="true" />
-      </button>
-    );
-  }
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -227,7 +249,7 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
           id={painelId}
           role="region"
           aria-label="Notificações"
-          className="absolute right-0 top-full mt-2 w-96 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden"
+          className="absolute right-0 top-full mt-2 w-96 max-w-[calc(100vw-2rem)] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden"
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-slate-800/50">
             <h3 className="font-semibold text-white flex items-center gap-2">
@@ -273,26 +295,32 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
                 {notificacoes.map((notif) => (
                   <li
                     key={notif.id}
-                    className={`px-4 py-3 border-b border-slate-700/50 hover:bg-slate-800 transition-colors ${getBgColor(notif.tipo, notif.lida)} ${!notif.lida ? 'border-l-4 border-l-blue-500' : ''}`}
+                    className={`border-b border-slate-700/50 hover:bg-slate-800 transition-colors ${getBgColor(notif.tipo, notif.lida)} ${!notif.lida ? 'border-l-4 border-l-blue-500' : ''}`}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-1">{getIcone(notif.tipo)}</div>
+                    <div className="flex items-stretch">
+                      <button
+                        type="button"
+                        onClick={() => handleAbrirNotificacao(notif)}
+                        className="flex-1 min-w-0 min-h-[44px] flex items-start gap-3 px-4 py-3 text-left"
+                      >
+                        <span className="mt-1">{getIcone(notif.tipo)}</span>
 
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-medium text-sm ${notif.lida ? 'text-slate-400' : 'text-white'}`}>
-                          {notif.titulo}
-                        </p>
-                        <p className={`text-xs mt-0.5 ${notif.lida ? 'text-slate-500' : 'text-slate-300'}`}>
-                          {notif.mensagem}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1">{formatarTempoRelativo(notif.created_at)}</p>
-                      </div>
+                        <span className="flex-1 min-w-0 block">
+                          <span className={`block font-medium text-sm ${notif.lida ? 'text-slate-400' : 'text-white'}`}>
+                            {notif.titulo}
+                          </span>
+                          <span className={`block text-xs mt-0.5 ${notif.lida ? 'text-slate-500' : 'text-slate-300'}`}>
+                            {notif.mensagem}
+                          </span>
+                          <span className="block text-xs text-slate-500 mt-1">{formatarTempoRelativo(notif.created_at)}</span>
+                        </span>
+                      </button>
 
                       {!notif.lida && (
                         <button
                           type="button"
                           onClick={(e) => handleMarcarLida(notif.id, e)}
-                          className="text-slate-500 hover:text-green-400 transition-colors p-1"
+                          className="text-slate-500 hover:text-green-400 transition-colors px-3 min-w-[44px]"
                           title="Marcar como lida"
                           aria-label={`Marcar como lida: ${notif.titulo}`}
                         >

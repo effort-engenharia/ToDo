@@ -20,6 +20,8 @@ import VendasPorSemana from './components/VendasPorSemana';
 import FunilCompact from './components/FunilCompact';
 import AcoesRapidasPanel from './components/AcoesRapidasPanel';
 import ClientesFechados from './components/ClientesFechados';
+import ExecucaoContratosCard from './components/ExecucaoContratosCard';
+import { useStatusExecucaoContratos } from './hooks/useStatusExecucaoContratos';
 import BadgesVendedor from './components/BadgesVendedor';
 import ProximosEventos from '../dashboard/components/ProximosEventos';
 import AvisosEsquecidos from '../dashboard/components/AvisosEsquecidos';
@@ -109,6 +111,9 @@ const DashboardV2 = ({ setCurrentPage }) => {
   const anoSel = useMemo(() => parseInt(selectedYear, 10) || anoAtual, [selectedYear, anoAtual]);
 
   const premiacao = usePremiacao({ data, ano: anoSel, mes: mesSel });
+
+  // Status da execução dos contratos (somente leitura; falhas não afetam o restante do dashboard)
+  const statusExecucao = useStatusExecucaoContratos(allData);
 
   const semanas = useMemo(
     () => semanasDoMesComercial(anoSel, mesSel),
@@ -273,7 +278,12 @@ const DashboardV2 = ({ setCurrentPage }) => {
               <AcoesRapidasPanel setCurrentPage={setCurrentPage} allData={allData} />
             </div>
             <div className="lg:col-span-4 v2-card v2-card-delay-3">
-              <ClientesFechados allData={allData} ano={anoSel} mes={mesSel} />
+              <ClientesFechados
+                allData={allData}
+                ano={anoSel}
+                mes={mesSel}
+                statusExecucao={statusExecucao.mapa}
+              />
             </div>
             <div className="lg:col-span-4 v2-card v2-card-delay-4">
               <BadgesVendedor
@@ -283,6 +293,10 @@ const DashboardV2 = ({ setCurrentPage }) => {
                 premiacao={premiacao}
               />
             </div>
+          </div>
+
+          <div className="v2-card v2-card-delay-4">
+            <ExecucaoContratosCard allData={allData} statusExecucao={statusExecucao} />
           </div>
 
           <div className="text-center text-xs text-gray-400 py-4">

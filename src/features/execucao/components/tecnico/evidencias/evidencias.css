@@ -1,0 +1,369 @@
+/* Evidências (foto/vídeo/áudio): uploader, galeria, lista e gravador. Mobile-first (alvos >= 44px). */
+
+.evid {
+  margin-top: 1rem;
+}
+
+.evid-cabecalho {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.evid-titulo {
+  margin-bottom: 0.5rem;
+}
+
+.evid-contador {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.8125rem;
+}
+
+.evid-botoes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.evid-botoes .execucao-btn {
+  padding-inline: 0.5rem;
+}
+
+.evid-aviso,
+.evid-dica {
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.8125rem;
+  margin-top: 0.5rem;
+}
+
+.evid-aviso {
+  color: #fcd34d;
+}
+
+.evid-gravando {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  color: #fca5a5;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.evid-gravando progress {
+  flex: 1 1 100%;
+}
+
+.evid-ponto-rec {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #ef4444;
+  animation: evid-piscar 1s ease-in-out infinite;
+}
+
+@keyframes evid-piscar {
+  50% { opacity: 0.25; }
+}
+
+.evid progress {
+  width: 100%;
+  height: 0.4rem;
+  accent-color: var(--accent-blue, #3b82f6);
+}
+
+.evid-galeria {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.evid-item {
+  background: var(--bg-card, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.evid-item.evid-item-erro {
+  border-color: #ef4444;
+}
+
+.evid-item-midia {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.evid-item-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.evid-item-icone {
+  font-size: 1.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.evid-item-abrir {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.evid-item-play {
+  position: absolute;
+  font-size: 1.5rem;
+  color: #fff;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
+}
+
+.evid-item-audio {
+  width: 100%;
+  max-width: 100%;
+}
+
+.evid-item-tipo {
+  position: absolute;
+  left: 0.25rem;
+  bottom: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+}
+
+.evid-item-remover {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.evid-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.evid-item-tamanho,
+.evid-item-autor {
+  color: var(--text-muted, #94a3b8);
+}
+
+.evid-item-msg {
+  color: #fca5a5;
+}
+
+.evid-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.evid-estado-enviado {
+  color: #4ade80;
+}
+
+.evid-estado-erro {
+  color: #fca5a5;
+}
+
+.evid-estado-enviando,
+.evid-estado-pendente {
+  color: #fcd34d;
+}
+
+.evid-reenviar,
+.evid-mapa {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2rem;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent-blue, #60a5fa);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.evid-spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 3px solid var(--border-light, #475569);
+  border-top-color: var(--accent-blue, #3b82f6);
+  border-radius: 50%;
+  animation: evid-girar 0.8s linear infinite;
+}
+
+@keyframes evid-girar {
+  to { transform: rotate(360deg); }
+}
+
+/* Gravador de vídeo em tela cheia */
+.evid-gravador {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+}
+
+.evid-gravador-video {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.evid-gravador-topo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(rgba(0, 0, 0, 0.6), transparent);
+}
+
+.evid-gravador-tempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.evid-gravador-fechar {
+  width: 2.75rem;
+  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  cursor: pointer;
+}
+
+.evid-gravador-base {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 7rem;
+  padding: 1rem;
+  background: #000;
+}
+
+.evid-gravador-botao {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  background: #ef4444;
+  color: #fff;
+  font-size: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.evid-gravador-parar {
+  background: #7f1d1d;
+}
+
+.evid-gravador-msg {
+  color: #cbd5e1;
+}
+
+.evid-gravador-erro {
+  position: absolute;
+  left: 1rem;
+  right: 1rem;
+  top: 4rem;
+  background: rgba(127, 29, 29, 0.9);
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+}
+
+/* Visualizador (admin) */
+.evid-visualizador {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.evid-visualizador-conteudo img,
+.evid-visualizador-conteudo video {
+  max-width: 100%;
+  max-height: 90vh;
+  border-radius: 0.5rem;
+}
+
+.evid-visualizador-fechar {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  cursor: pointer;
+}

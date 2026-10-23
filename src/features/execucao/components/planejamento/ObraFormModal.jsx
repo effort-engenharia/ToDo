@@ -1,16 +1,29 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { FaBuilding, FaFilePdf, FaMagic, FaSearch, FaTimes, FaUpload } from 'react-icons/fa';
-import { execucaoService } from '../../../../services/supabase/execucao';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FaBolt, FaBuilding, FaFilePdf, FaMagic, FaTimes, FaUpload } from 'react-icons/fa';
 import Modal from '../ui/Modal';
 import { useExecucaoUI } from '../ui/ExecucaoUI';
-import { FORM_OBRA_VAZIO } from './constants';
+import { FORM_OBRA_VAZIO, tipoObraDoTemplate } from './constants';
 import { IconeTemplate } from './icones';
 import { chaveArquivo } from './utils';
+import PreviaEtapas from './cadastro/PreviaEtapas';
+import SeletorContrato from './cadastro/SeletorContrato';
+import {
+  camposDoContrato,
+  etapasParaPayload,
+  gerarEtapasPrevia,
+  recalcularDatasPrevia,
+  resolverCidade,
+  statusObraAndamento,
+  sugerirTemplate,
+  validarEtapasPrevia
+} from './cadastro/cadastroUtils';
+import { useDadosCadastro } from './cadastro/useDadosCadastro';
 
 const formDaObra = (obra) => ({
   nome_cliente: obra.nome_cliente || '',
   endereco: obra.endereco || '',
   cidade: obra.cidade || '',
+  cidade_id: obra.cidade_id || '',
   contrato_numero: obra.contrato_numero || '',
   data_inicio_prevista: obra.data_inicio_prevista || '',
   data_fim_prevista: obra.data_fim_prevista || '',
@@ -23,66 +36,121 @@ const formDaObra = (obra) => ({
   arquivos_pdf: []
 });
 
-// Monta cidade/endereço a partir de um apontamento (contrato/venda)
-const camposDoApontamento = (apontamento) => {
-  const endereco = [apontamento.logradouro, apontamento.numero, apontamento.bairro].filter(Boolean).join(', ');
-  const cidade = apontamento.cidade_atendimento === 'OUTRAS'
-    ? apontamento.cidade_outras
-    : apontamento.cidade_atendimento || apontamento.municipio || '';
-
-  return {
-    nome_cliente: apontamento.nome_cliente || '',
-    endereco,
-    cidade,
-    data_inicio_prevista: apontamento.cronograma_data_inicio || '',
-    data_fim_prevista: apontamento.cronograma_data_termino || '',
-    contato_cliente: apontamento.contato_cliente || '',
-    apontamento_id: apontamento.id || ''
-  };
-};
-
-const ObraFormModal = ({ obra, tecnicos, templates, salvando, onSalvar, onClose }) => {
+const ObraFormModal = ({
+  obra,
+  tecnicos,
+  templates,
+  salvando,
+  usuarioId,
+  contratoInicial = null,
+  onSalvar,
+  onClose,
+  onUsarServicoRapido,
+  onContratosAlterados
+}) => {
   const { toast } = useExecucaoUI();
-  const [form, setForm] = useState(() => (obra ? formDaObra(obra) : FORM_OBRA_VAZIO));
-  const [apontamentos, setApontamentos] = useState([]);
-  const [buscaApontamento, setBuscaApontamento] = useState('');
-
   const editando = Boolean(obra);
+  const dados = useDadosCadastro();
+  const { tiposExecucao, cidades, calendarioDe, carregando: carregandoDados } = dados;
+
+  const [form, setForm] = useState(() => {
+    if (obra) return formDaObra(obra);
+    return contratoInicial ? { ...FORM_OBRA_VAZIO, ...camposDoContrato(contratoInicial) } : FORM_OBRA_VAZIO;
+  });
+  const [contrato, setContrato] = useState(editando ? null : contratoInicial);
+  const [edicaoPrevia, setEdicaoPrevia] = useState(null); // null = prévia automática (segue template/datas); array = editada à mão
+  const [andamento, setAndamento] = useState(false);
+  const [criarAtividades, setCriarAtividades] = useState(true);
+  const sugestaoAplicada = useRef(null);
+
   const campo = (nome) => (e) => setForm((prev) => ({ ...prev, [nome]: e.target.value }));
-
-  // Apontamentos (clientes com contrato/venda) só são necessários para nova obra
-  useEffect(() => {
-    if (editando) return undefined;
-    let ativo = true;
-    execucaoService.buscarApontamentosParaObra()
-      .then((result) => {
-        if (!ativo) return;
-        if (result.success) setApontamentos(result.data);
-        else toast.error(`Não foi possível carregar os clientes: ${result.message || 'erro desconhecido'}`);
-      })
-      .catch((error) => {
-        console.error('Erro ao carregar apontamentos:', error);
-        if (ativo) toast.error(`Não foi possível carregar os clientes: ${error.message}`);
-      });
-    return () => { ativo = false; };
-  }, [editando, toast]);
-
-  const apontamentosFiltrados = useMemo(() => {
-    const termo = buscaApontamento.trim().toLowerCase();
-    if (!termo) return apontamentos;
-    return apontamentos.filter((a) => a.nome_cliente?.toLowerCase().includes(termo));
-  }, [apontamentos, buscaApontamento]);
 
   const templatesAtivos = useMemo(() => templates.filter((t) => t.ativo), [templates]);
   const templateEscolhido = useMemo(
     () => templates.find((t) => t.id === form.template_id),
     [templates, form.template_id]
   );
+  const tipoServico = useMemo(
+    () => tiposExecucao.find((t) => t.codigo === form.tipo_servico_codigo) ?? null,
+    [tiposExecucao, form.tipo_servico_codigo]
+  );
 
-  const handleSelecionarApontamento = (id) => {
-    const apontamento = apontamentos.find((a) => a.id === id);
-    if (!apontamento) return;
-    setForm((prev) => ({ ...prev, ...camposDoApontamento(apontamento) }));
+  // Cidade da obra (para feriados municipais): a do contrato ou a que casa com o texto digitado
+  const cidadeIdEfetivo = resolverCidade(form.cidade, cidades)?.id || (cidades.length ? '' : form.cidade_id);
+  const calendario = useMemo(() => calendarioDe(cidadeIdEfetivo), [calendarioDe, cidadeIdEfetivo]);
+
+  const etapasAutomaticas = useMemo(
+    () => (editando ? [] : gerarEtapasPrevia(templateEscolhido, {
+      inicioISO: form.data_inicio_prevista,
+      calendario,
+      responsavelId: form.responsavel_id
+    })),
+    [editando, templateEscolhido, form.data_inicio_prevista, form.responsavel_id, calendario]
+  );
+  const etapasPrevia = edicaoPrevia ?? etapasAutomaticas;
+
+  // Tipo de serviço do contrato → tipo de obra + template sugerido (uma vez por contrato escolhido)
+  useEffect(() => {
+    if (editando || !contrato || carregandoDados || sugestaoAplicada.current === contrato.id) return;
+    sugestaoAplicada.current = contrato.id;
+    const tipo = tiposExecucao.find((t) => t.codigo === contrato.tipo_servico_codigo);
+    const sugerido = sugerirTemplate(tipo, templates);
+    if (!tipo && !sugerido) return;
+    setForm((prev) => ({
+      ...prev,
+      tipo_servico_codigo: tipo?.codigo ?? prev.tipo_servico_codigo,
+      tipo_obra: tipo?.tipo_obra ?? (sugerido ? tipoObraDoTemplate(sugerido.tipo_obra) : prev.tipo_obra),
+      template_id: sugerido?.id ?? prev.template_id
+    }));
+    setEdicaoPrevia(null);
+  }, [editando, contrato, carregandoDados, tiposExecucao, templates]);
+
+  const handleSelecionarContrato = (escolhido) => {
+    sugestaoAplicada.current = null;
+    setContrato(escolhido);
+    if (!escolhido) {
+      setForm((prev) => ({ ...prev, apontamento_id: '', valor_contrato: '' }));
+      return;
+    }
+    setForm((prev) => ({ ...prev, ...camposDoContrato(escolhido) }));
+    setEdicaoPrevia(null);
+  };
+
+  const handleTipoServico = (codigo) => {
+    const tipo = tiposExecucao.find((t) => t.codigo === codigo);
+    const sugerido = sugerirTemplate(tipo, templates);
+    setForm((prev) => ({
+      ...prev,
+      tipo_servico_codigo: codigo,
+      tipo_obra: tipo?.tipo_obra ?? prev.tipo_obra,
+      template_id: sugerido?.id ?? prev.template_id
+    }));
+    if (sugerido) setEdicaoPrevia(null);
+  };
+
+  const handleSelecionarTemplate = (templateId) => {
+    setForm((prev) => ({ ...prev, template_id: prev.template_id === templateId ? '' : templateId }));
+    setEdicaoPrevia(null);
+  };
+
+  // O responsável geral preenche as etapas sem líder (ou que seguiam o responsável anterior)
+  const handleResponsavel = (e) => {
+    const novo = e.target.value;
+    const anterior = form.responsavel_id;
+    setForm((prev) => ({ ...prev, responsavel_id: novo }));
+    if (edicaoPrevia) {
+      setEdicaoPrevia(edicaoPrevia.map((etapa) => (
+        etapa.tipo !== 'estoque' && (!etapa.lider_id || etapa.lider_id === anterior)
+          ? { ...etapa, lider_id: novo, apoio_ids: etapa.apoio_ids.filter((id) => id !== novo) }
+          : etapa
+      )));
+    }
+  };
+
+  const handleRecalcularDatas = () => {
+    setEdicaoPrevia(edicaoPrevia
+      ? recalcularDatasPrevia(edicaoPrevia, form.data_inicio_prevista, calendario)
+      : null);
   };
 
   const adicionarArquivos = (e) => {
@@ -106,7 +174,27 @@ const ObraFormModal = ({ obra, tecnicos, templates, salvando, onSalvar, onClose 
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSalvar(form);
+    const cidadeId = cidadeIdEfetivo || '';
+
+    if (editando) {
+      onSalvar({ ...form, cidade_id: cidadeId || null });
+      return;
+    }
+
+    const usarPrevia = Boolean(templateEscolhido) && etapasPrevia.length > 0;
+    if (usarPrevia) {
+      const erro = validarEtapasPrevia(etapasPrevia);
+      if (erro) {
+        toast.error(erro);
+        return;
+      }
+    }
+
+    onSalvar({ ...form, cidade_id: cidadeId }, {
+      etapas: usarPrevia ? etapasParaPayload(etapasPrevia, { andamento }) : [],
+      criarAtividades,
+      statusObra: usarPrevia && andamento ? statusObraAndamento(etapasPrevia) : null
+    });
   };
 
   return (
@@ -123,45 +211,42 @@ const ObraFormModal = ({ obra, tecnicos, templates, salvando, onSalvar, onClose 
     >
       <form onSubmit={handleSubmit}>
         <div className="space-y-4">
-          {/* Seção de busca de apontamento - só mostra para nova obra */}
+          {/* Contratos do Comercial que ainda não viraram obra - só para nova obra */}
           {!editando && (
-            <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700 space-y-3">
-              <label htmlFor="obra-busca-apontamento" className="text-sm font-medium text-sky-400 flex items-center gap-2">
-                <FaSearch size={12} aria-hidden="true" />
-                Buscar Cliente (Contrato/Venda)
-              </label>
+            <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
+              <SeletorContrato
+                selecionado={contrato}
+                onSelecionar={handleSelecionarContrato}
+                usuarioId={usuarioId}
+                onIgnorado={onContratosAlterados}
+              />
+            </div>
+          )}
 
-              <div className="relative">
-                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={12} aria-hidden="true" />
-                <input
-                  id="obra-busca-apontamento"
-                  type="text"
-                  className="execucao-form-input !pl-9"
-                  value={buscaApontamento}
-                  onChange={(e) => setBuscaApontamento(e.target.value)}
-                  placeholder="Digite o nome do cliente para buscar..."
-                />
-              </div>
-
-              <div className="execucao-form-group !mb-0">
-                <label htmlFor="obra-apontamento" className="execucao-form-label">Ou selecione da lista</label>
-                <select
-                  id="obra-apontamento"
-                  className="execucao-form-select"
-                  value={form.apontamento_id}
-                  onChange={(e) => handleSelecionarApontamento(e.target.value)}
-                >
-                  <option value="">Selecione um cliente...</option>
-                  {apontamentosFiltrados.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nome_cliente} {a.cidade_atendimento ? `- ${a.cidade_atendimento}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {apontamentos.length === 0 && (
-                <p className="text-xs text-slate-500">Nenhum cliente com fase CONTRATO/VENDA encontrado.</p>
+          {/* Tipo de serviço: define o tipo de obra e sugere o template */}
+          {!editando && tiposExecucao.length > 0 && (
+            <div className="execucao-form-group !mb-0">
+              <label htmlFor="obra-tipo-servico" className="execucao-form-label">Tipo de serviço</label>
+              <select
+                id="obra-tipo-servico"
+                className="execucao-form-select"
+                value={form.tipo_servico_codigo}
+                onChange={(e) => handleTipoServico(e.target.value)}
+              >
+                <option value="">Não informado</option>
+                {tiposExecucao.map((t) => <option key={t.codigo} value={t.codigo}>{t.nome}</option>)}
+              </select>
+              {tipoServico && templateEscolhido && form.template_id === sugerirTemplate(tipoServico, templates)?.id && (
+                <p className="text-xs text-purple-300 mt-1">Template sugerido para {tipoServico.nome}: {templateEscolhido.nome}</p>
+              )}
+              {tipoServico?.modalidade === 'servico' && onUsarServicoRapido && (
+                <div className="cad-aviso" role="status">
+                  <FaBolt aria-hidden="true" />
+                  <span>Este é um serviço de uma visita. Usar o Serviço rápido?</span>
+                  <button type="button" className="cad-link" onClick={() => onUsarServicoRapido({ contrato, tipoServicoCodigo: tipoServico.codigo })}>
+                    Abrir Serviço rápido
+                  </button>
+                </div>
               )}
             </div>
           )}
@@ -174,7 +259,7 @@ const ObraFormModal = ({ obra, tecnicos, templates, salvando, onSalvar, onClose 
                 Usar Template de Etapas
               </p>
               <p className="text-xs text-slate-400">
-                Ao salvar a obra, as etapas do template selecionado serão criadas automaticamente.
+                Ao escolher um template, a prévia das etapas aparece abaixo para ajustar antes de salvar.
               </p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {templatesAtivos.map((template) => {
@@ -184,10 +269,8 @@ const ObraFormModal = ({ obra, tecnicos, templates, salvando, onSalvar, onClose 
                       key={template.id}
                       type="button"
                       aria-pressed={selecionado}
-                      onClick={() => setForm((prev) => ({
-                        ...prev,
-                        template_id: prev.template_id === template.id ? '' : template.id
-                      }))}
+                      title={template.nome}
+                      onClick={() => handleSelecionarTemplate(template.id)}
                       className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-all ${
                         selecionado
                           ? 'bg-opacity-20 border-opacity-50'
@@ -206,16 +289,6 @@ const ObraFormModal = ({ obra, tecnicos, templates, salvando, onSalvar, onClose 
                   );
                 })}
               </div>
-              {templateEscolhido && (
-                <div className="mt-2 p-2 bg-slate-800/50 rounded text-xs text-slate-300">
-                  <strong className="text-white">Etapas que serão criadas:</strong>
-                  <ul className="mt-1 list-disc list-inside space-y-0.5">
-                    {templateEscolhido.itens?.map((etapa, i) => (
-                      <li key={etapa.id ?? i}>{etapa.nome} <span className="text-slate-500">({etapa.duracao_dias} dias)</span></li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
           )}
 
@@ -319,7 +392,7 @@ const ObraFormModal = ({ obra, tecnicos, templates, salvando, onSalvar, onClose 
             </div>
             <div className="execucao-form-group">
               <label htmlFor="obra-responsavel" className="execucao-form-label">Responsável</label>
-              <select id="obra-responsavel" className="execucao-form-select" value={form.responsavel_id} onChange={campo('responsavel_id')}>
+              <select id="obra-responsavel" className="execucao-form-select" value={form.responsavel_id} onChange={handleResponsavel}>
                 <option value="">Selecione...</option>
                 {tecnicos.map((t) => (
                   <option key={t.id} value={t.id}>{t.nome_completo}</option>
@@ -327,6 +400,48 @@ const ObraFormModal = ({ obra, tecnicos, templates, salvando, onSalvar, onClose 
               </select>
             </div>
           </div>
+
+          {!editando && (
+            <div className="execucao-form-group">
+              <label htmlFor="obra-valor" className="execucao-form-label">Valor do contrato (R$)</label>
+              <input
+                id="obra-valor"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                className="execucao-form-input"
+                value={form.valor_contrato}
+                onChange={campo('valor_contrato')}
+                placeholder="Preenchido pelo contrato do Comercial"
+              />
+            </div>
+          )}
+
+          {/* Prévia das etapas do template (só na criação) */}
+          {!editando && templateEscolhido && (
+            etapasPrevia.length > 0 ? (
+              <PreviaEtapas
+                etapas={etapasPrevia}
+                onChange={setEdicaoPrevia}
+                tecnicos={tecnicos}
+                calendario={calendario}
+                dataFimContratada={form.data_fim_prevista}
+                onUsarTermino={(iso) => setForm((prev) => ({ ...prev, data_fim_prevista: iso }))}
+                onRecalcular={handleRecalcularDatas}
+                andamento={andamento}
+                onAndamento={setAndamento}
+                criarAtividades={criarAtividades}
+                onCriarAtividades={setCriarAtividades}
+              />
+            ) : (
+              <p className="text-xs text-slate-400">
+                {templateEscolhido.itens?.length
+                  ? 'Informe o início previsto para ver a prévia das etapas.'
+                  : 'Este template não tem etapas; a obra será criada sem etapas.'}
+              </p>
+            )
+          )}
 
           {/* Observações */}
           <div className="execucao-form-group">

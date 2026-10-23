@@ -147,6 +147,10 @@ export const AuthProvider = ({ children }) => {
       setAdminOriginal(null);
       localStorage.removeItem('usuario_dashboard');
       localStorage.removeItem('admin_original_dashboard');
+      // Cache offline do técnico (só existe se o módulo Execução gravou algo); a fila de ações pendentes é mantida
+      if (localStorage.getItem('effort_offline_cache') === '1') {
+        import('../features/execucao/offline/cacheLeitura.js').then((m) => m.limparCache()).catch(() => {});
+      }
       setLoading(false);
     }
   };

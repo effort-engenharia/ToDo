@@ -1,0 +1,123 @@
+/* Cadastro de obras/serviços (contratos pendentes, prévia de etapas, equipe) */
+
+/* ---------- SeletorEquipe ---------- */
+.cad-equipe { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; min-width: 0; }
+.cad-equipe-lista { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0; padding: 0; list-style: none; }
+.cad-equipe-chip {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.125rem 0.375rem; border-radius: 9999px; font-size: 0.75rem;
+  background: var(--bg-tertiary, #334155); color: var(--text-secondary, #cbd5e1);
+  border: 1px solid var(--border-light, #475569);
+}
+.cad-equipe-chip-lider { border-color: var(--accent-yellow, #eab308); color: #fef08a; }
+.cad-equipe-nome { display: inline-flex; align-items: center; gap: 0.25rem; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cad-equipe-iniciais {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.1rem; height: 1.1rem; border-radius: 9999px; font-size: 0.6rem; font-weight: 600;
+  background: var(--bg-secondary, #1e293b);
+}
+.cad-equipe-estrela, .cad-equipe-remover {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 1.25rem; min-height: 1.25rem;
+  background: transparent; border: 0; cursor: pointer; color: inherit; border-radius: 9999px;
+}
+.cad-equipe-estrela:hover { color: var(--accent-yellow, #eab308); }
+.cad-equipe-remover:hover { color: var(--accent-red, #ef4444); }
+.cad-equipe-estrela:focus-visible, .cad-equipe-remover:focus-visible, .cad-link:focus-visible {
+  outline: 2px solid var(--accent-blue, #3b82f6); outline-offset: 1px;
+}
+.cad-equipe-adicionar {
+  font-size: 0.75rem; padding: 0.2rem 0.4rem; border-radius: 0.375rem; max-width: 11rem;
+  background: var(--bg-secondary, #1e293b); color: var(--text-secondary, #cbd5e1);
+  border: 1px solid var(--border-light, #475569);
+}
+.cad-equipe-dica { flex-basis: 100%; font-size: 0.65rem; color: var(--text-muted, #94a3b8); }
+
+/* ---------- Links/ações discretas, etiquetas, avisos ---------- */
+.cad-link {
+  display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.125rem 0;
+  background: transparent; border: 0; cursor: pointer; font-size: 0.75rem;
+  color: var(--accent-blue, #3b82f6); text-decoration: underline; text-underline-offset: 2px;
+}
+.cad-link:hover { color: #93c5fd; }
+.cad-link-discreto { color: var(--text-muted, #94a3b8); margin-top: 0.5rem; }
+.cad-tag {
+  display: inline-block; padding: 0.05rem 0.4rem; border-radius: 0.25rem; font-size: 0.65rem; white-space: nowrap;
+  background: var(--bg-tertiary, #334155); color: var(--text-secondary, #cbd5e1);
+}
+.cad-tag-vermelha { background: rgb(239 68 68 / 0.2); color: #fca5a5; }
+.cad-tag-amarela { background: rgb(234 179 8 / 0.2); color: #fde047; }
+.cad-tag-verde { background: rgb(34 197 94 / 0.2); color: #86efac; }
+.cad-tag-azul { background: rgb(59 130 246 / 0.2); color: #93c5fd; }
+.cad-aviso {
+  display: flex; align-items: center; gap: 0.375rem; margin: 0.5rem 0 0; padding: 0.4rem 0.6rem;
+  font-size: 0.75rem; border-radius: 0.375rem; color: #fde047; background: rgb(234 179 8 / 0.1);
+  border: 1px solid rgb(234 179 8 / 0.3);
+}
+
+/* ---------- SeletorContrato ---------- */
+.cad-contrato-lista {
+  margin-top: 0.5rem; max-height: 14rem; overflow-y: auto; border-radius: 0.5rem;
+  border: 1px solid var(--border-color, #334155); background: var(--bg-primary, #0f172a);
+}
+.cad-contrato-opcao {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.125rem 0.5rem; padding: 0.5rem 0.75rem;
+  cursor: pointer; border-bottom: 1px solid var(--border-color, #334155);
+}
+.cad-contrato-opcao:last-child { border-bottom: 0; }
+.cad-contrato-opcao:hover, .cad-contrato-opcao-ativa { background: var(--bg-card-hover, #283548); }
+.cad-contrato-opcao-ativa { outline: 2px solid var(--accent-blue, #3b82f6); outline-offset: -2px; }
+.cad-contrato-opcao-inativa { cursor: not-allowed; opacity: 0.55; }
+.cad-contrato-cliente { font-size: 0.875rem; font-weight: 500; color: var(--text-primary, #f8fafc); }
+.cad-contrato-detalhe { flex-basis: 100%; order: 3; font-size: 0.75rem; color: var(--text-muted, #94a3b8); }
+.cad-contrato-aviso { padding: 0.75rem; font-size: 0.8rem; color: var(--text-muted, #94a3b8); }
+.cad-contrato-escolhido {
+  padding: 0.75rem; border-radius: 0.5rem; border: 1px solid rgb(56 189 248 / 0.3); background: rgb(56 189 248 / 0.06);
+}
+.cad-contrato-escolhido-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; }
+.cad-ignorar { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color, #334155); }
+
+/* ---------- Prévia das etapas ---------- */
+.cad-previa {
+  padding: 0.75rem; border-radius: 0.5rem; border: 1px solid rgb(168 85 247 / 0.3); background: rgb(168 85 247 / 0.05);
+}
+.cad-previa-topo { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.cad-previa-tabela-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.cad-previa-tabela { width: 100%; min-width: 46rem; border-collapse: collapse; font-size: 0.75rem; }
+.cad-previa-tabela th {
+  text-align: left; padding: 0.25rem 0.375rem; font-weight: 500; color: var(--text-muted, #94a3b8);
+  border-bottom: 1px solid var(--border-color, #334155); white-space: nowrap;
+}
+.cad-previa-tabela td { padding: 0.375rem; vertical-align: top; border-bottom: 1px solid rgb(51 65 85 / 0.5); }
+.cad-previa-input {
+  width: 100%; min-width: 0; padding: 0.25rem 0.375rem; font-size: 0.75rem; border-radius: 0.375rem;
+  background: var(--bg-secondary, #1e293b); color: var(--text-primary, #f8fafc);
+  border: 1px solid var(--border-light, #475569);
+}
+.cad-previa-input:focus { outline: 2px solid var(--accent-blue, #3b82f6); outline-offset: 0; }
+.cad-previa-progresso { display: flex; align-items: center; gap: 0.25rem; margin-top: 0.25rem; width: 5rem; }
+.cad-previa-remover {
+  min-width: 1.75rem; min-height: 1.75rem; border: 0; background: transparent; cursor: pointer;
+  color: var(--text-muted, #94a3b8); border-radius: 0.375rem;
+}
+.cad-previa-remover:hover { color: var(--accent-red, #ef4444); background: rgb(239 68 68 / 0.1); }
+.cad-previa-resumo { margin: 0.75rem 0 0; font-size: 0.8rem; color: var(--text-secondary, #cbd5e1); }
+.cad-previa-resumo-alerta { color: #fdba74; }
+.cad-previa-opcoes { display: grid; gap: 0.5rem; margin-top: 0.75rem; }
+.cad-opcao { display: flex; align-items: flex-start; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; color: var(--text-secondary, #cbd5e1); }
+.cad-opcao input { margin-top: 0.2rem; flex-shrink: 0; }
+.cad-opcao small { display: block; color: var(--text-muted, #94a3b8); font-size: 0.7rem; }
+
+/* ---------- Revisar pendentes ---------- */
+.cad-revisar-tabela-wrap { max-height: 22rem; overflow: auto; border: 1px solid var(--border-color, #334155); border-radius: 0.5rem; }
+.cad-revisar-tabela { width: 100%; min-width: 40rem; border-collapse: collapse; font-size: 0.8rem; }
+.cad-revisar-tabela th {
+  position: sticky; top: 0; z-index: 1; text-align: left; padding: 0.4rem 0.5rem; font-weight: 500;
+  background: var(--bg-secondary, #1e293b); color: var(--text-muted, #94a3b8);
+}
+.cad-revisar-tabela td { padding: 0.4rem 0.5rem; border-top: 1px solid rgb(51 65 85 / 0.6); color: var(--text-secondary, #cbd5e1); }
+.cad-revisar-tabela tr[data-selecionada='true'] td { background: rgb(56 189 248 / 0.08); }
+.cad-revisar-acoes { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+
+@media (max-width: 640px) {
+  .cad-contrato-escolhido-topo { flex-direction: column; }
+}

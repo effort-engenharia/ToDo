@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  FaBolt,
   FaBuilding,
   FaCheckCircle,
+  FaClipboardList,
   FaClock,
   FaExclamationCircle,
   FaFilter,
@@ -11,6 +13,7 @@ import {
   FaSearch
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
+import { execucaoPlanejamentoService } from '../../../services/supabase/execucaoPlanejamento';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useExecucaoUI } from './ui/ExecucaoUI';
 import { Carregando, ErroCarregamento } from './ui/Estados';
@@ -22,8 +25,26 @@ import ObraFormModal from './planejamento/ObraFormModal';
 import ResumoEtapas from './planejamento/ResumoEtapas';
 import TemplateFormModal from './planejamento/TemplateFormModal';
 import TemplatesTab from './planejamento/TemplatesTab';
+import RevisarContratosPendentes from './planejamento/cadastro/RevisarContratosPendentes';
+import ServicoRapidoModal from './planejamento/cadastro/ServicoRapidoModal';
 import { FORM_ETAPA_VAZIO } from './planejamento/constants';
-import { calcularEstatisticasObras, montarEtapasDoTemplate } from './planejamento/utils';
+import { calcularEstatisticasObras } from './planejamento/utils';
+import PainelCarteira from './planejamento/visao/PainelCarteira';
+import PautaSemanalBotao from './planejamento/visao/PautaSemanalBotao';
+import PendenciasReplanejamento from './planejamento/visao/PendenciasReplanejamento';
+import ReprogramarModal from './planejamento/visao/ReprogramarModal';
+import { FILTROS_VISAO, obraPassaFiltroVisao, ordenarPorSaude, rotuloFiltroVisao } from './planejamento/visao/saude';
+import { useVisaoCarteira } from './planejamento/visao/useVisaoCarteira';
+import { isAdminExecucao } from '../utils/permissoes';
+import './planejamento/visao/visao.css';
+
+const LIMITE_OBRAS_INICIAL = 60;
+
+// A navegação do módulo vive no hash e reage ao popstate (ver ExecucaoDashboard)
+const irParaPagina = (pagina) => {
+  window.history.pushState(null, '', `#/execucao/${pagina}`);
+  window.dispatchEvent(new PopStateEvent('popstate'));
+};
 
 const ABA_ATIVA = {
   sky: 'bg-sky-500/20 text-sky-400 border border-sky-500/30',
@@ -84,18 +105,37 @@ const PlanejamentoMacro = ({ usuario }) => {
   const [abaAtiva, setAbaAtiva] = useState('obras'); // obras, resumo, templates
   const [obraExpandida, setObraExpandida] = useState(null); // só uma obra com o Gantt aberto
   const [salvando, setSalvando] = useState(false);
+  const [filtroCarteira, setFiltroCarteira] = useState('todos'); // ver FILTROS_VISAO
+  const [ordenacaoObras, setOrdenacaoObras] = useState('data'); // data | saude
+  const [limiteObras, setLimiteObras] = useState(LIMITE_OBRAS_INICIAL);
+  const focoObraRef = useRef(null);
 
   const [tecnicos, setTecnicos] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [ocultarRapidos, setOcultarRapidos] = useState(false);
 
   // Modais: null = fechado
-  const [modalObra, setModalObra] = useState(null); // { obra: obra | null }
+  const [modalObra, setModalObra] = useState(null); // { obra: obra | null, contratoInicial }
   const [modalEtapa, setModalEtapa] = useState(null); // { obra, etapa, inicial }
   const [modalAtividade, setModalAtividade] = useState(null); // etapa
   const [modalTemplate, setModalTemplate] = useState(null); // { template: template | null }
+  const [modalRapido, setModalRapido] = useState(null); // { contrato, tipoServicoCodigo }
+  const [modalRevisar, setModalRevisar] = useState(false);
+  const [modalReprogramar, setModalReprogramar] = useState(null); // { obra, etapa }
+
+  const visao = useVisaoCarteira(tecnicos);
+  const { saudePorObra, recarregar: recarregarVisao } = visao;
+  const mostrarValor = isAdminExecucao(usuario);
+
+  // Contratos do Comercial aguardando planejamento (contador único para todos os admins)
+  const { data: pendentes, reload: recarregarPendentes } = useAsyncData(
+    () => execucaoPlanejamentoService.contarContratosPendentes(),
+    []
+  );
+  const totalPendentes = pendentes ?? 0;
 
   // Obras do período/status escolhido; respostas obsoletas são descartadas pelo hook
-  const { data, loading, error, reload } = useAsyncData(async () => {
+  const { data, loading, error, reload: recarregarObras } = useAsyncData(async () => {
     if (filtroPeriodo === 'todos') {
       return execucaoService.buscarObras(filtroStatus !== 'todos' ? { status: filtroStatus } : {});
     }
@@ -105,6 +145,12 @@ const PlanejamentoMacro = ({ usuario }) => {
     }
     return result;
   }, [filtroPeriodo, filtroStatus]);
+
+  // Qualquer alteração no planejamento recarrega as obras e os indicadores (saúde, painel, pendências)
+  const reload = useCallback(() => {
+    recarregarObras();
+    recarregarVisao();
+  }, [recarregarObras, recarregarVisao]);
 
   // Cópia local das obras para atualizar/remover sem refazer a consulta inteira
   const [obras, setObras] = useState([]);
@@ -143,16 +189,81 @@ const PlanejamentoMacro = ({ usuario }) => {
   }, [toast]);
 
   const obrasFiltradas = useMemo(() => {
-    if (!busca) return obras;
-    const termo = busca.toLowerCase();
-    return obras.filter((o) =>
-      o.nome_cliente?.toLowerCase().includes(termo) ||
-      o.endereco?.toLowerCase().includes(termo) ||
-      o.cidade?.toLowerCase().includes(termo)
-    );
-  }, [obras, busca]);
+    let visiveis = ocultarRapidos ? obras.filter((o) => !o.rapido) : obras;
+    if (filtroCarteira !== 'todos') {
+      visiveis = visiveis.filter((o) => obraPassaFiltroVisao(o, filtroCarteira, saudePorObra));
+    }
+    if (busca) {
+      const termo = busca.toLowerCase();
+      visiveis = visiveis.filter((o) =>
+        o.nome_cliente?.toLowerCase().includes(termo) ||
+        o.endereco?.toLowerCase().includes(termo) ||
+        o.cidade?.toLowerCase().includes(termo)
+      );
+    }
+    return ordenacaoObras === 'saude' ? ordenarPorSaude(visiveis, saudePorObra) : visiveis;
+  }, [obras, busca, ocultarRapidos, filtroCarteira, ordenacaoObras, saudePorObra]);
+
+  const obrasVisiveis = useMemo(() => obrasFiltradas.slice(0, limiteObras), [obrasFiltradas, limiteObras]);
 
   const stats = useMemo(() => calcularEstatisticasObras(obras), [obras]);
+
+  // O painel filtra a lista inteira (todos os períodos e status), como os números do cartão
+  const handleFiltrarCarteira = useCallback((id) => {
+    setFiltroCarteira(id);
+    if (id !== 'todos') {
+      setFiltroPeriodo('todos');
+      setFiltroStatus('todos');
+    }
+  }, []);
+
+  const handleAbrirCapacidade = useCallback(() => irParaPagina('capacidade'), []);
+  const handleAbrirHorasExtras = useCallback(() => irParaPagina('horas-extras'), []);
+
+  // Abre a obra na aba Obras (limpando filtros que a escondam) e rola até ela
+  const handleAbrirObra = useCallback((obraId) => {
+    focoObraRef.current = obraId;
+    setAbaAtiva('obras');
+    setFiltroCarteira('todos');
+    setBusca('');
+    setOcultarRapidos(false);
+    setLimiteObras(Number.MAX_SAFE_INTEGER);
+    setObraExpandida(obraId);
+    if (!obras.some((o) => o.id === obraId)) {
+      setFiltroPeriodo('todos');
+      setFiltroStatus('todos');
+    }
+  }, [obras]);
+
+  useEffect(() => {
+    const alvo = focoObraRef.current;
+    if (!alvo || abaAtiva !== 'obras') return;
+    const elemento = document.getElementById(`obra-${alvo}`);
+    if (elemento) {
+      focoObraRef.current = null;
+      elemento.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [abaAtiva, obrasVisiveis]);
+
+  // Reprogramação: sempre com prévia e confirmação (a obra pode estar fora do período carregado)
+  const handleReprogramar = useCallback((obra, etapa = null) => setModalReprogramar({ obra, etapa }), []);
+  const handleReprogramarPorId = useCallback(async (obraId, etapaId) => {
+    let obra = obras.find((o) => o.id === obraId);
+    if (!obra) {
+      const result = await execucaoService.buscarObraDetalhada(obraId);
+      if (!result.success) {
+        toast.error(`Não foi possível abrir a obra: ${mensagemDe(result)}`);
+        return;
+      }
+      obra = result.data;
+    }
+    setModalReprogramar({ obra, etapa: obra.etapas?.find((e) => e.id === etapaId) ?? null });
+  }, [obras, toast]);
+  const handleReprogramado = useCallback(() => {
+    setModalReprogramar(null);
+    reload();
+  }, [reload]);
+  const fecharModalReprogramar = useCallback(() => setModalReprogramar(null), []);
 
   const fecharModalObra = useCallback(() => setModalObra(null), []);
   const fecharModalEtapa = useCallback(() => setModalEtapa(null), []);
@@ -162,7 +273,7 @@ const PlanejamentoMacro = ({ usuario }) => {
   // ---------------------------------------------------
   // Obras
   // ---------------------------------------------------
-  const handleSalvarObra = async (formObra) => {
+  const handleSalvarObra = async (formObra, extra) => {
     if (salvando) return;
     setSalvando(true);
     try {
@@ -181,34 +292,39 @@ const PlanejamentoMacro = ({ usuario }) => {
         return;
       }
 
-      const result = await execucaoService.criarObra(formObra);
+      // Obra + etapas (da prévia) + atividades + pedidos de material em uma única transação: nada fica pela metade
+      const { arquivos_pdf: arquivos, ...dadosObra } = formObra;
+      const result = await execucaoPlanejamentoService.criarObraCompleta(
+        { ...dadosObra, ...(extra?.statusObra ?? {}) },
+        extra?.etapas ?? [],
+        extra?.criarAtividades ?? true
+      );
       if (!result.success) {
-        toast.error(`Erro ao criar obra: ${mensagemDe(result)}`);
+        toast.error(
+          mensagemDe(result).includes('uq_obra_apontamento')
+            ? 'Este contrato já virou obra. Escolha outro contrato.'
+            : `Erro ao criar obra: ${mensagemDe(result)}`
+        );
         return;
       }
 
-      // Etapas do template: um único insert; se falhar, desfaz a criação da obra
-      const template = templates.find((t) => t.id === formObra.template_id);
-      if (template?.itens?.length) {
-        const etapas = montarEtapasDoTemplate(template, result.data.id, formObra.data_inicio_prevista);
-        const resEtapas = await execucaoService.criarEtapas(etapas);
-
-        if (!resEtapas.success) {
-          const rollback = await execucaoService.excluirObra(result.data.id);
-          toast.error(
-            `Não foi possível criar as etapas do template (${mensagemDe(resEtapas)}). ` +
-            (rollback.success
-              ? 'A obra não foi criada; tente novamente.'
-              : `Também não foi possível desfazer a obra "${formObra.nome_cliente}" (${mensagemDe(rollback)}); remova-a manualmente.`)
-          );
-          if (!rollback.success) reload();
-          return;
+      const { obra_id: obraId, etapas: totalEtapas = 0, atividades: totalAtividades = 0 } = result.data ?? {};
+      if (arquivos?.length && obraId) {
+        const upload = await execucaoService.uploadArquivosObra(obraId, arquivos);
+        if (!upload.success) {
+          const nomes = (upload.falhas ?? []).map((f) => f.arquivo).join(', ');
+          toast.info(`Obra criada, mas o envio de PDF falhou${nomes ? `: ${nomes}` : ''}`);
         }
       }
 
       setModalObra(null);
-      toast.success('Obra cadastrada com sucesso.');
+      toast.success(
+        totalEtapas
+          ? `Obra cadastrada com ${totalEtapas} etapa(s)${totalAtividades ? ` e ${totalAtividades} atividade(s) na agenda` : ''}.`
+          : 'Obra cadastrada com sucesso.'
+      );
       reload();
+      recarregarPendentes();
     } catch (err) {
       console.error('Erro ao salvar obra:', err);
       toast.error(`Erro ao salvar obra: ${err.message}`);
@@ -241,28 +357,58 @@ const PlanejamentoMacro = ({ usuario }) => {
     }
   }, [confirmar, toast]);
 
-  const handleNovaObra = useCallback(() => setModalObra({ obra: null }), []);
+  const handleNovaObra = useCallback(() => setModalObra({ obra: null, contratoInicial: null }), []);
   const handleEditarObra = useCallback((obra) => setModalObra({ obra }), []);
   const handleAlternarObra = useCallback((id) => setObraExpandida((atual) => (atual === id ? null : id)), []);
+
+  // Cadastro a partir da revisão de pendentes ou do aviso "serviço de uma visita"
+  const handlePlanejarContrato = useCallback((contrato) => {
+    setModalRevisar(false);
+    setModalObra({ obra: null, contratoInicial: contrato });
+  }, []);
+  const handleServicoRapido = useCallback(({ contrato = null, tipoServicoCodigo = '' } = {}) => {
+    setModalRevisar(false);
+    setModalObra(null);
+    setModalRapido({ contrato, tipoServicoCodigo });
+  }, []);
+  const handleServicoRapidoCriado = useCallback(() => {
+    setModalRapido(null);
+    reload();
+    recarregarPendentes();
+  }, [reload, recarregarPendentes]);
 
   // ---------------------------------------------------
   // Templates
   // ---------------------------------------------------
-  const handleSalvarTemplate = async (formTemplate) => {
+  const handleSalvarTemplate = async (formTemplate, opcoes = {}) => {
     if (salvando) return;
     setSalvando(true);
     try {
       const templateEditado = modalTemplate?.template;
       const result = templateEditado
-        ? await execucaoService.atualizarTemplate(templateEditado.id, formTemplate)
-        : await execucaoService.criarTemplate(formTemplate);
+        ? await execucaoPlanejamentoService.atualizarTemplateCompleto(templateEditado.id, formTemplate)
+        : await execucaoPlanejamentoService.criarTemplateCompleto(formTemplate);
 
       if (!result.success) {
         toast.error(`Erro ao salvar template: ${mensagemDe(result)}`);
         return;
       }
+
+      // Template padrão do tipo de serviço (sugestão automática no cadastro da obra)
+      const templateId = templateEditado?.id ?? result.data?.id;
+      let falhaPadrao = null;
+      if (opcoes.limparPadraoDe) {
+        const limpar = await execucaoPlanejamentoService.atualizarTipoServicoTemplatePadrao(opcoes.limparPadraoDe, null);
+        if (!limpar.success) falhaPadrao = limpar;
+      }
+      if (opcoes.definirPadraoDe && templateId) {
+        const definir = await execucaoPlanejamentoService.atualizarTipoServicoTemplatePadrao(opcoes.definirPadraoDe, templateId);
+        if (!definir.success) falhaPadrao = definir;
+      }
+
       setModalTemplate(null);
-      toast.success('Template salvo.');
+      if (falhaPadrao) toast.info(`Template salvo, mas não foi possível atualizar o template padrão do serviço: ${mensagemDe(falhaPadrao)}`);
+      else toast.success('Template salvo.');
       await recarregarTemplates();
     } catch (err) {
       console.error('Erro ao salvar template:', err);
@@ -271,6 +417,7 @@ const PlanejamentoMacro = ({ usuario }) => {
       setSalvando(false);
     }
   };
+
 
   const handleExcluirTemplate = useCallback(async (templateId) => {
     const confirmado = await confirmar({
@@ -297,7 +444,7 @@ const PlanejamentoMacro = ({ usuario }) => {
 
   const handleDuplicarTemplate = useCallback(async (template) => {
     try {
-      const result = await execucaoService.duplicarTemplate(template.id, `${template.nome} (Cópia)`);
+      const result = await execucaoPlanejamentoService.duplicarTemplateCompleto(template.id, `${template.nome} (Cópia)`);
       if (!result.success) {
         toast.error(`Erro ao duplicar template: ${mensagemDe(result)}`);
         return;
@@ -329,6 +476,7 @@ const PlanejamentoMacro = ({ usuario }) => {
           data_inicio: etapa.data_inicio || '',
           data_fim: etapa.data_fim || '',
           responsavel_id: etapa.responsavel_id || '',
+          equipe_ids: etapa.equipe_ids || [],
           ordem: etapa.ordem || 0,
           progresso: etapa.progresso || 0,
           status: etapa.status || 'pendente',
@@ -396,8 +544,15 @@ const PlanejamentoMacro = ({ usuario }) => {
         });
         if (!sync.success) {
           toast.error(`Etapa salva, mas não foi possível criar a atividade/pedido automático: ${mensagemDe(sync)}`);
-        } else if (sync.warning) {
-          toast.info(sync.warning);
+        } else {
+          if (sync.warning) toast.info(sync.warning);
+          // Apoios da equipe na atividade (o líder já é o responsável)
+          const atividadeId = etapaSalva.tipo !== 'estoque' ? sync.data?.id : null;
+          if (atividadeId) {
+            const apoios = (formEtapa.equipe_ids || []).filter((id) => id !== formEtapa.responsavel_id);
+            const equipe = await execucaoPlanejamentoService.atualizarEquipeAtividade(atividadeId, formEtapa.responsavel_id, apoios);
+            if (!equipe.success) toast.info(`Etapa salva, mas a equipe da atividade não foi atualizada: ${mensagemDe(equipe)}`);
+          }
         }
       }
 
@@ -469,7 +624,8 @@ const PlanejamentoMacro = ({ usuario }) => {
       <AlertasEtapasAtrasadas obras={obras} onVerEtapa={handleVerEtapaAtrasada} />
 
       {/* Abas de Navegação */}
-      <div role="tablist" aria-label="Planejamento" className="flex items-center gap-1 mb-6 border-b border-slate-700 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 border-b border-slate-700 pb-4">
+      <div role="tablist" aria-label="Planejamento" className="flex items-center gap-1">
         <button
           type="button"
           role="tab"
@@ -504,6 +660,8 @@ const PlanejamentoMacro = ({ usuario }) => {
           </span>
         </button>
       </div>
+      <PautaSemanalBotao tecnicos={tecnicos} />
+      </div>
 
       <div className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
         {/* Aba de Resumo de Etapas */}
@@ -535,6 +693,8 @@ const PlanejamentoMacro = ({ usuario }) => {
                 obras={obras}
                 filtroPeriodo={filtroPeriodo}
                 onAddAtividade={handleAbrirAtividadeModal}
+                saudePorObra={saudePorObra}
+                onAbrirObra={handleAbrirObra}
               />
             )}
           </>
@@ -555,7 +715,7 @@ const PlanejamentoMacro = ({ usuario }) => {
         {abaAtiva === 'obras' && (
           <>
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-              <div className="flex items-center gap-4">
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
                   <FaFilter className="text-slate-400" size={12} aria-hidden="true" />
                   <select
@@ -584,10 +744,39 @@ const PlanejamentoMacro = ({ usuario }) => {
                   <option value="concluida">Concluídas</option>
                   <option value="pausada">Pausadas</option>
                 </select>
+
+                <select
+                  aria-label="Filtrar por situação"
+                  className="execucao-form-select text-sm py-1"
+                  value={filtroCarteira}
+                  onChange={(e) => handleFiltrarCarteira(e.target.value)}
+                >
+                  {FILTROS_VISAO.map((f) => <option key={f.id} value={f.id}>{f.rotulo}</option>)}
+                </select>
+
+                <select
+                  aria-label="Ordenar obras"
+                  className="execucao-form-select text-sm py-1"
+                  value={ordenacaoObras}
+                  onChange={(e) => setOrdenacaoObras(e.target.value)}
+                >
+                  <option value="data">Ordenar: por início</option>
+                  <option value="saude">Ordenar: piores primeiro</option>
+                </select>
               </div>
 
               {/* Busca e Ações */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4"
+                    checked={ocultarRapidos}
+                    onChange={(e) => setOcultarRapidos(e.target.checked)}
+                  />
+                  Ocultar serviços rápidos
+                </label>
+
                 <div className="relative flex items-center">
                   <FaSearch className="absolute left-3 text-slate-400 pointer-events-none z-10" size={12} style={{ top: '50%', transform: 'translateY(-50%)' }} aria-hidden="true" />
                   <input
@@ -604,13 +793,51 @@ const PlanejamentoMacro = ({ usuario }) => {
                   type="button"
                   onClick={handleNovaObra}
                   className="execucao-btn execucao-btn-primary"
+                  aria-label={totalPendentes > 0
+                    ? `Nova Obra (${totalPendentes} ${totalPendentes === 1 ? 'contrato aguardando' : 'contratos aguardando'})`
+                    : 'Nova Obra'}
                 >
                   <FaPlus aria-hidden="true" /> Nova Obra
+                  {totalPendentes > 0 && (
+                    <span className="ml-1 text-[11px] bg-white/20 rounded-full px-2 py-0.5" aria-hidden="true">
+                      {totalPendentes} aguardando
+                    </span>
+                  )}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleServicoRapido()}
+                  className="execucao-btn execucao-btn-secondary"
+                >
+                  <FaBolt aria-hidden="true" /> Serviço rápido
+                </button>
+
+                {totalPendentes > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setModalRevisar(true)}
+                    className="execucao-btn execucao-btn-secondary"
+                  >
+                    <FaClipboardList aria-hidden="true" /> Revisar pendentes
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Cards de Estatísticas */}
+            {/* Painel da carteira: cada número filtra a lista abaixo */}
+            <PainelCarteira
+              painel={visao.painel}
+              resumo={visao.resumo}
+              filtro={filtroCarteira}
+              onFiltrar={handleFiltrarCarteira}
+              mostrarValor={mostrarValor}
+              carga={visao.carga}
+              capacidadeCarregando={visao.capacidade.loading}
+              onAbrirCapacidade={handleAbrirCapacidade}
+              onAbrirHorasExtras={handleAbrirHorasExtras}
+              onRecarregar={recarregarVisao}
+              fallback={(
             <div className="execucao-grid execucao-grid-4 mb-6">
               <div className="execucao-stat-card">
                 <div className="execucao-stat-icon blue">
@@ -652,6 +879,23 @@ const PlanejamentoMacro = ({ usuario }) => {
                 </div>
               </div>
             </div>
+              )}
+            />
+
+            <PendenciasReplanejamento
+              pendencias={visao.pendencias}
+              onReprogramar={handleReprogramarPorId}
+              onAlterado={reload}
+            />
+
+            {filtroCarteira !== 'todos' && (
+              <div className="mb-4 flex items-center gap-3">
+                <span className="visao-filtro-ativo" role="status">
+                  Filtro: {rotuloFiltroVisao(filtroCarteira)} · {obrasFiltradas.length} obra(s) (todos os períodos)
+                  <button type="button" className="visao-link" onClick={() => handleFiltrarCarteira('todos')}>Limpar</button>
+                </span>
+              </div>
+            )}
 
             {/* Lista de Obras */}
             {error ? (
@@ -660,14 +904,17 @@ const PlanejamentoMacro = ({ usuario }) => {
               <div className="execucao-card text-center py-12">
                 <FaBuilding className="mx-auto text-slate-600 mb-4" size={48} aria-hidden="true" />
                 <h3 className="text-lg font-medium text-slate-400 mb-2">Nenhuma obra encontrada</h3>
-                <p className="text-slate-500 mb-4">Clique em "Nova Obra" para cadastrar um cronograma</p>
+                <p className="text-slate-500 mb-4">
+                  {filtroCarteira !== 'todos' ? 'Nenhuma obra corresponde ao filtro escolhido.' : 'Clique em "Nova Obra" para cadastrar um cronograma'}
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
-                {obrasFiltradas.map((obra) => (
+                {obrasVisiveis.map((obra) => (
                   <ObraCard
                     key={obra.id}
                     obra={obra}
+                    saude={saudePorObra.get(obra.id)}
                     expandida={obraExpandida === obra.id}
                     onToggle={handleAlternarObra}
                     onEditar={handleEditarObra}
@@ -677,13 +924,34 @@ const PlanejamentoMacro = ({ usuario }) => {
                     onExcluirEtapa={handleExcluirEtapa}
                     onAdicionarAtividade={handleAbrirAtividadeModal}
                     onAdicionarSubEtapa={handleAbrirSubEtapaModal}
+                    onReprogramar={handleReprogramar}
                   />
                 ))}
+                {obrasFiltradas.length > obrasVisiveis.length && (
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      className="execucao-btn execucao-btn-secondary"
+                      onClick={() => setLimiteObras((n) => n + LIMITE_OBRAS_INICIAL)}
+                    >
+                      Mostrar mais ({obrasFiltradas.length - obrasVisiveis.length} restantes)
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>
         )}
       </div>
+
+      {modalReprogramar && (
+        <ReprogramarModal
+          obra={modalReprogramar.obra}
+          etapa={modalReprogramar.etapa}
+          onClose={fecharModalReprogramar}
+          onAplicado={handleReprogramado}
+        />
+      )}
 
       {modalTemplate && (
         <TemplateFormModal
@@ -697,11 +965,38 @@ const PlanejamentoMacro = ({ usuario }) => {
       {modalObra && (
         <ObraFormModal
           obra={modalObra.obra}
+          contratoInicial={modalObra.contratoInicial}
           tecnicos={tecnicos}
           templates={templates}
           salvando={salvando}
+          usuarioId={usuario?.id}
           onSalvar={handleSalvarObra}
           onClose={fecharModalObra}
+          onUsarServicoRapido={handleServicoRapido}
+          onContratosAlterados={recarregarPendentes}
+        />
+      )}
+
+      {modalRapido && (
+        <ServicoRapidoModal
+          tecnicos={tecnicos}
+          templates={templates}
+          usuarioId={usuario?.id}
+          contratoInicial={modalRapido.contrato}
+          tipoServicoInicial={modalRapido.tipoServicoCodigo}
+          onCriado={handleServicoRapidoCriado}
+          onClose={() => setModalRapido(null)}
+          onContratosAlterados={recarregarPendentes}
+        />
+      )}
+
+      {modalRevisar && (
+        <RevisarContratosPendentes
+          usuarioId={usuario?.id}
+          onClose={() => setModalRevisar(false)}
+          onAlterado={recarregarPendentes}
+          onPlanejar={handlePlanejarContrato}
+          onServicoRapido={(contrato) => handleServicoRapido({ contrato, tipoServicoCodigo: contrato.tipo_servico_codigo || '' })}
         />
       )}
 

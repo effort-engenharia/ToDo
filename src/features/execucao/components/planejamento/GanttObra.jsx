@@ -5,15 +5,18 @@ import {
   FaChevronRight,
   FaChevronUp,
   FaEdit,
+  FaForward,
   FaPlus,
   FaProjectDiagram,
   FaSearchMinus,
   FaSearchPlus,
   FaTrash
 } from 'react-icons/fa';
-import { formatarDataBR, parseDataLocal } from '../../utils/datas';
+import { dataLocalISO, formatarDataBR, parseDataLocal } from '../../utils/datas';
 import { IconeTipoEtapa } from './icones';
 import { etapaAtrasada, inicioDeHoje } from './utils';
+import { desvioEmDiasUteis, textoDesvio } from './visao/datasPrevistoRealizado';
+import { formatarHoras } from '../../utils/formatos';
 
 const MS_DIA = 1000 * 60 * 60 * 24;
 const ACOES_VISIVEIS = 'opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex gap-1';
@@ -25,7 +28,15 @@ const getStatusColor = (status, progresso) => {
   return 'bg-indigo-400';
 };
 
-const GanttObra = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubEtapa }) => {
+// Barra fina do realizado: do início real até o fim real (ou hoje, se a etapa ainda está em curso)
+const trechoRealizado = (etapa, hoje) => {
+  const inicio = etapa.data_inicio_real;
+  if (!inicio) return null;
+  const fim = etapa.data_fim_real || (etapa.status === 'concluida' ? inicio : dataLocalISO(hoje));
+  return { inicio, fim: fim < inicio ? inicio : fim, emCurso: !etapa.data_fim_real };
+};
+
+const GanttObra = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubEtapa, onReprogramar, horasPorEtapa }) => {
   const [expanded, setExpanded] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(1); // 0.5 = mais zoom out, 2 = mais zoom in
   const [subEtapasExpandidas, setSubEtapasExpandidas] = useState(new Set()); // IDs das etapas pai com sub-etapas visíveis
@@ -48,7 +59,7 @@ const GanttObra = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubE
   // Intervalo de datas do gráfico (com margem proporcional ao zoom) e meses do cabeçalho
   const escala = useMemo(() => {
     const datas = (obra.etapas || [])
-      .flatMap(e => [parseDataLocal(e.data_inicio), parseDataLocal(e.data_fim)])
+      .flatMap(e => [parseDataLocal(e.data_inicio), parseDataLocal(e.data_fim), parseDataLocal(e.data_inicio_real), parseDataLocal(e.data_fim_real)])
       .filter(Boolean);
     if (datas.length === 0) return null;
 
@@ -186,6 +197,10 @@ const GanttObra = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubE
           <div className="relative">
             {etapasOrganizadas.etapasPai.map((etapa) => {
               const pos = getBarPosition(etapa.data_inicio, etapa.data_fim);
+              const realizado = trechoRealizado(etapa, hoje);
+              const realizadoPos = realizado ? getBarPosition(realizado.inicio, realizado.fim) : null;
+              const horasEtapa = horasPorEtapa?.[etapa.id];
+              const desvioInicio = etapa.data_inicio_real ? desvioEmDiasUteis(etapa.data_inicio, etapa.data_inicio_real) : null;
               const atrasada = etapaAtrasada(etapa, hoje);
               const subEtapas = etapasOrganizadas.subEtapasPorPai[etapa.id] || [];
               const temSubEtapas = subEtapas.length > 0;
@@ -227,6 +242,17 @@ const GanttObra = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubE
                         <div className="text-xs text-slate-300">
                           {formatarDataBR(etapa.data_inicio)} - {formatarDataBR(etapa.data_fim)}
                         </div>
+                        {(etapa.data_inicio_real || horasEtapa?.previstas > 0) && (
+                          <div className="text-[11px] text-slate-400 truncate">
+                            {etapa.data_inicio_real && (
+                              <span>início real {formatarDataBR(etapa.data_inicio_real)} ({textoDesvio(desvioInicio)})</span>
+                            )}
+                            {etapa.data_inicio_real && horasEtapa?.previstas > 0 ? ' · ' : ''}
+                            {horasEtapa?.previstas > 0 && (
+                              <span>⏱ {formatarHoras(horasEtapa.realizadas)}/{formatarHoras(horasEtapa.previstas)}</span>
+                            )}
+                          </div>
+                        )}
                         {etapa.responsavel?.nome_completo && (
                           <div className="text-xs text-sky-400 truncate">
                             👤 {etapa.responsavel.nome_completo}
@@ -235,6 +261,17 @@ const GanttObra = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubE
                       </div>
                       {/* Ações */}
                       <div className={ACOES_VISIVEIS}>
+                        {onReprogramar && etapa.status !== 'concluida' && (
+                          <button
+                            type="button"
+                            onClick={() => onReprogramar(etapa)}
+                            className="p-1 text-amber-400 hover:bg-amber-500/20 rounded"
+                            title="Empurrar as etapas seguintes em N dias úteis (com prévia)"
+                            aria-label={`Empurrar etapas seguintes a ${etapa.nome}`}
+                          >
+                            <FaForward size={12} aria-hidden="true" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => onAddSubEtapa && onAddSubEtapa(etapa)}
@@ -289,8 +326,9 @@ const GanttObra = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubE
                       )}
 
                       <div
-                        className={`absolute h-7 rounded-md shadow-lg ${getStatusColor(etapa.status, etapa.progresso)} ${atrasada ? 'animate-pulse' : ''}`}
+                        className={`absolute h-7 rounded-md shadow-lg ${getStatusColor(etapa.status, etapa.progresso)} ${atrasada ? 'animate-pulse' : ''} ${realizado ? 'visao-previsto-fantasma' : ''}`}
                         style={{ left: pos.left, width: pos.width, minWidth: '60px' }}
+                        title={realizado ? 'Previsto (barra clara); a barra fina abaixo é o realizado' : undefined}
                       >
                         {/* Barra de progresso interna */}
                         <div
@@ -302,6 +340,13 @@ const GanttObra = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubE
                           {etapa.progresso}%
                         </div>
                       </div>
+                      {realizado && (
+                        <div
+                          className={`absolute bottom-1 h-1.5 rounded-full ${realizado.emCurso ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                          style={{ left: realizadoPos.left, width: realizadoPos.width, minWidth: '6px' }}
+                          title={`Realizado: ${formatarDataBR(realizado.inicio)} – ${realizado.emCurso ? 'em andamento' : formatarDataBR(realizado.fim)}`}
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -418,6 +463,10 @@ const GanttObra = ({ obra, onEditEtapa, onDeleteEtapa, onAddAtividade, onAddSubE
             <div className="flex items-center gap-1 ml-4">
               <div className="w-3 h-0.5 bg-red-500"></div>
               <span className="text-slate-300">Hoje</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-4 h-1.5 rounded-full bg-emerald-400"></div>
+              <span className="text-slate-300">Realizado (âmbar = em curso)</span>
             </div>
           </div>
         </div>

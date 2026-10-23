@@ -17,10 +17,13 @@ import {
   FaHistory
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
+import { execucaoTecnicoService } from '../../../services/supabase/execucaoTecnico';
+import { useAbrirAtividadePedida } from './tecnico/navegacaoNotificacao';
 import { dataLocalISO, parseDataLocal } from '../utils/datas';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useExecucaoUI } from './ui/ExecucaoUI';
 import Modal from './ui/Modal';
+import EvidenciasLista from './tecnico/evidencias/EvidenciasLista';
 import { Carregando, ErroCarregamento, EstadoVazio } from './ui/Estados';
 
 const FORMATO_DATA_CURTA = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -237,6 +240,13 @@ const AtividadesDia = ({ usuario }) => {
     historicoReq.current += 1;
     setAtividadeSelecionada(null);
   }, []);
+
+  // Vindo de uma notificação: abre o detalhe da atividade pedida
+  useAbrirAtividadePedida('atividades-dia', async (id) => {
+    const r = await execucaoTecnicoService.buscarAtividadePorId(id);
+    if (r.success && r.data) handleAbrirDetalhes(r.data);
+    else toast.error('Não foi possível abrir a atividade da notificação.');
+  });
 
   const botaoAcao = (atividade, { titulo, classe, estilo, icone, aoClicar }) => (
     <button
@@ -623,6 +633,8 @@ const AtividadesDia = ({ usuario }) => {
                 )}
               </div>
             )}
+
+            <EvidenciasLista atividadeId={sel.id} />
 
             <div className="border-t border-slate-700 pt-3 mt-3">
               <div className="flex justify-between text-xs text-slate-500">

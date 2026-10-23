@@ -16,7 +16,7 @@ const AlertasEtapasAtrasadas = ({ obras, onVerEtapa }) => {
     obras.forEach((obra) => {
       if (!obra.etapas) return;
       obra.etapas.forEach((etapa) => {
-        if (!etapaAtrasada(etapa, hoje)) return;
+        if (etapa.etapa_pai_id || !etapaAtrasada(etapa, hoje)) return;
         const diasAtraso = Math.ceil((hoje - parseDataLocal(etapa.data_fim)) / MS_DIA);
         atrasadas.push({
           ...etapa,

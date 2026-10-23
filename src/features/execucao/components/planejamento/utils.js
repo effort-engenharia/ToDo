@@ -30,8 +30,9 @@ export const getStatusReal = (obra) => {
   return 'planejada';
 };
 
+// Sub-etapas são passos dentro da etapa principal: só as etapas principais atrasam a obra
 export const obraTemEtapaAtrasada = (obra, hoje = inicioDeHoje()) =>
-  Boolean(obra.etapas?.some((etapa) => etapaAtrasada(etapa, hoje)));
+  Boolean(obra.etapas?.some((etapa) => !etapa.etapa_pai_id && etapaAtrasada(etapa, hoje)));
 
 // Atrasada: tem etapa atrasada OU a data prevista da obra passou (e não está concluída)
 export const obraAtrasada = (obra, hoje = inicioDeHoje()) => {

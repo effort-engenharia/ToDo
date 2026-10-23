@@ -208,10 +208,9 @@ const MinhasAtividades = ({ usuario }) => {
     );
     switch (atividade.status) {
       case 'pendente':
+        // Concluir e Pausar só depois de iniciar
         return [
-          botao('Iniciar', <FaPlay size={12} aria-hidden="true" />, 'execucao-btn-primary', acoes.iniciar),
-          botao('Concluir', <FaCheck size={12} aria-hidden="true" />, 'execucao-btn-success', acoes.abrirConclusao),
-          botao('Pausar', <FaPause size={12} aria-hidden="true" />, 'tec-btn-pausa', acoes.abrirPausa)
+          botao('Iniciar', <FaPlay size={12} aria-hidden="true" />, 'execucao-btn-primary', acoes.iniciar)
         ];
       case 'em_andamento':
         return [
@@ -220,8 +219,7 @@ const MinhasAtividades = ({ usuario }) => {
         ];
       case 'pausada':
         return [
-          botao('Retomar', <FaPlay size={12} aria-hidden="true" />, 'execucao-btn-primary', acoes.retomar),
-          botao('Concluir', <FaCheck size={12} aria-hidden="true" />, 'execucao-btn-success', acoes.abrirConclusao)
+          botao('Retomar', <FaPlay size={12} aria-hidden="true" />, 'execucao-btn-primary', acoes.retomar)
         ];
       default:
         return null;

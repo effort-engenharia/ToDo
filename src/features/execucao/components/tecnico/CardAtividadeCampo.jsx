@@ -164,7 +164,8 @@ export default function CardAtividadeCampo({
         </div>
       )}
 
-      {aberta && (
+      {/* Concluir e Pausar só existem depois que a atividade foi iniciada */}
+      {atividade.status === 'em_andamento' && (
         <button
           type="button"
           className="execucao-btn execucao-btn-success tec-btn tec-btn-grande"
@@ -186,7 +187,7 @@ export default function CardAtividadeCampo({
             <FaPlay size={12} aria-hidden="true" /> Retomar
           </button>
         )}
-        {(atividade.status === 'pendente' || atividade.status === 'em_andamento') && (
+        {atividade.status === 'em_andamento' && (
           <button type="button" className="execucao-btn tec-btn tec-btn-pausa" onClick={() => onPausar(atividade)} disabled={ocupado}>
             <FaPause size={12} aria-hidden="true" /> Pausar
           </button>

@@ -115,6 +115,7 @@ const ServicoRapidoModal = ({
   const [contrato, setContrato] = useState(contratoInicial);
   const [cliente, setCliente] = useState(contratoInicial?.nome_cliente || '');
   const [endereco, setEndereco] = useState(contratoInicial ? camposDoContrato(contratoInicial).endereco : '');
+  const [telefone, setTelefone] = useState(contratoInicial?.contato_cliente || '');
   const [tipoCodigo, setTipoCodigo] = useState(contratoInicial?.tipo_servico_codigo || tipoServicoInicial || '');
   const [data, setData] = useState(() => dataSugerida(contratoInicial));
   const [horaInicio, setHoraInicio] = useState('09:00');
@@ -146,6 +147,7 @@ const ServicoRapidoModal = ({
     const campos = camposDoContrato(escolhido);
     setCliente(campos.nome_cliente);
     setEndereco(campos.endereco);
+    setTelefone(campos.contato_cliente || '');
     if (escolhido.tipo_servico_codigo) setTipoCodigo(escolhido.tipo_servico_codigo);
     setData(dataSugerida(escolhido));
   };
@@ -197,10 +199,9 @@ const ServicoRapidoModal = ({
       prioridade: 'media',
       responsavel_id: equipe.liderId,
       observacoes: observacao.trim(),
-      contato_cliente: contrato?.contato_cliente || '',
+      contato_cliente: telefone.trim(),
       apontamento_id: contrato?.id || '',
       template_id: template?.id || '',
-      valor_contrato: contrato?.valor_total_servico ?? '',
       tipo_servico_codigo: tipo?.codigo || '',
       rapido: true,
       status: 'planejada'
@@ -283,6 +284,19 @@ const ServicoRapidoModal = ({
                 className="execucao-form-input"
                 value={endereco}
                 onChange={(e) => setEndereco(e.target.value)}
+              />
+            </div>
+            <div className="execucao-form-group !mb-0">
+              <label htmlFor="rapido-telefone" className="execucao-form-label">Telefone do cliente</label>
+              <input
+                id="rapido-telefone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                className="execucao-form-input"
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+                placeholder="(13) 99999-9999"
               />
             </div>
           </div>

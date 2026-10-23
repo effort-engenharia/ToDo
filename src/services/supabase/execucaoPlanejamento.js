@@ -39,7 +39,6 @@ const contratoDoApontamento = (a) => ({
   equipe_responsavel: 'execucao',
   cronograma_data_inicio: a.cronograma_data_inicio,
   cronograma_data_termino: a.cronograma_data_termino,
-  valor_total_servico: a.valor_total_servico ?? null,
   contato_cliente: a.contato_cliente,
   logradouro: a.logradouro,
   numero: a.numero,
@@ -67,7 +66,7 @@ const _execucaoPlanejamentoService = {
       try {
         let query = supabase
           .from('apontamentos_comerciais')
-          .select('id, nome_cliente, tipo_oportunidade, contato_cliente, logradouro, numero, bairro, municipio, cidade_atendimento, cidade_outras, cronograma_data_inicio, cronograma_data_termino, valor_total_servico, created_at')
+          .select('id, nome_cliente, tipo_oportunidade, contato_cliente, logradouro, numero, bairro, municipio, cidade_atendimento, cidade_outras, cronograma_data_inicio, cronograma_data_termino, created_at')
           .eq('fase', 'CONTRATO/VENDA')
           .order('cronograma_data_inicio', { ascending: true, nullsFirst: false })
           .limit(300);

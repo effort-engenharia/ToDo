@@ -109,7 +109,7 @@ const ObraFormModal = ({
     sugestaoAplicada.current = null;
     setContrato(escolhido);
     if (!escolhido) {
-      setForm((prev) => ({ ...prev, apontamento_id: '', valor_contrato: '' }));
+      setForm((prev) => ({ ...prev, apontamento_id: '' }));
       return;
     }
     setForm((prev) => ({ ...prev, ...camposDoContrato(escolhido) }));
@@ -403,23 +403,6 @@ const ObraFormModal = ({
               </select>
             </div>
           </div>
-
-          {!editando && (
-            <div className="execucao-form-group">
-              <label htmlFor="obra-valor" className="execucao-form-label">Valor do contrato (R$)</label>
-              <input
-                id="obra-valor"
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                className="execucao-form-input"
-                value={form.valor_contrato}
-                onChange={campo('valor_contrato')}
-                placeholder="Preenchido pelo contrato do Comercial"
-              />
-            </div>
-          )}
 
           {/* Prévia das etapas do template (só na criação) */}
           {!editando && templateEscolhido && (

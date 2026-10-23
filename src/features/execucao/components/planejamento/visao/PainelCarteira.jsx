@@ -3,10 +3,6 @@ import { FaBalanceScale, FaSyncAlt } from 'react-icons/fa';
 import { formatarHoras, formatarMinutos } from '../../../utils/formatos';
 import { obraPassaFiltroVisao } from './saude';
 
-const moeda = (valor) => Number(valor || 0).toLocaleString('pt-BR', {
-  style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1
-});
-
 // Cartão com o número clicável (filtra a lista); os detalhes ficam fora do botão
 const Cartao = ({ id, rotulo, valor, tom, ativo, onFiltrar, children, desabilitado = false }) => (
   <div className={`visao-cartao visao-tom-${tom} ${ativo ? 'visao-cartao-ativo' : ''}`}>
@@ -26,7 +22,7 @@ const Cartao = ({ id, rotulo, valor, tom, ativo, onFiltrar, children, desabilita
 );
 
 const PainelCarteira = ({
-  painel, resumo, filtro, onFiltrar, mostrarValor, carga, capacidadeCarregando,
+  painel, resumo, filtro, onFiltrar, carga, capacidadeCarregando,
   onAbrirCapacidade, onAbrirHorasExtras, onRecarregar, fallback
 }) => {
   const dados = painel.data;
@@ -85,11 +81,10 @@ const PainelCarteira = ({
         </Cartao>
         <div className="visao-cartao visao-tom-roxo">
           <div className="visao-cartao-botao visao-cartao-estatico">
-            <span className="visao-cartao-rotulo">{mostrarValor ? 'Carteira a executar' : 'Horas a executar'}</span>
-            <span className="visao-cartao-valor">{mostrarValor ? moeda(dados.carteira_valor) : formatarHoras(dados.horas_restantes)}</span>
+            <span className="visao-cartao-rotulo">Horas a executar</span>
+            <span className="visao-cartao-valor">{formatarHoras(dados.horas_restantes)}</span>
           </div>
           <div className="visao-cartao-detalhe">
-            {mostrarValor && <div>{formatarHoras(dados.horas_restantes)} de trabalho restante</div>}
             <div>Capacidade da semana: {formatarHoras(dados.horas_semana)}</div>
             {dados.semanas_carteira != null && <div>≈ {String(dados.semanas_carteira).replace('.', ',')} semanas de carteira</div>}
           </div>

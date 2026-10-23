@@ -85,4 +85,5 @@ export const formatarValor = (campo, valor, nomesUsuarios) => {
 };
 
 // Campos sem interesse para o leitor ao listar uma criação/exclusão
-export const CAMPOS_OCULTOS = new Set(['id', 'created_at', 'updated_at', 'caminho_storage', 'caminho_miniatura']);
+// valor_contrato: o módulo Execução não exibe valores de contrato/serviço
+export const CAMPOS_OCULTOS = new Set(['id', 'created_at', 'updated_at', 'caminho_storage', 'caminho_miniatura', 'valor_contrato']);

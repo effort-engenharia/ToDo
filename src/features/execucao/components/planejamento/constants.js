@@ -136,8 +136,7 @@ export const FORM_OBRA_VAZIO = {
   arquivos_pdf: [],
   template_id: '',
   cidade_id: '',
-  tipo_servico_codigo: '',
-  valor_contrato: ''
+  tipo_servico_codigo: ''
 };
 
 export const FORM_ETAPA_VAZIO = {

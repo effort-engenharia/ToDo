@@ -35,7 +35,6 @@ import PendenciasReplanejamento from './planejamento/visao/PendenciasReplanejame
 import ReprogramarModal from './planejamento/visao/ReprogramarModal';
 import { FILTROS_VISAO, obraPassaFiltroVisao, ordenarPorSaude, rotuloFiltroVisao } from './planejamento/visao/saude';
 import { useVisaoCarteira } from './planejamento/visao/useVisaoCarteira';
-import { isAdminExecucao } from '../utils/permissoes';
 import './planejamento/visao/visao.css';
 
 const LIMITE_OBRAS_INICIAL = 60;
@@ -125,7 +124,6 @@ const PlanejamentoMacro = ({ usuario }) => {
 
   const visao = useVisaoCarteira(tecnicos);
   const { saudePorObra, recarregar: recarregarVisao } = visao;
-  const mostrarValor = isAdminExecucao(usuario);
 
   // Contratos do Comercial aguardando planejamento (contador único para todos os admins)
   const { data: pendentes, reload: recarregarPendentes } = useAsyncData(
@@ -835,7 +833,6 @@ const PlanejamentoMacro = ({ usuario }) => {
               resumo={visao.resumo}
               filtro={filtroCarteira}
               onFiltrar={handleFiltrarCarteira}
-              mostrarValor={mostrarValor}
               carga={visao.carga}
               capacidadeCarregando={visao.capacidade.loading}
               onAbrirCapacidade={handleAbrirCapacidade}

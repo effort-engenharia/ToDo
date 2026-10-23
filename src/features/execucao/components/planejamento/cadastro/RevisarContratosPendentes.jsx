@@ -8,7 +8,7 @@ import { useExecucaoUI } from '../../ui/ExecucaoUI';
 import { ErroCarregamento } from '../../ui/Estados';
 import { MOTIVOS_NAO_PLANEJAR } from '../constants';
 import { formatarDataCurta } from '../utils';
-import { classePrazoContrato, formatarMoeda } from './cadastroUtils';
+import { classePrazoContrato } from './cadastroUtils';
 import './cadastro.css';
 
 const mensagemDe = (resultado) => resultado?.message || 'erro desconhecido';
@@ -159,7 +159,6 @@ const RevisarContratosPendentes = ({ usuarioId, onClose, onAlterado, onPlanejar,
                   <th scope="col">Cliente</th>
                   <th scope="col">Serviço</th>
                   <th scope="col">Início previsto</th>
-                  <th scope="col">Valor</th>
                   <th scope="col"><span className="sr-only">Ações</span></th>
                 </tr>
               </thead>
@@ -193,7 +192,6 @@ const RevisarContratosPendentes = ({ usuarioId, onClose, onAlterado, onPlanejar,
                         {prazo === 'vencido' && <span className="cad-tag cad-tag-vermelha">vencido</span>}
                         {prazo === 'proximo' && <span className="cad-tag cad-tag-amarela">7 dias</span>}
                       </td>
-                      <td>{formatarMoeda(c.valor_total_servico) || '—'}</td>
                       <td>
                         {livre && (
                           <span className="flex flex-wrap gap-2">

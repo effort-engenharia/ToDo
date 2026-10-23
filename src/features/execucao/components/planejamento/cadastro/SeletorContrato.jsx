@@ -6,7 +6,7 @@ import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { useExecucaoUI } from '../../ui/ExecucaoUI';
 import { MOTIVOS_NAO_PLANEJAR } from '../constants';
 import { formatarDataCurta } from '../utils';
-import { classePrazoContrato, formatarMoeda } from './cadastroUtils';
+import { classePrazoContrato } from './cadastroUtils';
 import './cadastro.css';
 
 const LIMITE_LISTA = 80;
@@ -86,8 +86,7 @@ const SeletorContrato = ({ selecionado, onSelecionar, usuarioId, onIgnorado }) =
             <p className="text-sm font-medium text-white">{selecionado.nome_cliente}</p>
             <p className="text-xs text-slate-400">
               {[selecionado.tipo_servico_nome || selecionado.tipo_oportunidade, selecionado.cidade,
-                selecionado.cronograma_data_inicio ? `início ${formatarDataCurta(selecionado.cronograma_data_inicio)}` : null,
-                formatarMoeda(selecionado.valor_total_servico) || null].filter(Boolean).join(' · ')}
+                selecionado.cronograma_data_inicio ? `início ${formatarDataCurta(selecionado.cronograma_data_inicio)}` : null].filter(Boolean).join(' · ')}
               {' '}<EtiquetaPrazo inicio={selecionado.cronograma_data_inicio} />
             </p>
           </div>
@@ -196,8 +195,7 @@ const SeletorContrato = ({ selecionado, onSelecionar, usuarioId, onIgnorado }) =
               <span className="cad-contrato-cliente">{c.nome_cliente}</span>
               <span className="cad-contrato-detalhe">
                 {[c.tipo_servico_nome || c.tipo_oportunidade || 'sem tipo de serviço',
-                  c.cronograma_data_inicio ? `início ${formatarDataCurta(c.cronograma_data_inicio)}` : 'sem início previsto',
-                  formatarMoeda(c.valor_total_servico) || null].filter(Boolean).join(' · ')}
+                  c.cronograma_data_inicio ? `início ${formatarDataCurta(c.cronograma_data_inicio)}` : 'sem início previsto'].filter(Boolean).join(' · ')}
               </span>
               {livre && <EtiquetaPrazo inicio={c.cronograma_data_inicio} />}
               {c.obra_id && <span className="cad-tag">já virou obra</span>}

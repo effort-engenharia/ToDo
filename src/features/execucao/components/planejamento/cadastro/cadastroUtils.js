@@ -8,12 +8,6 @@ import {
   proximoDiaUtil
 } from '../utils';
 
-export const formatarMoeda = (valor) => {
-  const numero = Number(valor);
-  if (valor === null || valor === undefined || valor === '' || Number.isNaN(numero)) return '';
-  return numero.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
-};
-
 // 'vencido' (início já passou) | 'proximo' (próximos 7 dias) | null
 export const classePrazoContrato = (inicioISO, hojeISO = dataLocalISO()) => {
   if (!inicioISO) return null;
@@ -33,7 +27,6 @@ export const camposDoContrato = (contrato) => ({
   data_fim_prevista: contrato.cronograma_data_termino || '',
   contato_cliente: contrato.contato_cliente || '',
   apontamento_id: contrato.id || '',
-  valor_contrato: contrato.valor_total_servico ?? '',
   tipo_servico_codigo: contrato.tipo_servico_codigo || ''
 });
 

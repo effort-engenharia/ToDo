@@ -1,6 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { FaCheck } from 'react-icons/fa';
 import Modal from '../ui/Modal';
+import CampoHoras from '../ui/CampoHoras';
+import { formatarHoras } from '../../utils/formatos';
 import EvidenciasUploader from './evidencias/EvidenciasUploader';
 import { useEvidencias } from './evidencias/useEvidencias';
 import { usuarioIdAtual } from './evidencias/filaUpload';
@@ -17,7 +19,7 @@ const paraNumero = (valor) => {
 // As evidências ficam numa fila local e sobem sozinhas: falha de envio nunca bloqueia a conclusão.
 export default function ModalConcluir({ atividade, salvando = false, erro = '', usuarioId = usuarioIdAtual(), onConfirmar, onClose }) {
   const previstas = atividade.horas_previstas != null ? Number(atividade.horas_previstas) : null;
-  const [horas, setHoras] = useState(previstas != null ? String(previstas).replace('.', ',') : '');
+  const [horas, setHoras] = useState(previstas != null ? String(previstas) : '');
   const [erroLocal, setErroLocal] = useState('');
   const evidencias = useEvidencias(atividade.id, usuarioId);
   const confirmandoRef = useRef(false);
@@ -68,15 +70,13 @@ export default function ModalConcluir({ atividade, salvando = false, erro = '', 
 
       <div className="execucao-form-group">
         <label htmlFor="concluir-horas" className="execucao-form-label">
-          Horas realizadas{previstas != null ? ` (previstas: ${String(previstas).replace('.', ',')}h)` : ' (opcional)'}
+          Horas realizadas{previstas != null ? ` (previstas: ${formatarHoras(previstas)})` : ' (opcional)'}
         </label>
-        <input
+        <CampoHoras
           id="concluir-horas"
-          type="text"
-          inputMode="decimal"
           className="execucao-form-input tec-input"
           value={horas}
-          onChange={(e) => { setHoras(e.target.value); setErroLocal(''); }}
+          onChange={(valor) => { setHoras(valor); setErroLocal(''); }}
           onKeyDown={(e) => e.key === 'Enter' && confirmar()}
           aria-invalid={!!mensagem}
         />

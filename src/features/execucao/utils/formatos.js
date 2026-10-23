@@ -54,3 +54,21 @@ export const notificarResultado = (resultado, toast, mensagemSucesso) => {
   toast.error(resultado?.message || 'Não foi possível concluir a ação');
   return false;
 };
+
+// 1.5 -> "01:30"; 0.25 -> "00:15"; vazio/inválido -> ""
+export const horasParaHHMM = (horas) => {
+  if (horas === '' || horas == null || Number.isNaN(Number(horas))) return '';
+  const total = Math.round(Number(horas) * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
+// "1:30" | "1h30" | "01:30" | "2" (= 2 horas) -> 1.5 | 2; vazio/inválido -> null
+export const hhmmParaHoras = (texto) => {
+  const t = String(texto ?? '').trim().toLowerCase().replace('h', ':');
+  if (!t) return null;
+  const [h, m = '0'] = t.split(':');
+  if (!/^\d+$/.test(h) || !/^\d{0,2}$/.test(m)) return null;
+  const minutos = Number(m || 0);
+  if (minutos > 59) return null;
+  return Number(h) + minutos / 60;
+};

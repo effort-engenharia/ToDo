@@ -9,6 +9,7 @@ import { isAdminExecucao } from '../../utils/permissoes';
 import { Carregando, ErroCarregamento, EstadoVazio } from '../ui/Estados';
 import { useExecucaoUI } from '../ui/ExecucaoUI';
 import Modal from '../ui/Modal';
+import CampoHoras from '../ui/CampoHoras';
 import '../config/config.css';
 import './capacidade.css';
 
@@ -108,8 +109,8 @@ const FormRegistro = ({ usuario, admin, usuarios, onSalvar, onClose }) => {
             <input id="he-data" type="date" className="execucao-form-input" value={form.data} onChange={mudar('data')} />
           </div>
           <div className="execucao-form-group">
-            <label className="execucao-form-label" htmlFor="he-horas">Horas (ex.: 1,5 = 1h30)</label>
-            <input id="he-horas" className="execucao-form-input" inputMode="decimal" value={form.horas} onChange={mudar('horas')} />
+            <label className="execucao-form-label" htmlFor="he-horas">Horas (HH:MM, ex.: 01:30)</label>
+            <CampoHoras id="he-horas" className="execucao-form-input" value={form.horas} onChange={(valor) => setForm((f) => ({ ...f, horas: valor }))} />
           </div>
           <div className="execucao-form-group cfg-full">
             <label className="execucao-form-label" htmlFor="he-just">Justificativa</label>

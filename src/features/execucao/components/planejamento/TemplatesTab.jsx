@@ -2,6 +2,7 @@ import React from 'react';
 import { FaCopy, FaEdit, FaMagic, FaPlus, FaTrash } from 'react-icons/fa';
 import { IconeTemplate } from './icones';
 import { ROTULO_TIPO_ETAPA, ROTULO_TIPO_OBRA_TEMPLATE } from './constants';
+import { formatarHoras } from '../../utils/formatos';
 
 const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) => (
   <div
@@ -80,7 +81,7 @@ const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) 
             <span className="text-slate-500"> · {ROTULO_TIPO_ETAPA[etapa.tipo] || etapa.tipo}</span>
           </span>
           <span className="text-slate-500 shrink-0 ml-2">
-            {etapa.duracao_dias}d{etapa.horas_previstas ? ` · ${Number(etapa.horas_previstas)}h` : ''}{etapa.qtd_tecnicos > 1 ? ` · ${etapa.qtd_tecnicos} téc.` : ''}
+            {etapa.duracao_dias}d{etapa.horas_previstas ? ` · ${formatarHoras(etapa.horas_previstas)}` : ''}{etapa.qtd_tecnicos > 1 ? ` · ${etapa.qtd_tecnicos} téc.` : ''}
           </span>
         </div>
       ))}

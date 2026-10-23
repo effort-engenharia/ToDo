@@ -5,6 +5,7 @@ import { useAsyncData } from '../../hooks/useAsyncData';
 import Modal from '../ui/Modal';
 import { FORM_TEMPLATE_VAZIO, TIPOS_ETAPA, TIPOS_OBRA_TEMPLATE } from './constants';
 import { novaChave } from './utils';
+import CampoHoras from '../ui/CampoHoras';
 
 const TIPOS_ETAPA_VALIDOS = new Set(TIPOS_ETAPA.map((t) => t.valor));
 const TIPOS_OBRA_VALIDOS = new Set(TIPOS_OBRA_TEMPLATE.map((t) => t.valor));
@@ -289,14 +290,12 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
                     </label>
                     <label className="text-[10px] text-slate-400">
                       Horas previstas
-                      <input
-                        type="number"
+                      <CampoHoras
                         className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
                         value={item.horas_previstas}
-                        onChange={(e) => atualizarItem(item._chave, 'horas_previstas', e.target.value)}
-                        min="0"
-                        step="0.25"
-                        placeholder="—"
+                        onChange={(valor) => atualizarItem(item._chave, 'horas_previstas', valor)}
+                        placeholder="HH:MM"
+                        aria-label="Horas previstas (HH:MM)"
                       />
                     </label>
                     <label className="text-[10px] text-slate-400">

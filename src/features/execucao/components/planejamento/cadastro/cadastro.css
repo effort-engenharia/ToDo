@@ -121,3 +121,12 @@
 @media (max-width: 640px) {
   .cad-contrato-escolhido-topo { flex-direction: column; }
 }
+
+/* Sub-etapa na prévia: recuada e com datas travadas (seguem a etapa pai) */
+.cad-previa-sub td { background: rgba(148, 163, 184, 0.05); }
+.cad-previa-sub input[type='date']:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Resumo das etapas do template no serviço rápido */
+.cad-rapido-etapas { margin: 0.5rem 0 0; padding: 0; list-style: none; font-size: 0.75rem; color: #cbd5e1; max-height: 9rem; overflow-y: auto; }
+.cad-rapido-etapas li { padding: 0.15rem 0; }
+.cad-rapido-etapas .cad-rapido-sub { padding-left: 1.25rem; color: #94a3b8; }

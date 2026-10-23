@@ -6,17 +6,23 @@ import { wrapServiceWithImpersonationGuard } from '../../utils/impersonationGuar
 
 const COLUNAS_TEMPLATE = ['nome', 'descricao', 'tipo_obra', 'icone', 'cor', 'ativo', 'ordem', 'tipo_servico_codigo'];
 
-const montarItemTemplate = (item, indice, templateId) => ({
-  template_id: templateId,
-  nome: item.nome,
-  descricao: item.descricao || null,
-  tipo: item.tipo || 'geral',
-  duracao_dias: item.duracao_dias || item.duracao || 3,
-  ordem: indice + 1,
-  horas_previstas: item.horas_previstas === '' || item.horas_previstas == null ? null : Number(item.horas_previstas),
-  qtd_tecnicos: Math.max(1, parseInt(item.qtd_tecnicos, 10) || 1),
-  pop_id: item.pop_id || null
-});
+// Sub-etapa: pai_indice (posição do pai na lista enviada) vira pai_ordem; sem duração própria em dias (fica dentro da etapa pai)
+const montarItemTemplate = (item, indice, templateId) => {
+  const paiOrdem = item.pai_indice != null ? Number(item.pai_indice) + 1 : (item.pai_ordem ?? null);
+  const duracao = Number.parseInt(item.duracao_dias ?? item.duracao, 10);
+  return {
+    template_id: templateId,
+    nome: item.nome,
+    descricao: item.descricao || null,
+    tipo: item.tipo || 'geral',
+    duracao_dias: paiOrdem != null ? 0 : (Number.isFinite(duracao) && duracao > 0 ? duracao : 3),
+    ordem: indice + 1,
+    pai_ordem: paiOrdem,
+    horas_previstas: item.horas_previstas === '' || item.horas_previstas == null ? null : Number(item.horas_previstas),
+    qtd_tecnicos: Math.max(1, parseInt(item.qtd_tecnicos, 10) || 1),
+    pop_id: item.pop_id || null
+  };
+};
 
 const montarDadosTemplate = (dados) => Object.fromEntries(
   COLUNAS_TEMPLATE.filter((c) => dados[c] !== undefined).map((c) => [c, dados[c] === '' ? null : dados[c]])
@@ -287,7 +293,13 @@ const _execucaoPlanejamentoService = {
         .single();
       if (error) throw error;
 
-      const itens = [...(original.itens ?? [])].sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+      const ordenados = [...(original.itens ?? [])].sort((a, b) => (a.ordem || 0) - (b.ordem || 0));
+      const posicaoPorOrdem = new Map(ordenados.map((item, i) => [item.ordem, i]));
+      const itens = ordenados.map((item) => ({
+        ...item,
+        pai_indice: item.pai_ordem != null && posicaoPorOrdem.has(item.pai_ordem) ? posicaoPorOrdem.get(item.pai_ordem) : null,
+        pai_ordem: null
+      }));
       return await this.criarTemplateCompleto({
         ...original,
         nome: novoNome || `${original.nome} (Cópia)`,

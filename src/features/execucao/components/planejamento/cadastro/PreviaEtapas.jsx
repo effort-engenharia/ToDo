@@ -26,9 +26,68 @@ const PreviaEtapas = ({
   onCriarAtividades
 }) => {
   const hojeISO = dataLocalISO();
-  const atualizar = (indice, mudancas) => onChange(etapas.map((e, i) => (i === indice ? { ...e, ...mudancas } : e)));
+  // Mudar a equipe da etapa pai leva junto as sub-etapas que tinham o mesmo líder
+  const atualizar = (indice, mudancas) => {
+    const alvo = etapas[indice];
+    const mudouEquipe = !alvo.pai_chave && ('lider_id' in mudancas || 'apoio_ids' in mudancas);
+    onChange(etapas.map((e, i) => {
+      if (i === indice) return { ...e, ...mudancas };
+      if (mudouEquipe && e.pai_chave === alvo._chave && e.lider_id === alvo.lider_id) {
+        return { ...e, lider_id: mudancas.lider_id ?? e.lider_id, apoio_ids: mudancas.apoio_ids ?? e.apoio_ids };
+      }
+      return e;
+    }));
+  };
 
-  const remover = (indice) => onChange(etapas.filter((_, i) => i !== indice));
+  // Remover uma etapa principal remove também as sub-etapas dela
+  const remover = (indice) => {
+    const alvo = etapas[indice];
+    onChange(etapas.filter((e, i) => i !== indice && e.pai_chave !== alvo._chave));
+  };
+
+  // Sub-etapa: logo abaixo da etapa pai (e das outras sub-etapas dela), dentro das datas do pai
+  const adicionarSub = (indicePai) => {
+    const pai = etapas[indicePai];
+    let posicao = indicePai;
+    etapas.forEach((e, i) => { if (e.pai_chave === pai._chave) posicao = i; });
+    const nova = {
+      _chave: `s${Date.now().toString(36)}${etapas.length}`,
+      pai_chave: pai._chave,
+      nome: '',
+      descricao: '',
+      tipo: pai.tipo,
+      duracao_dias: 0,
+      horas_previstas: '',
+      qtd_tecnicos: pai.qtd_tecnicos || 1,
+      pop_id: null,
+      data_inicio: pai.data_inicio,
+      data_fim: pai.data_fim,
+      lider_id: pai.lider_id,
+      apoio_ids: pai.apoio_ids,
+      progresso: 0
+    };
+    onChange([...etapas.slice(0, posicao + 1), nova, ...etapas.slice(posicao + 1)]);
+  };
+
+  // "1", "1.1", "1.2", "2"...
+  const rotulos = (() => {
+    let principal = 0;
+    const contagem = new Map();
+    const mapa = new Map();
+    etapas.forEach((e) => {
+      if (!e.pai_chave) {
+        principal += 1;
+        mapa.set(e._chave, `${principal}`);
+        contagem.set(e._chave, 0);
+      } else {
+        const n = (contagem.get(e.pai_chave) ?? 0) + 1;
+        contagem.set(e.pai_chave, n);
+        mapa.set(e._chave, `${mapa.get(e.pai_chave) ?? '?'}.${n}`);
+      }
+    });
+    return mapa;
+  })();
+  const totalSubs = etapas.filter((e) => e.pai_chave).length;
 
   const adicionar = () => {
     const ultimoFim = etapas.length ? parseDataLocal(terminoPrevisto(etapas)) : new Date();
@@ -64,7 +123,7 @@ const PreviaEtapas = ({
     <section className="cad-previa" aria-labelledby="cad-previa-titulo">
       <div className="cad-previa-topo">
         <h4 id="cad-previa-titulo" className="text-sm font-medium text-purple-300">
-          Prévia das etapas ({etapas.length})
+          Prévia das etapas ({etapas.length - totalSubs}{totalSubs ? ` · ${totalSubs} sub-etapas` : ''})
         </h4>
         <button type="button" className="cad-link" onClick={onRecalcular} title="Recalcula as datas a partir do início previsto da obra">
           <FaSyncAlt size={10} aria-hidden="true" /> Recalcular datas
@@ -98,18 +157,34 @@ const PreviaEtapas = ({
               const dias = etapa.data_inicio && etapa.data_fim
                 ? diasUteisEntre(parseDataLocal(etapa.data_inicio), parseDataLocal(etapa.data_fim), calendario)
                 : 0;
+              const ehSub = Boolean(etapa.pai_chave);
+              const rotulo = rotulos.get(etapa._chave);
               return (
-                <tr key={etapa._chave}>
-                  <td className="text-slate-500">{i + 1}</td>
+                <tr key={etapa._chave} className={ehSub ? 'cad-previa-sub' : undefined}>
+                  <td className="text-slate-500">{rotulo}</td>
                   <td>
-                    <input
-                      type="text"
-                      className="cad-previa-input"
-                      value={etapa.nome}
-                      onChange={(e) => atualizar(i, { nome: e.target.value })}
-                      aria-label={`Nome da etapa ${i + 1}`}
-                      required
-                    />
+                    <div className="flex items-center gap-1">
+                      {ehSub && <span className="text-slate-500" aria-hidden="true">↳</span>}
+                      <input
+                        type="text"
+                        className="cad-previa-input"
+                        value={etapa.nome}
+                        onChange={(e) => atualizar(i, { nome: e.target.value })}
+                        aria-label={`Nome da ${ehSub ? 'sub-etapa' : 'etapa'} ${rotulo}`}
+                        required
+                      />
+                      {!ehSub && (
+                        <button
+                          type="button"
+                          className="cad-link shrink-0"
+                          onClick={() => adicionarSub(i)}
+                          title="Adicionar sub-etapa (parte da etapa, dentro das mesmas datas)"
+                          aria-label={`Adicionar sub-etapa à etapa ${rotulo}`}
+                        >
+                          <FaPlus size={9} aria-hidden="true" /> sub
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <select
@@ -118,7 +193,7 @@ const PreviaEtapas = ({
                       onChange={(e) => atualizar(i, e.target.value === 'estoque'
                         ? { tipo: 'estoque', lider_id: '', apoio_ids: [] }
                         : { tipo: e.target.value })}
-                      aria-label={`Tipo da etapa ${i + 1}`}
+                      aria-label={`Tipo da etapa ${rotulo}`}
                     >
                       {TIPOS_ETAPA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
                     </select>
@@ -129,7 +204,9 @@ const PreviaEtapas = ({
                       className="cad-previa-input"
                       value={etapa.data_inicio}
                       onChange={(e) => e.target.value && onChange(editarDataPrevia(etapas, i, 'data_inicio', e.target.value, calendario))}
-                      aria-label={`Início da etapa ${i + 1}`}
+                      aria-label={`Início da etapa ${rotulo}`}
+                      disabled={ehSub}
+                      title={ehSub ? 'A sub-etapa acompanha as datas da etapa pai' : undefined}
                       required
                     />
                   </td>
@@ -140,11 +217,13 @@ const PreviaEtapas = ({
                       value={etapa.data_fim}
                       min={etapa.data_inicio}
                       onChange={(e) => e.target.value && onChange(editarDataPrevia(etapas, i, 'data_fim', e.target.value, calendario))}
-                      aria-label={`Fim da etapa ${i + 1}`}
+                      aria-label={`Fim da etapa ${rotulo}`}
+                      disabled={ehSub}
+                      title={ehSub ? 'A sub-etapa acompanha as datas da etapa pai' : undefined}
                       required
                     />
                   </td>
-                  <td className="text-slate-400 text-center">{dias}</td>
+                  <td className="text-slate-400 text-center">{ehSub ? '—' : dias}</td>
                   <td>
                     {etapa.tipo === 'estoque' ? (
                       <span className="cad-tag cad-tag-azul">📦 gera pedido de material</span>
@@ -154,7 +233,7 @@ const PreviaEtapas = ({
                         liderId={etapa.lider_id}
                         apoioIds={etapa.apoio_ids}
                         sugerido={etapa.qtd_tecnicos}
-                        rotulo={`Equipe da etapa ${i + 1}`}
+                        rotulo={`Equipe da etapa ${rotulo}`}
                         onChange={({ liderId, apoioIds }) => atualizar(i, { lider_id: liderId, apoio_ids: apoioIds })}
                       />
                     )}
@@ -171,7 +250,7 @@ const PreviaEtapas = ({
                             className="cad-previa-input"
                             value={etapa.progresso}
                             onChange={(e) => atualizar(i, { progresso: Math.min(99, Math.max(0, parseInt(e.target.value, 10) || 0)) })}
-                            aria-label={`Progresso atual da etapa ${i + 1} em porcentagem`}
+                            aria-label={`Progresso atual da etapa ${rotulo} em porcentagem`}
                           />
                           %
                         </label>
@@ -183,7 +262,7 @@ const PreviaEtapas = ({
                       type="button"
                       className="cad-previa-remover"
                       onClick={() => remover(i)}
-                      aria-label={`Remover etapa ${i + 1}`}
+                      aria-label={`Remover ${ehSub ? 'sub-etapa' : 'etapa'} ${rotulo}`}
                     >
                       <FaTrash size={10} aria-hidden="true" />
                     </button>

@@ -283,8 +283,11 @@ const ObraFormModal = ({
                       } : {}}
                     >
                       <IconeTemplate icone={template.icone} size={16} />
-                      <span className="text-xs font-medium">{template.nome?.split(' ')[0] || 'Template'}</span>
-                      <span className="text-[10px] opacity-60">{template.itens?.length || 0} etapas</span>
+                      <span className="text-xs font-medium text-center leading-tight">{template.nome || 'Template'}</span>
+                      <span className="text-[10px] opacity-60">
+                        {template.itens?.filter((i) => i.pai_ordem == null).length || 0} etapas
+                        {template.itens?.some((i) => i.pai_ordem != null) ? ` · ${template.itens.filter((i) => i.pai_ordem != null).length} sub` : ''}
+                      </span>
                     </button>
                   );
                 })}

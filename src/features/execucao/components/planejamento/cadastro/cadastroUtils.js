@@ -56,13 +56,17 @@ export const sugerirTemplate = (tipoServico, templates) => {
 // Prévia das etapas
 // ---------------------------------------------------
 
-const linhaPrevia = (item, indice, responsavelId) => ({
-  _chave: `p${indice}-${item.id ?? item.nome}`,
+const chaveDoItem = (item, indice) => `p${indice}-${item.id ?? item.nome}`;
+
+// Sub-etapa (pai_chave): fica dentro da etapa pai, com as mesmas datas e sem duração própria em dias
+const linhaPrevia = (item, indice, responsavelId, paiChave = null) => ({
+  _chave: chaveDoItem(item, indice),
+  pai_chave: paiChave,
   nome: item.nome || '',
   descricao: item.descricao || '',
   tipo: item.tipo || 'geral',
   ordem: indice + 1,
-  duracao_dias: Math.max(1, item.duracao_dias || DURACAO_PADRAO_ETAPA_TEMPLATE),
+  duracao_dias: paiChave ? 0 : Math.max(1, item.duracao_dias || DURACAO_PADRAO_ETAPA_TEMPLATE),
   horas_previstas: item.horas_previstas ?? '',
   qtd_tecnicos: item.qtd_tecnicos || 1,
   pop_id: item.pop_id || null,
@@ -74,28 +78,44 @@ const linhaPrevia = (item, indice, responsavelId) => ({
 });
 
 // Cada etapa começa no dia útil seguinte ao fim da anterior; a duração é em dias úteis (1 dia = início e fim no mesmo dia)
-export const recalcularDatasPrevia = (etapas, inicioISO, calendario) => {
+// Sub-etapas copiam as datas da etapa pai
+export const sincronizarSubEtapas = (etapas) => {
+  const porChave = new Map(etapas.map((e) => [e._chave, e]));
+  return etapas.map((etapa) => {
+    const pai = etapa.pai_chave ? porChave.get(etapa.pai_chave) : null;
+    return pai ? { ...etapa, data_inicio: pai.data_inicio, data_fim: pai.data_fim } : etapa;
+  });
+};
+
+// primeiroNaData: a 1ª etapa começa exatamente na data informada (serviço rápido em emergência, fim de semana ou feriado)
+export const recalcularDatasPrevia = (etapas, inicioISO, calendario, { primeiroNaData = false } = {}) => {
   let cursor = parseDataLocal(inicioISO);
   if (!cursor) return etapas;
-  return etapas.map((etapa) => {
-    const inicio = proximoDiaUtil(cursor, calendario);
+  let primeira = true;
+  const calculadas = etapas.map((etapa) => {
+    if (etapa.pai_chave) return etapa;
+    const inicio = primeira && primeiroNaData ? cursor : proximoDiaUtil(cursor, calendario);
+    primeira = false;
     const fim = addDiasUteis(inicio, Math.max(1, etapa.duracao_dias) - 1, calendario);
     cursor = addDias(fim, 1);
     return { ...etapa, data_inicio: dataLocalISO(inicio), data_fim: dataLocalISO(fim) };
   });
+  return sincronizarSubEtapas(calculadas);
 };
 
-export const gerarEtapasPrevia = (template, { inicioISO, calendario, responsavelId }) => {
+export const gerarEtapasPrevia = (template, { inicioISO, calendario, responsavelId, primeiroNaData = false }) => {
   if (!template?.itens?.length || !parseDataLocal(inicioISO)) return [];
-  const linhas = template.itens.map((item, i) => linhaPrevia(item, i, responsavelId));
-  return recalcularDatasPrevia(linhas, inicioISO, calendario);
+  const chavePorOrdem = new Map(template.itens.map((item, i) => [item.ordem, chaveDoItem(item, i)]));
+  const linhas = template.itens.map((item, i) =>
+    linhaPrevia(item, i, responsavelId, item.pai_ordem != null ? (chavePorOrdem.get(item.pai_ordem) ?? null) : null));
+  return recalcularDatasPrevia(linhas, inicioISO, calendario, { primeiroNaData });
 };
 
 // Mudar o início preserva a duração; mudar o fim altera a duração. As etapas seguintes deslocam pelo mesmo nº de dias úteis
 export const editarDataPrevia = (etapas, indice, campo, valorISO, calendario) => {
   const nova = parseDataLocal(valorISO);
   const atual = etapas[indice];
-  if (!nova || !atual) return etapas;
+  if (!nova || !atual || atual.pai_chave) return etapas; // sub-etapa acompanha a etapa pai
 
   let inicio = parseDataLocal(atual.data_inicio);
   let fim = parseDataLocal(atual.data_fim);
@@ -110,7 +130,7 @@ export const editarDataPrevia = (etapas, indice, campo, valorISO, calendario) =>
   }
 
   const delta = deslocamentoUteis(fimAntes, fim, calendario);
-  return etapas.map((etapa, i) => {
+  const editadas = etapas.map((etapa, i) => {
     if (i === indice) {
       return {
         ...etapa,
@@ -126,6 +146,7 @@ export const editarDataPrevia = (etapas, indice, campo, valorISO, calendario) =>
       data_fim: dataLocalISO(addDiasUteis(parseDataLocal(etapa.data_fim), delta, calendario))
     };
   });
+  return sincronizarSubEtapas(editadas);
 };
 
 export const terminoPrevisto = (etapas) => etapas.reduce((max, e) => (e.data_fim && e.data_fim > max ? e.data_fim : max), '');
@@ -156,6 +177,12 @@ export const equipeDaLinha = (liderId, apoioIds = []) => {
 // Linhas da prévia → jsonb p_etapas de criar_obra_completa
 export const etapasParaPayload = (etapas, { andamento = false, hojeISO = dataLocalISO() } = {}) =>
   etapas.map((etapa, i) => {
+    const indicePai = etapa.pai_chave ? etapas.findIndex((e) => e._chave === etapa.pai_chave) : -1;
+    const subs = etapas.filter((e) => e.pai_chave === etapa._chave);
+    // a etapa que tem sub-etapas soma as horas delas
+    const horas = subs.length
+      ? String(subs.reduce((soma, e) => soma + (Number(e.horas_previstas) || 0), 0))
+      : (etapa.horas_previstas === '' || etapa.horas_previstas == null ? '' : String(etapa.horas_previstas));
     const situacao = andamento ? situacaoAndamento(etapa, hojeISO) : 'pendente';
     const equipe = etapa.tipo === 'estoque'
       ? { responsavel_id: null, equipe_ids: [] }
@@ -171,8 +198,9 @@ export const etapasParaPayload = (etapas, { andamento = false, hojeISO = dataLoc
       data_inicio: etapa.data_inicio,
       data_fim: etapa.data_fim,
       ordem: i + 1,
+      etapa_pai_ordem: indicePai >= 0 ? indicePai + 1 : null,
       ...equipe,
-      horas_previstas: etapa.horas_previstas === '' || etapa.horas_previstas == null ? '' : String(etapa.horas_previstas),
+      horas_previstas: horas,
       qtd_tecnicos: Math.max(1, parseInt(etapa.qtd_tecnicos, 10) || 1),
       pop_id: etapa.pop_id || '',
       status: situacao,

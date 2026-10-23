@@ -6,6 +6,7 @@ import Modal from '../ui/Modal';
 import { FORM_TEMPLATE_VAZIO, TIPOS_ETAPA, TIPOS_OBRA_TEMPLATE } from './constants';
 import { novaChave } from './utils';
 import CampoHoras from '../ui/CampoHoras';
+import { formatarHoras } from '../../utils/formatos';
 
 const TIPOS_ETAPA_VALIDOS = new Set(TIPOS_ETAPA.map((t) => t.valor));
 const TIPOS_OBRA_VALIDOS = new Set(TIPOS_OBRA_TEMPLATE.map((t) => t.valor));
@@ -24,19 +25,43 @@ const formDoTemplate = (template) => {
       }
     : FORM_TEMPLATE_VAZIO;
 
-  // `_chave` só existe no cliente: dá identidade estável às linhas editáveis
+  // `_chave` só existe no cliente: dá identidade estável às linhas editáveis; `_pai` liga a sub-etapa à etapa pai
+  const itens = base.itens.map((item) => ({
+    ...item,
+    tipo: TIPOS_ETAPA_VALIDOS.has(item.tipo) ? item.tipo : 'geral',
+    horas_previstas: item.horas_previstas ?? '',
+    qtd_tecnicos: item.qtd_tecnicos || 1,
+    pop_id: item.pop_id || '',
+    _chave: novaChave()
+  }));
+  const chavePorOrdem = new Map(itens.map((item) => [item.ordem, item._chave]));
   return {
     ...base,
-    itens: base.itens.map((item) => ({
-      ...item,
-      tipo: TIPOS_ETAPA_VALIDOS.has(item.tipo) ? item.tipo : 'geral',
-      horas_previstas: item.horas_previstas ?? '',
-      qtd_tecnicos: item.qtd_tecnicos || 1,
-      pop_id: item.pop_id || '',
-      _chave: novaChave()
-    }))
+    itens: itens.map((item) => ({ ...item, _pai: item.pai_ordem != null ? (chavePorOrdem.get(item.pai_ordem) ?? null) : null }))
   };
 };
+
+// Numeração "1", "1.1", "1.2", "2"... por chave da linha
+const numerar = (itens) => {
+  let principal = 0;
+  const rotulos = new Map();
+  const contagem = new Map();
+  itens.forEach((item) => {
+    if (!item._pai) {
+      principal += 1;
+      rotulos.set(item._chave, `${principal}`);
+      contagem.set(item._chave, 0);
+    } else {
+      const n = (contagem.get(item._pai) ?? 0) + 1;
+      contagem.set(item._pai, n);
+      rotulos.set(item._chave, `${rotulos.get(item._pai) ?? '?'}.${n}`);
+    }
+  });
+  return rotulos;
+};
+
+const horasDasSubs = (itens, chavePai) =>
+  itens.filter((i) => i._pai === chavePai).reduce((soma, i) => soma + (Number(i.horas_previstas) || 0), 0);
 
 const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
   const [form, setForm] = useState(() => formDoTemplate(template));
@@ -82,8 +107,31 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
     }));
   };
 
+  // Sub-etapa: fica logo abaixo da etapa pai (e das outras sub-etapas dela), sem duração em dias
+  const adicionarSubItem = (chavePai) => {
+    setForm((prev) => {
+      const pai = prev.itens.find((i) => i._chave === chavePai);
+      if (!pai) return prev;
+      let posicao = prev.itens.findIndex((i) => i._chave === chavePai);
+      prev.itens.forEach((i, idx) => { if (i._pai === chavePai) posicao = idx; });
+      const nova = {
+        _chave: novaChave(),
+        _pai: chavePai,
+        nome: '',
+        descricao: '',
+        tipo: pai.tipo,
+        duracao_dias: 0,
+        horas_previstas: '',
+        qtd_tecnicos: pai.qtd_tecnicos || 1,
+        pop_id: ''
+      };
+      return { ...prev, itens: [...prev.itens.slice(0, posicao + 1), nova, ...prev.itens.slice(posicao + 1)] };
+    });
+  };
+
+  // Remover uma etapa principal remove também as sub-etapas dela
   const removerItem = (chave) => {
-    setForm((prev) => ({ ...prev, itens: prev.itens.filter((item) => item._chave !== chave) }));
+    setForm((prev) => ({ ...prev, itens: prev.itens.filter((item) => item._chave !== chave && item._pai !== chave) }));
   };
 
   const atualizarItem = (chave, nome, valor) => {
@@ -95,11 +143,22 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const itens = form.itens.map((item, indice) => {
+      const { _chave, _pai, ...resto } = item;
+      const temSubs = form.itens.some((i) => i._pai === _chave);
+      return {
+        ...resto,
+        pop_id: resto.pop_id || null,
+        pai_indice: _pai ? form.itens.findIndex((i) => i._chave === _pai) : null,
+        // a etapa que tem sub-etapas soma as horas delas
+        horas_previstas: temSubs ? horasDasSubs(form.itens, _chave) : resto.horas_previstas,
+        ordem: indice + 1
+      };
+    });
     onSalvar({
       ...form,
       tipo_servico_codigo: form.tipo_servico_codigo || null,
-      // eslint-disable-next-line no-unused-vars
-      itens: form.itens.map(({ _chave, ...item }) => ({ ...item, pop_id: item.pop_id || null }))
+      itens
     }, {
       // template padrão do tipo de serviço (usado na sugestão ao escolher o contrato)
       definirPadraoDe: form.tipo_servico_codigo && marcadoPadrao ? form.tipo_servico_codigo : null,
@@ -109,6 +168,7 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
     });
   };
 
+  const rotulos = numerar(form.itens);
   const titulo = editando ? 'Editar Template' : 'Novo Template';
 
   return (
@@ -228,7 +288,7 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
           <div className="border-t border-slate-700 pt-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-purple-400">
-                Etapas do Template ({form.itens.length})
+                Etapas do Template ({form.itens.filter((i) => !i._pai).length}{form.itens.some((i) => i._pai) ? ` · ${form.itens.filter((i) => i._pai).length} sub-etapas` : ''})
               </span>
               <button
                 type="button"
@@ -241,90 +301,117 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
             </div>
 
             <div className="space-y-2 max-h-[26rem] overflow-y-auto pr-2 custom-scrollbar">
-              {form.itens.map((item, index) => (
-                <div
-                  key={item._chave}
-                  className="p-2 bg-slate-800/50 rounded-lg border border-slate-700"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 w-6">{index + 1}.</span>
-                    <input
-                      type="text"
-                      className="flex-1 min-w-0 bg-transparent border-none text-sm text-white focus:outline-none"
-                      value={item.nome}
-                      onChange={(e) => atualizarItem(item._chave, 'nome', e.target.value)}
-                      placeholder="Nome da etapa"
-                      aria-label={`Nome da etapa ${index + 1}`}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removerItem(item._chave)}
-                      className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all"
-                      title="Remover etapa"
-                      aria-label={`Remover etapa ${index + 1}`}
-                    >
-                      <FaTrash size={10} aria-hidden="true" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2 pl-8">
-                    <label className="text-[10px] text-slate-400">
-                      Duração (dias úteis)
+              {form.itens.map((item) => {
+                const rotulo = rotulos.get(item._chave);
+                const ehSub = Boolean(item._pai);
+                const temSubs = !ehSub && form.itens.some((i) => i._pai === item._chave);
+                return (
+                  <div
+                    key={item._chave}
+                    className={`p-2 rounded-lg border ${ehSub ? 'ml-8 bg-slate-800/30 border-slate-700/70 border-l-2 border-l-purple-500/60' : 'bg-slate-800/50 border-slate-700'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500 w-8 shrink-0">{rotulo}.</span>
                       <input
-                        type="number"
-                        className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                        value={item.duracao_dias}
-                        onChange={(e) => atualizarItem(item._chave, 'duracao_dias', parseInt(e.target.value, 10) || 1)}
-                        min="1"
+                        type="text"
+                        className="flex-1 min-w-0 bg-transparent border-none text-sm text-white focus:outline-none"
+                        value={item.nome}
+                        onChange={(e) => atualizarItem(item._chave, 'nome', e.target.value)}
+                        placeholder={ehSub ? 'Nome da sub-etapa' : 'Nome da etapa'}
+                        aria-label={`Nome da ${ehSub ? 'sub-etapa' : 'etapa'} ${rotulo}`}
+                        required
                       />
-                    </label>
-                    <label className="text-[10px] text-slate-400">
-                      Tipo (define a agenda)
-                      <select
-                        className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                        value={item.tipo}
-                        onChange={(e) => atualizarItem(item._chave, 'tipo', e.target.value)}
+                      {!ehSub && (
+                        <button
+                          type="button"
+                          onClick={() => adicionarSubItem(item._chave)}
+                          className="text-[10px] flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-slate-200 hover:bg-slate-600 transition-all shrink-0"
+                          title="Adicionar sub-etapa (parte da etapa, em horas)"
+                          aria-label={`Adicionar sub-etapa à etapa ${rotulo}`}
+                        >
+                          <FaPlus size={8} aria-hidden="true" /> Sub-etapa
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removerItem(item._chave)}
+                        className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all"
+                        title={ehSub ? 'Remover sub-etapa' : 'Remover etapa'}
+                        aria-label={`Remover ${ehSub ? 'sub-etapa' : 'etapa'} ${rotulo}`}
                       >
-                        {TIPOS_ETAPA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
-                      </select>
-                    </label>
-                    <label className="text-[10px] text-slate-400">
-                      Horas previstas
-                      <CampoHoras
-                        className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                        value={item.horas_previstas}
-                        onChange={(valor) => atualizarItem(item._chave, 'horas_previstas', valor)}
-                        placeholder="HH:MM"
-                        aria-label="Horas previstas (HH:MM)"
-                      />
-                    </label>
-                    <label className="text-[10px] text-slate-400">
-                      Nº de técnicos
-                      <input
-                        type="number"
-                        className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                        value={item.qtd_tecnicos}
-                        onChange={(e) => atualizarItem(item._chave, 'qtd_tecnicos', Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        min="1"
-                      />
-                    </label>
-                    <label className="text-[10px] text-slate-400 col-span-2 md:col-span-1">
-                      POP
-                      <select
-                        className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
-                        value={item.pop_id}
-                        onChange={(e) => atualizarItem(item._chave, 'pop_id', e.target.value)}
-                      >
-                        <option value="">Nenhum</option>
-                        {(pops ?? []).map((p) => <option key={p.id} value={p.id}>{p.titulo}</option>)}
-                      </select>
-                    </label>
+                        <FaTrash size={10} aria-hidden="true" />
+                      </button>
+                    </div>
+                    <div className={`grid grid-cols-2 gap-2 mt-2 pl-8 ${ehSub ? 'md:grid-cols-4' : 'md:grid-cols-5'}`}>
+                      {!ehSub && (
+                        <label className="text-[10px] text-slate-400">
+                          Duração (dias úteis)
+                          <input
+                            type="number"
+                            className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                            value={item.duracao_dias}
+                            onChange={(e) => atualizarItem(item._chave, 'duracao_dias', parseInt(e.target.value, 10) || 1)}
+                            min="1"
+                          />
+                        </label>
+                      )}
+                      <label className="text-[10px] text-slate-400">
+                        Tipo (define a agenda)
+                        <select
+                          className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                          value={item.tipo}
+                          onChange={(e) => atualizarItem(item._chave, 'tipo', e.target.value)}
+                        >
+                          {TIPOS_ETAPA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
+                        </select>
+                      </label>
+                      <label className="text-[10px] text-slate-400">
+                        {temSubs ? 'Horas (soma das sub-etapas)' : 'Horas previstas'}
+                        {temSubs ? (
+                          <div className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 h-[26px] flex items-center">
+                            {formatarHoras(horasDasSubs(form.itens, item._chave))}
+                          </div>
+                        ) : (
+                          <CampoHoras
+                            className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                            value={item.horas_previstas}
+                            onChange={(valor) => atualizarItem(item._chave, 'horas_previstas', valor)}
+                            placeholder="HH:MM"
+                            aria-label="Horas previstas (HH:MM)"
+                          />
+                        )}
+                      </label>
+                      <label className="text-[10px] text-slate-400">
+                        Nº de técnicos
+                        <input
+                          type="number"
+                          className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                          value={item.qtd_tecnicos}
+                          onChange={(e) => atualizarItem(item._chave, 'qtd_tecnicos', Math.max(1, parseInt(e.target.value, 10) || 1))}
+                          min="1"
+                        />
+                      </label>
+                      <label className={`text-[10px] text-slate-400 ${ehSub ? '' : 'col-span-2 md:col-span-1'}`}>
+                        POP
+                        <select
+                          className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
+                          value={item.pop_id}
+                          onChange={(e) => atualizarItem(item._chave, 'pop_id', e.target.value)}
+                        >
+                          <option value="">Nenhum</option>
+                          {(pops ?? []).map((p) => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    {ehSub && (
+                      <p className="text-[10px] text-slate-500 mt-1 pl-8">Dentro da etapa pai: sem duração em dias, o tempo é controlado pelas horas.</p>
+                    )}
+                    {item.tipo === 'estoque' && (
+                      <p className="text-[10px] text-blue-300 mt-1 pl-8">📦 Etapa de material: gera o pedido de material automaticamente.</p>
+                    )}
                   </div>
-                  {item.tipo === 'estoque' && (
-                    <p className="text-[10px] text-blue-300 mt-1 pl-8">📦 Etapa de material: gera o pedido de material automaticamente.</p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
               {form.itens.length === 0 && (
                 <div className="text-center py-4 text-slate-500 text-sm">
                   Nenhuma etapa adicionada. Clique em "Adicionar Etapa" para começar.

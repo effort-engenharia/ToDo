@@ -4,6 +4,23 @@ import { IconeTemplate } from './icones';
 import { ROTULO_TIPO_ETAPA, ROTULO_TIPO_OBRA_TEMPLATE } from './constants';
 import { formatarHoras } from '../../utils/formatos';
 
+// "1", "1.1", "1.2", "2": sub-etapas (pai_ordem) ficam sob a etapa pai
+const rotularItens = (itens) => {
+  let principal = 0;
+  const rotuloPorOrdem = new Map();
+  const subs = new Map();
+  return itens.map((etapa) => {
+    if (etapa.pai_ordem == null) {
+      principal += 1;
+      rotuloPorOrdem.set(etapa.ordem, `${principal}`);
+      return { etapa, rotulo: `${principal}`, sub: false };
+    }
+    const n = (subs.get(etapa.pai_ordem) ?? 0) + 1;
+    subs.set(etapa.pai_ordem, n);
+    return { etapa, rotulo: `${rotuloPorOrdem.get(etapa.pai_ordem) ?? '?'}.${n}`, sub: true };
+  });
+};
+
 const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) => (
   <div
     className={`p-4 rounded-xl border transition-all ${
@@ -65,23 +82,28 @@ const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) 
         {ROTULO_TIPO_OBRA_TEMPLATE[template.tipo_obra] || template.tipo_obra || 'Geral'}
       </span>
       <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
-        {template.itens?.length || 0} etapas
+        {template.itens?.filter((i) => i.pai_ordem == null).length || 0} etapas
+        {template.itens?.some((i) => i.pai_ordem != null) ? ` · ${template.itens.filter((i) => i.pai_ordem != null).length} sub-etapas` : ''}
       </span>
     </div>
 
     {/* Lista de etapas do template */}
     <div className="space-y-1 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-      {template.itens?.slice(0, 5).map((etapa, idx) => (
+      {rotularItens(template.itens ?? []).slice(0, 5).map(({ etapa, rotulo, sub }, idx) => (
         <div
           key={etapa.id ?? idx}
-          className="flex items-center justify-between text-xs p-1.5 bg-slate-900/50 rounded"
+          className={`flex items-center justify-between text-xs p-1.5 bg-slate-900/50 rounded ${sub ? 'ml-4' : ''}`}
         >
           <span className="text-slate-300 truncate">
-            {idx + 1}. {etapa.nome}
+            {rotulo}. {etapa.nome}
             <span className="text-slate-500"> · {ROTULO_TIPO_ETAPA[etapa.tipo] || etapa.tipo}</span>
           </span>
           <span className="text-slate-500 shrink-0 ml-2">
-            {etapa.duracao_dias}d{etapa.horas_previstas ? ` · ${formatarHoras(etapa.horas_previstas)}` : ''}{etapa.qtd_tecnicos > 1 ? ` · ${etapa.qtd_tecnicos} téc.` : ''}
+            {[
+              sub ? null : `${etapa.duracao_dias}d`,
+              etapa.horas_previstas ? formatarHoras(etapa.horas_previstas) : null,
+              etapa.qtd_tecnicos > 1 ? `${etapa.qtd_tecnicos} téc.` : null
+            ].filter(Boolean).join(' · ')}
           </span>
         </div>
       ))}

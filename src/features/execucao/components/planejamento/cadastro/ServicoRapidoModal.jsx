@@ -5,11 +5,46 @@ import { addDias, dataLocalISO, parseDataLocal } from '../../../utils/datas';
 import Modal from '../../ui/Modal';
 import { useExecucaoUI } from '../../ui/ExecucaoUI';
 import { ehDiaUtil, proximoDiaUtil } from '../utils';
-import { camposDoContrato, equipeDaLinha, resolverCidade, sugerirTemplate, tipoEtapaDoTipoObra } from './cadastroUtils';
+import {
+  camposDoContrato,
+  equipeDaLinha,
+  etapasParaPayload,
+  gerarEtapasPrevia,
+  resolverCidade,
+  sugerirTemplate,
+  terminoPrevisto,
+  tipoEtapaDoTipoObra
+} from './cadastroUtils';
+import { formatarHoras } from '../../../utils/formatos';
 import SeletorContrato from './SeletorContrato';
 import SeletorEquipe from './SeletorEquipe';
 import { useDadosCadastro } from './useDadosCadastro';
 import './cadastro.css';
+
+// Linhas "1. Etapa · 1d · 2h" / "1.1 Sub-etapa · 30min" para o resumo do template escolhido
+const resumoTemplate = (template) => {
+  let principal = 0;
+  const rotulos = new Map();
+  const contagem = new Map();
+  return template.itens.map((item, i) => {
+    const sub = item.pai_ordem != null;
+    let rotulo;
+    if (!sub) {
+      principal += 1;
+      rotulo = `${principal}`;
+      rotulos.set(item.ordem, rotulo);
+    } else {
+      const n = (contagem.get(item.pai_ordem) ?? 0) + 1;
+      contagem.set(item.pai_ordem, n);
+      rotulo = `${rotulos.get(item.pai_ordem) ?? '?'}.${n}`;
+    }
+    const partes = [
+      sub ? null : `${item.duracao_dias || 1}d`,
+      item.horas_previstas ? formatarHoras(item.horas_previstas) : null
+    ].filter(Boolean);
+    return { chave: item.id ?? i, rotulo, nome: item.nome, sub, detalhe: partes.join(' · ') };
+  });
+};
 
 const mensagemDe = (resultado) => resultado?.message || 'erro desconhecido';
 
@@ -42,10 +77,17 @@ const ServicoRapidoModal = ({
   const [equipe, setEquipe] = useState({ liderId: '', apoioIds: [] });
   const [observacao, setObservacao] = useState('');
   const [salvando, setSalvando] = useState(false);
+  // null = segue o template sugerido pelo tipo de serviço; '' = sem template; id = template escolhido
+  const [templateEscolhido, setTemplateEscolhido] = useState(null);
 
   const tipo = tiposExecucao.find((t) => t.codigo === tipoCodigo) ?? null;
-  const templatePadrao = useMemo(() => sugerirTemplate(tipo, templates), [tipo, templates]);
-  const itemBase = templatePadrao?.itens?.[0] ?? null;
+  const templatesAtivos = useMemo(() => (templates ?? []).filter((t) => t.ativo && t.itens?.length), [templates]);
+  const templatePadrao = useMemo(() => sugerirTemplate(tipo, templates ?? []), [tipo, templates]);
+  const template = templateEscolhido === null
+    ? templatePadrao
+    : (templatesAtivos.find((t) => t.id === templateEscolhido) ?? null);
+  const itemBase = template?.itens?.[0] ?? null;
+  const qtdSugerida = template ? Math.max(1, ...template.itens.map((i) => i.qtd_tecnicos || 1)) : 1;
 
   const cidadeId = contrato?.cidade_id || resolverCidade(contrato?.cidade, cidades)?.id || '';
   const calendario = useMemo(() => calendarioDe(cidadeId), [calendarioDe, cidadeId]);
@@ -79,36 +121,41 @@ const ServicoRapidoModal = ({
     }
 
     const tipoEtapa = itemBase?.tipo && itemBase.tipo !== 'estoque' ? itemBase.tipo : tipoEtapaDoTipoObra(tipo?.tipo_obra);
+    // Com template: todas as etapas e sub-etapas dele, a partir da data escolhida, com a mesma equipe
+    const linhasTemplate = template
+      ? gerarEtapasPrevia(template, { inicioISO: data, calendario, responsavelId: equipe.liderId, primeiroNaData: true })
+          .map((l) => ({ ...l, lider_id: equipe.liderId, apoio_ids: equipe.apoioIds }))
+      : [];
     const obra = {
       nome_cliente: cliente.trim(),
       endereco: endereco.trim(),
       cidade: contrato?.cidade || '',
       cidade_id: cidadeId,
       data_inicio_prevista: data,
-      data_fim_prevista: data,
-      tipo_obra: tipo?.tipo_obra || 'eletrica',
+      data_fim_prevista: linhasTemplate.length ? (terminoPrevisto(linhasTemplate) || data) : data,
+      tipo_obra: tipo?.tipo_obra || template?.tipo_obra || 'eletrica',
       prioridade: 'media',
       responsavel_id: equipe.liderId,
       observacoes: observacao.trim(),
       contato_cliente: contrato?.contato_cliente || '',
       apontamento_id: contrato?.id || '',
-      template_id: templatePadrao?.id || '',
+      template_id: template?.id || '',
       valor_contrato: contrato?.valor_total_servico ?? '',
       tipo_servico_codigo: tipo?.codigo || '',
       rapido: true,
       status: 'planejada'
     };
-    const etapa = {
-      nome: tipo?.nome || itemBase?.nome || 'Serviço',
+    const etapaUnica = {
+      nome: tipo?.nome || 'Serviço',
       descricao: observacao.trim(),
       tipo: tipoEtapa,
       data_inicio: data,
       data_fim: data,
       ordem: 1,
       ...equipeDaLinha(equipe.liderId, equipe.apoioIds),
-      horas_previstas: itemBase?.horas_previstas != null ? String(itemBase.horas_previstas) : '',
+      horas_previstas: '',
       qtd_tecnicos: 1 + equipe.apoioIds.length,
-      pop_id: itemBase?.pop_id || '',
+      pop_id: '',
       hora_inicio: horaInicio,
       hora_fim: horaFim,
       observacoes: observacao.trim()
@@ -116,7 +163,8 @@ const ServicoRapidoModal = ({
 
     setSalvando(true);
     try {
-      const resultado = await execucaoPlanejamentoService.criarObraCompleta(obra, [etapa], true);
+      const etapas = linhasTemplate.length ? etapasParaPayload(linhasTemplate) : [etapaUnica];
+      const resultado = await execucaoPlanejamentoService.criarObraCompleta(obra, etapas, true);
       if (!resultado.success) {
         toast.error(`Não foi possível agendar o serviço: ${mensagemDe(resultado)}`);
         return;
@@ -195,9 +243,36 @@ const ServicoRapidoModal = ({
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="execucao-form-group !mb-0">
+            <label htmlFor="rapido-template" className="execucao-form-label">Template de etapas</label>
+            <select
+              id="rapido-template"
+              className="execucao-form-select"
+              value={templateEscolhido === null ? (templatePadrao?.id ?? '') : templateEscolhido}
+              onChange={(e) => setTemplateEscolhido(e.target.value)}
+            >
+              <option value="">Sem template (uma única atividade)</option>
+              {templatesAtivos.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nome} · {t.itens.filter((i) => i.pai_ordem == null).length} etapa(s)
+                </option>
+              ))}
+            </select>
+            {template && (
+              <ul className="cad-rapido-etapas" aria-label="Etapas que serão criadas">
+                {resumoTemplate(template).map((linha) => (
+                  <li key={linha.chave} className={linha.sub ? 'cad-rapido-sub' : undefined}>
+                    {linha.rotulo}. {linha.nome}
+                    <span className="text-slate-500">{linha.detalhe ? ` · ${linha.detalhe}` : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className={`grid grid-cols-1 gap-4 ${template ? 'sm:grid-cols-1' : 'sm:grid-cols-3'}`}>
             <div className="execucao-form-group !mb-0">
-              <label htmlFor="rapido-data" className="execucao-form-label">Data *</label>
+              <label htmlFor="rapido-data" className="execucao-form-label">{template ? 'Data de início *' : 'Data *'}</label>
               <input
                 id="rapido-data"
                 type="date"
@@ -208,6 +283,7 @@ const ServicoRapidoModal = ({
                 required
               />
             </div>
+            {!template && (<>
             <div className="execucao-form-group !mb-0">
               <label htmlFor="rapido-hora-inicio" className="execucao-form-label">Início</label>
               <input
@@ -230,7 +306,13 @@ const ServicoRapidoModal = ({
                 required
               />
             </div>
+            </>)}
           </div>
+          {template && (
+            <p className="text-xs text-slate-400">
+              As etapas seguem em dias úteis a partir da data de início e as sub-etapas entram na agenda do técnico dentro do dia da etapa.
+            </p>
+          )}
           {diaNaoUtil && (
             <p className="cad-aviso" role="status">
               Dia não útil (fim de semana ou feriado): só deve ser usado em emergência, como hora extra.
@@ -243,7 +325,7 @@ const ServicoRapidoModal = ({
               tecnicos={tecnicos}
               liderId={equipe.liderId}
               apoioIds={equipe.apoioIds}
-              sugerido={itemBase?.qtd_tecnicos || 1}
+              sugerido={qtdSugerida}
               rotulo="Técnicos"
               onChange={setEquipe}
             />

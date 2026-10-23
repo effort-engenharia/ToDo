@@ -11,9 +11,9 @@ import {
   FaProjectDiagram,
   FaBook,
   FaClipboardList,
-  FaSignOutAlt,
-  FaCog
+  FaSignOutAlt
 } from 'react-icons/fa';
+import { NIVEIS, isAdminExecucao } from '../utils/permissoes';
 import '../styles/execucao.css';
 
 // Definição dos itens do menu
@@ -86,12 +86,8 @@ const ExecucaoSidebar = ({
 
   // Obter nome do cargo
   const getRoleName = () => {
-    if (usuario?.nivel_acesso?.nome === 'Administrador' || usuario?.nivel_acesso?.nome === 'ADMIN_EXECUCAO') {
-      return 'Administrador';
-    }
-    if (usuario?.nivel_acesso?.nome === 'TECNICO') {
-      return 'Técnico';
-    }
+    if (isAdminExecucao(usuario)) return 'Administrador';
+    if (usuario?.nivel_acesso?.nome === NIVEIS.TECNICO) return 'Técnico';
     return usuario?.nivel_acesso?.nome || 'Usuário';
   };
 
@@ -102,10 +98,11 @@ const ExecucaoSidebar = ({
         <div 
           className="fixed inset-0 bg-black/50 z-30 lg:hidden"
           onClick={onCloseMobile}
+          aria-hidden="true"
         />
       )}
 
-      <aside className={`execucao-sidebar ${isMobileOpen ? 'open' : ''}`}>
+      <aside className={`execucao-sidebar ${isMobileOpen ? 'open' : ''}`} aria-label="Menu do módulo Execução">
         {/* Header com Logo */}
         <div className="execucao-sidebar-header">
           <div className="execucao-sidebar-logo">
@@ -129,16 +126,18 @@ const ExecucaoSidebar = ({
                 const isActive = currentPage === item.id;
                 
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={item.id}
                     className={`execucao-nav-item ${isActive ? 'active' : ''}`}
+                    aria-current={isActive ? 'page' : undefined}
                     onClick={() => handleItemClick(item)}
                   >
-                    <span className="execucao-nav-item-icon">
+                    <span className="execucao-nav-item-icon" aria-hidden="true">
                       <Icon />
                     </span>
                     <span>{item.label}</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -160,12 +159,14 @@ const ExecucaoSidebar = ({
               </div>
             </div>
             <button
+              type="button"
               onClick={onLogout}
               className="execucao-header-btn"
               title="Sair"
+              aria-label="Sair"
               style={{ marginLeft: 'auto' }}
             >
-              <FaSignOutAlt />
+              <FaSignOutAlt aria-hidden="true" />
             </button>
           </div>
         </div>

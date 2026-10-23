@@ -12,6 +12,66 @@ END;
 $function$
 ;
 
+-- Funções do módulo Execução (corpos completos em supabase/migrations/20261022_0*.sql)
+CREATE OR REPLACE FUNCTION public.current_usuario_id()
+ RETURNS uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$ SELECT id FROM public.usuarios WHERE auth_user_id = auth.uid() AND ativo LIMIT 1 $function$
+;
+
+CREATE OR REPLACE FUNCTION public.current_nivel()
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$ SELECT na.nome FROM public.usuarios u JOIN public.niveis_acesso na ON na.id = u.nivel_acesso_id WHERE u.auth_user_id = auth.uid() AND u.ativo LIMIT 1 $function$
+;
+
+CREATE OR REPLACE FUNCTION public.is_admin_execucao()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$ SELECT COALESCE(public.current_nivel() IN ('ADMIN_EXECUCAO', 'Administrador'), false) $function$
+;
+
+CREATE OR REPLACE FUNCTION public.is_usuario_execucao()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$ SELECT COALESCE(public.current_nivel() IN ('ADMIN_EXECUCAO', 'Administrador', 'TECNICO'), false) $function$
+;
+
+CREATE OR REPLACE FUNCTION public.alterar_status_atividade(p_id uuid, p_status text, p_motivo text DEFAULT NULL::text)
+ RETURNS execucao_atividades
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  -- status + histórico + notificação + etapa/obra vinculadas, em uma transação (ver migration 03)
+  RETURN NULL;
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.gerar_notificacoes_atraso()
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+BEGIN
+  -- notificações de atraso em lote, idempotentes por atividade/dia (ver migration 03)
+  RETURN 0;
+END;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.execucao_atividades_agregado(p_inicio date, p_fim date, p_tecnico uuid DEFAULT NULL::uuid)
+ RETURNS TABLE(data_programada date, tipo_execucao text, status text, tecnico_id uuid, total bigint)
+ LANGUAGE sql
+ STABLE
+AS $function$ SELECT a.data_programada, a.tipo_execucao::text, a.status::text, a.tecnico_responsavel_id, count(*) FROM public.execucao_atividades a WHERE a.data_programada BETWEEN p_inicio AND p_fim AND (p_tecnico IS NULL OR a.tecnico_responsavel_id = p_tecnico) GROUP BY 1, 2, 3, 4 $function$
+;
+
 CREATE TRIGGER update_administradoras_sindicos_updated_at BEFORE UPDATE ON public.administradoras_sindicos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_apontamentos_comerciais_updated_at BEFORE UPDATE ON public.apontamentos_comerciais FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_apontamentos_updated_at BEFORE UPDATE ON public.apontamentos_comerciais FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -29,9 +89,29 @@ CREATE POLICY access_logs_select_policy ON public.access_logs AS PERMISSIVE FOR 
    FROM users
   WHERE ((users.id = auth.uid()) AND (users.is_admin = true))))));
 CREATE POLICY "Allow all operations for authenticated users" ON public.arsenal_financiamentos AS PERMISSIVE FOR ALL TO public USING (true) WITH CHECK (true);
-CREATE POLICY "Historico pedidos insert policy" ON public.execucao_historico_pedidos AS PERMISSIVE FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "Historico pedidos select policy" ON public.execucao_historico_pedidos AS PERMISSIVE FOR SELECT TO public USING (true);
-CREATE POLICY "Permitir acesso total a templates de materiais" ON public.execucao_templates_materiais AS PERMISSIVE FOR ALL TO public USING (true) WITH CHECK (true);
+CREATE POLICY atv_admin_all ON public.execucao_atividades AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY atv_tecnico_select ON public.execucao_atividades AS PERMISSIVE FOR SELECT TO authenticated USING ((tecnico_responsavel_id = (SELECT current_usuario_id())));
+CREATE POLICY atv_tecnico_update ON public.execucao_atividades AS PERMISSIVE FOR UPDATE TO authenticated USING ((tecnico_responsavel_id = (SELECT current_usuario_id()))) WITH CHECK ((tecnico_responsavel_id = (SELECT current_usuario_id())));
+CREATE POLICY hist_admin_all ON public.execucao_atividades_historico AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY hist_tecnico_select ON public.execucao_atividades_historico AS PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS (SELECT 1 FROM execucao_atividades a WHERE (a.id = execucao_atividades_historico.atividade_id))));
+CREATE POLICY hist_tecnico_insert ON public.execucao_atividades_historico AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((usuario_id = (SELECT current_usuario_id())) AND (EXISTS (SELECT 1 FROM execucao_atividades a WHERE (a.id = execucao_atividades_historico.atividade_id)))));
+CREATE POLICY coment_admin_all ON public.execucao_atividades_comentarios AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY coment_tecnico_select ON public.execucao_atividades_comentarios AS PERMISSIVE FOR SELECT TO authenticated USING ((EXISTS (SELECT 1 FROM execucao_atividades a WHERE (a.id = execucao_atividades_comentarios.atividade_id))));
+CREATE POLICY coment_tecnico_insert ON public.execucao_atividades_comentarios AS PERMISSIVE FOR INSERT TO authenticated WITH CHECK (((usuario_id = (SELECT current_usuario_id())) AND (EXISTS (SELECT 1 FROM execucao_atividades a WHERE (a.id = execucao_atividades_comentarios.atividade_id)))));
+CREATE POLICY pops_read ON public.execucao_pops AS PERMISSIVE FOR SELECT TO authenticated USING ((SELECT is_usuario_execucao()));
+CREATE POLICY pops_admin_write ON public.execucao_pops AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY pops_arq_read ON public.execucao_pops_arquivos AS PERMISSIVE FOR SELECT TO authenticated USING ((SELECT is_usuario_execucao()));
+CREATE POLICY pops_arq_admin_write ON public.execucao_pops_arquivos AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_obras_admin_all ON public.execucao_obras AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_obras_etapas_admin_all ON public.execucao_obras_etapas AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_obras_arquivos_admin_all ON public.execucao_obras_arquivos AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_pedidos_material_admin_all ON public.execucao_pedidos_material AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_historico_pedidos_admin_all ON public.execucao_historico_pedidos AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_planejamento_macro_admin_all ON public.execucao_planejamento_macro AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_templates_etapas_admin_all ON public.execucao_templates_etapas AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_templates_etapas_itens_admin_all ON public.execucao_templates_etapas_itens AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_templates_materiais_admin_all ON public.execucao_templates_materiais AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
+CREATE POLICY execucao_notificacoes_admin_all ON public.execucao_notificacoes AS PERMISSIVE FOR ALL TO authenticated USING ((SELECT is_admin_execucao())) WITH CHECK ((SELECT is_admin_execucao()));
 CREATE POLICY page_permissions_insert_policy ON public.page_permissions AS PERMISSIVE FOR INSERT TO public WITH CHECK ((EXISTS ( SELECT 1
    FROM users
   WHERE ((users.id = auth.uid()) AND (users.is_admin = true)))));
@@ -110,6 +190,15 @@ CREATE INDEX idx_execucao_pops_ativo ON public.execucao_pops USING btree (ativo)
 CREATE INDEX idx_execucao_pops_categoria ON public.execucao_pops USING btree (categoria);
 CREATE INDEX idx_execucao_pops_ordem ON public.execucao_pops USING btree (ordem);
 CREATE INDEX idx_execucao_pops_arquivos_pop ON public.execucao_pops_arquivos USING btree (pop_id);
+CREATE INDEX idx_atv_tecnico_data ON public.execucao_atividades USING btree (tecnico_responsavel_id, data_programada);
+CREATE INDEX idx_atv_tipo_data ON public.execucao_atividades USING btree (tipo_execucao, data_programada);
+CREATE INDEX idx_atv_status_data ON public.execucao_atividades USING btree (status, data_programada);
+CREATE INDEX idx_hist_atv_created ON public.execucao_atividades_historico USING btree (atividade_id, created_at DESC);
+CREATE INDEX idx_pedidos_status_created ON public.execucao_pedidos_material USING btree (status, created_at DESC);
+CREATE INDEX idx_pedidos_obra ON public.execucao_pedidos_material USING btree (obra_id);
+CREATE INDEX idx_notif_lida_created ON public.execucao_notificacoes USING btree (lida, created_at DESC);
+CREATE INDEX idx_pops_cat_ativo_ordem ON public.execucao_pops USING btree (categoria, ativo, ordem);
+CREATE UNIQUE INDEX uq_notif_atraso_dia ON public.execucao_notificacoes USING btree (atividade_id, (((created_at AT TIME ZONE 'America/Sao_Paulo'::text))::date)) WHERE ((tipo)::text = 'atraso'::text);
 CREATE INDEX idx_execucao_pops_arquivos_tipo ON public.execucao_pops_arquivos USING btree (tipo);
 CREATE INDEX idx_templates_etapas_ativo ON public.execucao_templates_etapas USING btree (ativo);
 CREATE INDEX idx_templates_etapas_tipo_obra ON public.execucao_templates_etapas USING btree (tipo_obra);

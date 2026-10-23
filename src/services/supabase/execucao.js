@@ -1,5 +1,31 @@
 import { supabase } from './config.js';
 import { wrapServiceWithImpersonationGuard } from '../../utils/impersonationGuard.js';
+import {
+  dataLocalISO,
+  inicioDoDiaISO,
+  intervaloSemana,
+  intervaloPeriodo,
+  intervaloPeriodoAnterior,
+} from '../../features/execucao/utils/datas.js';
+
+const PAGE_SIZE = 1000;
+
+// O PostgREST limita cada resposta (~1000 linhas) sem avisar; percorre todas as páginas.
+// `buildQuery` deve devolver uma query nova a cada chamada.
+async function fetchAll(buildQuery, maxPages = 20) {
+  const rows = [];
+  for (let page = 0; page < maxPages; page++) {
+    const { data, error } = await buildQuery().range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+const BUCKET_OBRAS = 'obras-arquivos';
+const BUCKET_POPS = 'pops-arquivos';
+const URL_ASSINADA_SEGUNDOS = 3600;
 
 // Métodos do serviço de execução. Um Proxy no final adiciona bloqueio
 // automático de operações de escrita quando o admin está impersonando.
@@ -11,39 +37,27 @@ const _execucaoService = {
   // Buscar todas as atividades
   async buscarAtividades(filtros = {}) {
     try {
-      let query = supabase
-        .from('execucao_atividades')
-        .select(`
-          *,
-          tecnico:usuarios!tecnico_responsavel_id(id, nome_completo, email),
-          criador:usuarios!created_by(id, nome_completo)
-        `)
-        .order('data_programada', { ascending: true })
-        .order('hora_inicio', { ascending: true });
+      const data = await fetchAll(() => {
+        let query = supabase
+          .from('execucao_atividades')
+          .select(`
+            *,
+            tecnico:usuarios!tecnico_responsavel_id(id, nome_completo, email),
+            criador:usuarios!created_by(id, nome_completo)
+          `)
+          .order('data_programada', { ascending: true })
+          .order('hora_inicio', { ascending: true })
+          .order('id', { ascending: true });
 
-      // Aplicar filtros
-      if (filtros.tipo_execucao) {
-        query = query.eq('tipo_execucao', filtros.tipo_execucao);
-      }
-      if (filtros.status) {
-        query = query.eq('status', filtros.status);
-      }
-      if (filtros.tecnico_id) {
-        query = query.eq('tecnico_responsavel_id', filtros.tecnico_id);
-      }
-      if (filtros.data_inicio) {
-        query = query.gte('data_programada', filtros.data_inicio);
-      }
-      if (filtros.data_fim) {
-        query = query.lte('data_programada', filtros.data_fim);
-      }
-      if (filtros.data_programada) {
-        query = query.eq('data_programada', filtros.data_programada);
-      }
+        if (filtros.tipo_execucao) query = query.eq('tipo_execucao', filtros.tipo_execucao);
+        if (filtros.status) query = query.eq('status', filtros.status);
+        if (filtros.tecnico_id) query = query.eq('tecnico_responsavel_id', filtros.tecnico_id);
+        if (filtros.data_inicio) query = query.gte('data_programada', filtros.data_inicio);
+        if (filtros.data_fim) query = query.lte('data_programada', filtros.data_fim);
+        if (filtros.data_programada) query = query.eq('data_programada', filtros.data_programada);
+        return query;
+      });
 
-      const { data, error } = await query;
-
-      if (error) throw error;
       return { success: true, data };
     } catch (error) {
       console.error('Erro ao buscar atividades:', error);
@@ -53,14 +67,44 @@ const _execucaoService = {
 
   // Buscar atividades do dia
   async buscarAtividadesDoDia(data = null) {
-    const hoje = data || new Date().toISOString().split('T')[0];
+    const hoje = data || dataLocalISO();
     return this.buscarAtividades({ data_programada: hoje });
+  },
+
+  // Atividades de um técnico: 'hoje' | 'semana' (seg-dom) | 'todas'
+  async buscarAtividadesTecnico(tecnicoId, periodo = 'hoje') {
+    try {
+      let query = supabase
+        .from('execucao_atividades')
+        .select(`
+          *,
+          tecnico:usuarios!tecnico_responsavel_id(id, nome_completo, email)
+        `)
+        .eq('tecnico_responsavel_id', tecnicoId)
+        .order('data_programada', { ascending: true })
+        .order('hora_inicio', { ascending: true, nullsFirst: false });
+
+      if (periodo === 'hoje') {
+        query = query.eq('data_programada', dataLocalISO());
+      } else if (periodo === 'semana') {
+        const { inicio, fim } = intervaloSemana();
+        query = query.gte('data_programada', inicio).lte('data_programada', fim);
+      } else {
+        query = query.limit(500);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return { success: true, data: data ?? [] };
+    } catch (error) {
+      console.error('Erro ao buscar atividades do técnico:', error);
+      return { success: false, message: error.message, data: [] };
+    }
   },
 
   // Buscar atividades pausadas com justificativas (do histórico)
   async buscarAtividadesPausadas() {
     try {
-      // Buscar atividades com status pausada
       const { data: atividades, error } = await supabase
         .from('execucao_atividades')
         .select(`
@@ -72,29 +116,30 @@ const _execucaoService = {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
+      if (!atividades.length) return { success: true, data: [] };
 
-      // Buscar a última justificativa de pausa de cada atividade no histórico
-      const atividadesComJustificativa = await Promise.all(
-        atividades.map(async (atividade) => {
-          const { data: historico } = await supabase
-            .from('execucao_atividades_historico')
-            .select(`
-              *,
-              usuario:usuarios(id, nome_completo)
-            `)
-            .eq('atividade_id', atividade.id)
-            .eq('tipo_acao', 'pausa')
-            .order('created_at', { ascending: false })
-            .limit(1);
+      // Uma única consulta para todas as pausas; a mais recente de cada atividade prevalece
+      const { data: historico, error: histError } = await supabase
+        .from('execucao_atividades_historico')
+        .select(`
+          *,
+          usuario:usuarios(id, nome_completo)
+        `)
+        .in('atividade_id', atividades.map(a => a.id))
+        .eq('tipo_acao', 'pausa')
+        .order('created_at', { ascending: false });
 
-          return {
-            ...atividade,
-            pausa_info: historico?.[0] || null
-          };
-        })
-      );
+      if (histError) throw histError;
 
-      return { success: true, data: atividadesComJustificativa };
+      const ultimaPausa = new Map();
+      for (const h of historico ?? []) {
+        if (!ultimaPausa.has(h.atividade_id)) ultimaPausa.set(h.atividade_id, h);
+      }
+
+      return {
+        success: true,
+        data: atividades.map(a => ({ ...a, pausa_info: ultimaPausa.get(a.id) || null }))
+      };
     } catch (error) {
       console.error('Erro ao buscar atividades pausadas:', error);
       return { success: false, message: error.message };
@@ -104,20 +149,21 @@ const _execucaoService = {
   // Buscar atividades do dia + atrasadas (pendentes de dias anteriores) + concluídas hoje
   async buscarAtividadesDoDiaComAtrasadas(data = null) {
     try {
-      const hoje = data || new Date().toISOString().split('T')[0];
-      
-      const { data: atividades, error } = await supabase
+      const hoje = data || dataLocalISO();
+      const inicioHoje = inicioDoDiaISO(hoje);
+
+      const atividades = await fetchAll(() => supabase
         .from('execucao_atividades')
         .select(`
           *,
           tecnico:usuarios!tecnico_responsavel_id(id, nome_completo, email),
           criador:usuarios!created_by(id, nome_completo)
         `)
-        .or(`data_programada.eq.${hoje},and(data_programada.lt.${hoje},status.in.(pendente,em_andamento,pausada)),and(status.eq.concluida,updated_at.gte.${hoje})`)
+        .or(`data_programada.eq.${hoje},and(data_programada.lt.${hoje},status.in.(pendente,em_andamento,pausada)),and(status.eq.concluida,updated_at.gte.${inicioHoje})`)
         .order('data_programada', { ascending: true })
-        .order('hora_inicio', { ascending: true });
+        .order('hora_inicio', { ascending: true })
+        .order('id', { ascending: true }));
 
-      if (error) throw error;
       return { success: true, data: atividades };
     } catch (error) {
       console.error('Erro ao buscar atividades do dia com atrasadas:', error);
@@ -166,10 +212,9 @@ const _execucaoService = {
 
       if (error) throw error;
 
-      // Registrar no histórico
-      await this.registrarHistorico(data.id, usuarioId, 'criacao', 'Atividade criada');
+      const historico = await this.registrarHistorico(data.id, usuarioId, 'criacao', 'Atividade criada');
 
-      return { success: true, data };
+      return { success: true, data, ...(historico.success ? {} : { warning: historico.message }) };
     } catch (error) {
       console.error('Erro ao criar atividade:', error);
       return { success: false, message: error.message };
@@ -179,12 +224,13 @@ const _execucaoService = {
   // Atualizar atividade
   async atualizarAtividade(id, atualizacoes, usuarioId) {
     try {
-      // Buscar dados atuais para histórico
-      const { data: atividadeAtual } = await supabase
+      const { data: atividadeAtual, error: atualError } = await supabase
         .from('execucao_atividades')
         .select('*')
         .eq('id', id)
         .single();
+
+      if (atualError) throw atualError;
 
       const { data, error } = await supabase
         .from('execucao_atividades')
@@ -201,96 +247,44 @@ const _execucaoService = {
 
       if (error) throw error;
 
-      // Registrar mudanças no histórico
-      for (const [campo, valorNovo] of Object.entries(atualizacoes)) {
-        if (atividadeAtual[campo] !== valorNovo) {
-          await this.registrarHistorico(id, usuarioId, 'edicao', `Campo ${campo} alterado`, atividadeAtual[campo]?.toString(), valorNovo?.toString());
+      // Um único insert com todas as alterações
+      const alteracoes = Object.entries(atualizacoes)
+        .filter(([campo, valorNovo]) => atividadeAtual[campo] !== valorNovo)
+        .map(([campo, valorNovo]) => ({
+          atividade_id: id,
+          usuario_id: usuarioId,
+          tipo_acao: 'edicao',
+          descricao: `Campo ${campo} alterado`,
+          valor_anterior: atividadeAtual[campo]?.toString() ?? null,
+          valor_novo: valorNovo?.toString() ?? null
+        }));
+
+      let warning;
+      if (alteracoes.length) {
+        const { error: histError } = await supabase.from('execucao_atividades_historico').insert(alteracoes);
+        if (histError) {
+          console.error('Erro ao registrar histórico:', histError);
+          warning = histError.message;
         }
       }
 
-      return { success: true, data };
+      return { success: true, data, ...(warning ? { warning } : {}) };
     } catch (error) {
       console.error('Erro ao atualizar atividade:', error);
       return { success: false, message: error.message };
     }
   },
 
-  // Alterar status da atividade
-  async alterarStatusAtividade(id, novoStatus, usuarioId, motivo = null) {
+  // Alterar status da atividade (RPC transacional: status + histórico + notificação + etapa vinculada)
+  async alterarStatusAtividade(id, novoStatus, _usuarioId, motivo = null) {
     try {
-      const { data: atividadeAtual } = await supabase
-        .from('execucao_atividades')
-        .select('status, titulo, tecnico:usuarios!tecnico_responsavel_id(nome_completo)')
-        .eq('id', id)
-        .single();
-
-      const updateData = {
-        status: novoStatus,
-        updated_at: new Date().toISOString()
-      };
-
-      const { data, error } = await supabase
-        .from('execucao_atividades')
-        .update(updateData)
-        .eq('id', id)
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc('alterar_status_atividade', {
+        p_id: id,
+        p_status: novoStatus,
+        p_motivo: motivo
+      });
 
       if (error) throw error;
-
-      // Registrar no histórico
-      let tipoAcao = 'status_alterado';
-      let descricao = `Status alterado para ${novoStatus}`;
-      let tipoNotificacao = null;
-      let tituloNotificacao = '';
-      let mensagemNotificacao = '';
-      const tecnicoNome = atividadeAtual.tecnico?.nome_completo || 'Técnico';
-      
-      if (novoStatus === 'concluida') {
-        tipoAcao = 'conclusao';
-        descricao = 'Atividade concluída';
-        tipoNotificacao = 'conclusao';
-        tituloNotificacao = '✅ Atividade Concluída';
-        mensagemNotificacao = `${tecnicoNome} concluiu a atividade "${atividadeAtual.titulo}"`;
-      } else if (novoStatus === 'cancelada') {
-        tipoAcao = 'cancelamento';
-        descricao = 'Atividade cancelada';
-      } else if (novoStatus === 'pausada') {
-        tipoAcao = 'pausa';
-        descricao = motivo ? `Atividade pausada. Motivo: ${motivo}` : 'Atividade pausada';
-        tipoNotificacao = 'pausa';
-        tituloNotificacao = '⏸️ Atividade Pausada';
-        mensagemNotificacao = `${tecnicoNome} pausou a atividade "${atividadeAtual.titulo}"${motivo ? `. Motivo: ${motivo}` : ''}`;
-      } else if (novoStatus === 'em_andamento' && atividadeAtual.status === 'pausada') {
-        tipoAcao = 'retomada';
-        descricao = 'Atividade retomada';
-        tipoNotificacao = 'retomada';
-        tituloNotificacao = '▶️ Atividade Retomada';
-        mensagemNotificacao = `${tecnicoNome} retomou a atividade "${atividadeAtual.titulo}"`;
-      } else if (novoStatus === 'pendente') {
-        tipoNotificacao = 'pendente';
-        tituloNotificacao = '📋 Atividade Pendente';
-        mensagemNotificacao = `A atividade "${atividadeAtual.titulo}" foi marcada como pendente`;
-      }
-      
-      await this.registrarHistorico(id, usuarioId, tipoAcao, descricao, atividadeAtual.status, novoStatus);
-
-      // Criar notificação para administrador
-      if (tipoNotificacao) {
-        await this.criarNotificacao({
-          tipo: tipoNotificacao,
-          titulo: tituloNotificacao,
-          mensagem: mensagemNotificacao,
-          atividade_id: id,
-          usuario_origem_id: usuarioId
-        });
-      }
-
-      // Se concluída, verificar se há etapa vinculada e atualizar progresso
-      if (novoStatus === 'concluida') {
-        await this.atualizarEtapaVinculada(id);
-      }
-
       return { success: true, data };
     } catch (error) {
       console.error('Erro ao alterar status:', error);
@@ -298,81 +292,16 @@ const _execucaoService = {
     }
   },
 
-  // Atualizar etapa vinculada quando atividade é concluída
-  async atualizarEtapaVinculada(atividadeId) {
-    try {
-      // Buscar atividade com etapa_id
-      const { data: atividade, error: atividadeError } = await supabase
-        .from('execucao_atividades')
-        .select('id, titulo, cliente_nome, etapa_id')
-        .eq('id', atividadeId)
-        .single();
-
-      if (atividadeError || !atividade) return;
-
-      // Se tem etapa_id direto, usar ele
-      if (atividade.etapa_id) {
-        await supabase
-          .from('execucao_obras_etapas')
-          .update({
-            progresso: 100,
-            status: 'concluida',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', atividade.etapa_id);
-        console.log('✅ Etapa vinculada atualizada para 100%');
-        return;
-      }
-
-      // Se não tem etapa_id, tentar encontrar por título + cliente usando RPC ou query direta
-      // Buscar todas as etapas com o mesmo nome
-      const { data: etapas, error: etapaError } = await supabase
-        .from('execucao_obras_etapas')
-        .select('id, nome, obra:execucao_obras(nome_cliente)')
-        .eq('nome', atividade.titulo);
-
-      if (!etapaError && etapas && etapas.length > 0) {
-        // Verificar se o cliente bate
-        const etapaMatch = etapas.find(e => 
-          e.obra?.nome_cliente === atividade.cliente_nome
-        );
-        
-        if (etapaMatch) {
-          await supabase
-            .from('execucao_obras_etapas')
-            .update({
-              progresso: 100,
-              status: 'concluida',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', etapaMatch.id);
-          
-          // Vincular atividade à etapa para futuras atualizações
-          await supabase
-            .from('execucao_atividades')
-            .update({ etapa_id: etapaMatch.id })
-            .eq('id', atividadeId);
-            
-          console.log('✅ Etapa encontrada e atualizada para 100%:', etapaMatch.id);
-        } else {
-          console.log('⚠️ Nenhuma etapa encontrada com cliente correspondente');
-        }
-      } else {
-        console.log('⚠️ Nenhuma etapa encontrada com o nome:', atividade.titulo);
-      }
-    } catch (error) {
-      console.error('Erro ao atualizar etapa vinculada:', error);
-    }
-  },
-
   // Transferir atividade para outro técnico
   async transferirAtividade(id, novoTecnicoId, usuarioId, motivo = '') {
     try {
-      const { data: atividadeAtual } = await supabase
+      const { data: atividadeAtual, error: atualError } = await supabase
         .from('execucao_atividades')
         .select('tecnico_responsavel_id')
         .eq('id', id)
         .single();
+
+      if (atualError) throw atualError;
 
       const { data, error } = await supabase
         .from('execucao_atividades')
@@ -390,10 +319,9 @@ const _execucaoService = {
 
       if (error) throw error;
 
-      // Registrar no histórico
-      await this.registrarHistorico(id, usuarioId, 'transferencia', motivo || 'Atividade transferida', atividadeAtual.tecnico_responsavel_id, novoTecnicoId);
+      const historico = await this.registrarHistorico(id, usuarioId, 'transferencia', motivo || 'Atividade transferida', atividadeAtual.tecnico_responsavel_id, novoTecnicoId);
 
-      return { success: true, data };
+      return { success: true, data, ...(historico.success ? {} : { warning: historico.message }) };
     } catch (error) {
       console.error('Erro ao transferir atividade:', error);
       return { success: false, message: error.message };
@@ -422,7 +350,7 @@ const _execucaoService = {
 
   async registrarHistorico(atividadeId, usuarioId, tipoAcao, descricao, valorAnterior = null, valorNovo = null) {
     try {
-      await supabase
+      const { error } = await supabase
         .from('execucao_atividades_historico')
         .insert([{
           atividade_id: atividadeId,
@@ -432,9 +360,23 @@ const _execucaoService = {
           valor_anterior: valorAnterior,
           valor_novo: valorNovo
         }]);
+
+      if (error) throw error;
+      return { success: true };
     } catch (error) {
       console.error('Erro ao registrar histórico:', error);
+      return { success: false, message: error.message };
     }
+  },
+
+  // Alias usado pelos componentes
+  async buscarHistoricoAtividade(atividadeId) {
+    return this.buscarHistorico(atividadeId);
+  },
+
+  // Alias usado pelos componentes
+  async buscarComentariosAtividade(atividadeId) {
+    return this.buscarComentarios(atividadeId);
   },
 
   async buscarHistorico(atividadeId) {
@@ -512,26 +454,23 @@ const _execucaoService = {
 
   async buscarPedidosMaterial(filtros = {}) {
     try {
-      let query = supabase
-        .from('execucao_pedidos_material')
-        .select(`
-          *,
-          solicitante:usuarios!solicitante_id(id, nome_completo),
-          aprovador:usuarios!aprovado_por(id, nome_completo),
-          atividade:execucao_atividades(id, titulo)
-        `)
-        .order('created_at', { ascending: false });
+      const data = await fetchAll(() => {
+        let query = supabase
+          .from('execucao_pedidos_material')
+          .select(`
+            *,
+            solicitante:usuarios!solicitante_id(id, nome_completo),
+            aprovador:usuarios!aprovado_por(id, nome_completo),
+            atividade:execucao_atividades(id, titulo)
+          `)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true });
 
-      if (filtros.status) {
-        query = query.eq('status', filtros.status);
-      }
-      if (filtros.solicitante_id) {
-        query = query.eq('solicitante_id', filtros.solicitante_id);
-      }
+        if (filtros.status) query = query.eq('status', filtros.status);
+        if (filtros.solicitante_id) query = query.eq('solicitante_id', filtros.solicitante_id);
+        return query;
+      });
 
-      const { data, error } = await query;
-
-      if (error) throw error;
       return { success: true, data };
     } catch (error) {
       console.error('Erro ao buscar pedidos de material:', error);
@@ -770,7 +709,8 @@ const _execucaoService = {
           criador:usuarios!created_by(id, nome_completo),
           arquivos:execucao_pops_arquivos(*)
         `)
-        .order('ordem', { ascending: true });
+        .order('ordem', { ascending: true })
+        .order('created_at', { ascending: false });
 
       if (filtros.categoria) {
         query = query.eq('categoria', filtros.categoria);
@@ -782,11 +722,35 @@ const _execucaoService = {
       const { data, error } = await query;
 
       if (error) throw error;
-      return { success: true, data };
+
+      // Bucket privado: gera URLs assinadas em lote para todos os anexos
+      const caminhos = data.flatMap(p => (p.arquivos ?? []).map(a => a.caminho_storage));
+      const urls = new Map();
+      if (caminhos.length) {
+        const { data: assinadas } = await supabase.storage
+          .from(BUCKET_POPS)
+          .createSignedUrls(caminhos, URL_ASSINADA_SEGUNDOS);
+        for (const s of assinadas ?? []) {
+          if (s.signedUrl) urls.set(s.path, s.signedUrl);
+        }
+      }
+
+      const normalizados = data.map(p => ({
+        ...p,
+        tags: Array.isArray(p.tags) ? p.tags : [],
+        arquivos: (p.arquivos ?? []).map(a => ({ ...a, url: urls.get(a.caminho_storage) ?? null }))
+      }));
+
+      return { success: true, data: normalizados };
     } catch (error) {
       console.error('Erro ao buscar POPs:', error);
       return { success: false, message: error.message };
     }
+  },
+
+  // Alias usado pelos componentes
+  async listarPOPs(filtros = {}) {
+    return this.buscarPOPs(filtros);
   },
 
   async criarPOP(pop, usuarioId) {
@@ -830,12 +794,28 @@ const _execucaoService = {
 
   async excluirPOP(id) {
     try {
+      const { data: arquivos, error: arqError } = await supabase
+        .from('execucao_pops_arquivos')
+        .select('caminho_storage')
+        .eq('pop_id', id);
+
+      if (arqError) throw arqError;
+
       const { error } = await supabase
         .from('execucao_pops')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+
+      // Depois do delete no banco, remove os anexos do Storage (evita arquivos órfãos)
+      if (arquivos?.length) {
+        const { error: storageError } = await supabase.storage
+          .from(BUCKET_POPS)
+          .remove(arquivos.map(a => a.caminho_storage));
+        if (storageError) console.error('Erro ao remover anexos do POP:', storageError);
+      }
+
       return { success: true };
     } catch (error) {
       console.error('Erro ao excluir POP:', error);
@@ -862,14 +842,62 @@ const _execucaoService = {
     }
   },
 
+  // Envia o arquivo ao Storage (bucket privado) e registra os metadados
+  async uploadArquivoPOP(popId, file) {
+    const caminho = `${popId}/${crypto.randomUUID()}-${file.name.replace(/[^\w.-]+/g, '_')}`;
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET_POPS)
+        .upload(caminho, file, { contentType: file.type || undefined, upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const tipo = file.type?.startsWith('image/') ? 'foto'
+        : file.type?.startsWith('video/') ? 'video'
+        : 'documento';
+
+      const resultado = await this.adicionarArquivoPOP(popId, {
+        tipo,
+        nome: file.name,
+        nome_arquivo_original: file.name,
+        caminho_storage: caminho,
+        tamanho_bytes: file.size,
+        mime_type: file.type || null
+      });
+
+      if (!resultado.success) {
+        await supabase.storage.from(BUCKET_POPS).remove([caminho]);
+        throw new Error(resultado.message);
+      }
+      return resultado;
+    } catch (error) {
+      console.error('Erro no upload do arquivo do POP:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
   async excluirArquivoPOP(arquivoId) {
     try {
+      const { data: arquivo, error: buscaError } = await supabase
+        .from('execucao_pops_arquivos')
+        .select('caminho_storage')
+        .eq('id', arquivoId)
+        .single();
+
+      if (buscaError) throw buscaError;
+
       const { error } = await supabase
         .from('execucao_pops_arquivos')
         .delete()
         .eq('id', arquivoId);
 
       if (error) throw error;
+
+      const { error: storageError } = await supabase.storage
+        .from(BUCKET_POPS)
+        .remove([arquivo.caminho_storage]);
+      if (storageError) console.error('Erro ao remover arquivo do Storage:', storageError);
+
       return { success: true };
     } catch (error) {
       console.error('Erro ao excluir arquivo do POP:', error);
@@ -884,37 +912,28 @@ const _execucaoService = {
   // Buscar todas as obras com filtros
   async buscarObras(filtros = {}) {
     try {
-      let query = supabase
-        .from('execucao_obras')
-        .select(`
-          *,
-          responsavel:usuarios!responsavel_id(id, nome_completo, email),
-          etapas:execucao_obras_etapas(
+      const data = await fetchAll(() => {
+        let query = supabase
+          .from('execucao_obras')
+          .select(`
             *,
-            responsavel:usuarios!execucao_obras_etapas_responsavel_id_fkey(id, nome_completo)
-          )
-        `)
-        .order('data_inicio_prevista', { ascending: true });
+            responsavel:usuarios!responsavel_id(id, nome_completo, email),
+            etapas:execucao_obras_etapas(
+              *,
+              responsavel:usuarios!execucao_obras_etapas_responsavel_id_fkey(id, nome_completo)
+            )
+          `)
+          .order('data_inicio_prevista', { ascending: true })
+          .order('id', { ascending: true });
 
-      if (filtros.status) {
-        query = query.eq('status', filtros.status);
-      }
-      if (filtros.tipo_obra) {
-        query = query.eq('tipo_obra', filtros.tipo_obra);
-      }
-      if (filtros.responsavel_id) {
-        query = query.eq('responsavel_id', filtros.responsavel_id);
-      }
-      if (filtros.data_inicio) {
-        query = query.gte('data_inicio_prevista', filtros.data_inicio);
-      }
-      if (filtros.data_fim) {
-        query = query.lte('data_fim_prevista', filtros.data_fim);
-      }
+        if (filtros.status) query = query.eq('status', filtros.status);
+        if (filtros.tipo_obra) query = query.eq('tipo_obra', filtros.tipo_obra);
+        if (filtros.responsavel_id) query = query.eq('responsavel_id', filtros.responsavel_id);
+        if (filtros.data_inicio) query = query.gte('data_inicio_prevista', filtros.data_inicio);
+        if (filtros.data_fim) query = query.lte('data_fim_prevista', filtros.data_fim);
+        return query;
+      });
 
-      const { data, error } = await query;
-
-      if (error) throw error;
       return { success: true, data };
     } catch (error) {
       console.error('Erro ao buscar obras:', error);
@@ -925,36 +944,14 @@ const _execucaoService = {
   // Buscar obras por período (para filtros de visualização)
   async buscarObrasPorPeriodo(periodo) {
     try {
-      const hoje = new Date();
-      let dataInicio, dataFim;
-
-      switch (periodo) {
-        case 'semana':
-          dataInicio = new Date(hoje);
-          dataInicio.setDate(hoje.getDate() - hoje.getDay());
-          dataFim = new Date(dataInicio);
-          dataFim.setDate(dataInicio.getDate() + 6);
-          break;
-        case 'mes':
-          dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-          dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
-          break;
-        case 'trimestre':
-          const trimestre = Math.floor(hoje.getMonth() / 3);
-          dataInicio = new Date(hoje.getFullYear(), trimestre * 3, 1);
-          dataFim = new Date(hoje.getFullYear(), trimestre * 3 + 3, 0);
-          break;
-        case 'ano':
-          dataInicio = new Date(hoje.getFullYear(), 0, 1);
-          dataFim = new Date(hoje.getFullYear(), 11, 31);
-          break;
-        case 'todos':
-        default:
-          // Sem filtro de data
-          return this.buscarObras({});
+      if (!['semana', 'mes', 'trimestre', 'ano'].includes(periodo)) {
+        return this.buscarObras({});
       }
 
-      const { data, error } = await supabase
+      const { inicio, fim } = intervaloPeriodo(periodo);
+
+      // Interseção: a obra começa até o fim do período e termina a partir do início
+      const data = await fetchAll(() => supabase
         .from('execucao_obras')
         .select(`
           *,
@@ -964,19 +961,12 @@ const _execucaoService = {
             responsavel:usuarios!execucao_obras_etapas_responsavel_id_fkey(id, nome_completo)
           )
         `)
-        .or(`data_inicio_prevista.lte.${dataFim.toISOString().split('T')[0]},data_fim_prevista.gte.${dataInicio.toISOString().split('T')[0]}`)
-        .order('data_inicio_prevista', { ascending: true });
+        .lte('data_inicio_prevista', fim)
+        .gte('data_fim_prevista', inicio)
+        .order('data_inicio_prevista', { ascending: true })
+        .order('id', { ascending: true }));
 
-      if (error) throw error;
-
-      // Filtrar obras que realmente intersectam o período
-      const obrasFiltradas = data.filter(obra => {
-        const inicio = new Date(obra.data_inicio_prevista);
-        const fim = new Date(obra.data_fim_prevista);
-        return inicio <= dataFim && fim >= dataInicio;
-      });
-
-      return { success: true, data: obrasFiltradas };
+      return { success: true, data };
     } catch (error) {
       console.error('Erro ao buscar obras por período:', error);
       return { success: false, message: error.message };
@@ -1038,12 +1028,17 @@ const _execucaoService = {
 
       if (error) throw error;
 
-      // Se houver arquivos, fazer upload
+      // Se houver arquivos, fazer upload e informar as falhas (a obra já foi criada)
+      let warning;
       if (arquivos_pdf && arquivos_pdf.length > 0) {
-        await this.uploadArquivosObra(data.id, arquivos_pdf);
+        const upload = await this.uploadArquivosObra(data.id, arquivos_pdf);
+        if (!upload.success) {
+          const nomes = (upload.falhas ?? []).map(f => f.arquivo).join(', ');
+          warning = `Obra criada, mas o envio de PDF falhou${nomes ? `: ${nomes}` : ''}`;
+        }
       }
 
-      return { success: true, data };
+      return { success: true, data, ...(warning ? { warning } : {}) };
     } catch (error) {
       console.error('Erro ao criar obra:', error);
       return { success: false, message: error.message };
@@ -1053,8 +1048,8 @@ const _execucaoService = {
   // Atualizar obra
   async atualizarObra(id, atualizacoes) {
     try {
-      // Separar arquivos do objeto
-      const { arquivos_pdf, ...dadosAtualizacao } = atualizacoes;
+      // Separar arquivos do objeto (upload é feito à parte)
+      const { arquivos_pdf: _arquivos, ...dadosAtualizacao } = atualizacoes;
       
       const { data, error } = await supabase
         .from('execucao_obras')
@@ -1077,39 +1072,50 @@ const _execucaoService = {
     }
   },
 
-  // Excluir obra e todas as atividades/pedidos relacionados
+  // Excluir obra e as atividades/pedidos vinculados a ela por FK (etapa_id / obra_id)
   async excluirObra(id) {
     try {
-      // Buscar dados da obra antes de excluir
-      const { data: obra } = await supabase
-        .from('execucao_obras')
-        .select('nome_cliente')
-        .eq('id', id)
-        .single();
+      const { data: etapas, error: etapasError } = await supabase
+        .from('execucao_obras_etapas')
+        .select('id')
+        .eq('obra_id', id);
 
-      if (obra) {
-        // Excluir todas as atividades relacionadas a esta obra
-        await supabase
+      if (etapasError) throw etapasError;
+
+      const etapaIds = (etapas ?? []).map(e => e.id);
+      if (etapaIds.length) {
+        const { error: atvError } = await supabase
           .from('execucao_atividades')
           .delete()
-          .eq('cliente_nome', obra.nome_cliente);
-        
-        // Excluir todos os pedidos de material relacionados a esta obra
-        await supabase
-          .from('execucao_pedidos_material')
-          .delete()
-          .ilike('descricao', `%${obra.nome_cliente}%`);
-        
-        console.log('🗑️ Atividades e pedidos relacionados à obra excluídos');
+          .in('etapa_id', etapaIds);
+        if (atvError) throw atvError;
       }
 
-      // Excluir a obra (etapas são excluídas por CASCADE)
+      const { error: pedidosError } = await supabase
+        .from('execucao_pedidos_material')
+        .delete()
+        .eq('obra_id', id);
+      if (pedidosError) throw pedidosError;
+
+      // Etapas e registros de arquivos são excluídos por CASCADE; os objetos do Storage são removidos depois
+      const { data: arquivos } = await supabase
+        .from('execucao_obras_arquivos')
+        .select('caminho_storage')
+        .eq('obra_id', id);
+
       const { error } = await supabase
         .from('execucao_obras')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+
+      if (arquivos?.length) {
+        const { error: storageError } = await supabase.storage
+          .from(BUCKET_OBRAS)
+          .remove(arquivos.map(a => a.caminho_storage));
+        if (storageError) console.error('Erro ao remover arquivos da obra:', storageError);
+      }
       return { success: true };
     } catch (error) {
       console.error('Erro ao excluir obra:', error);
@@ -1121,6 +1127,25 @@ const _execucaoService = {
   // ETAPAS DAS OBRAS
   // ==========================================
 
+  // Criar várias etapas de uma vez (um único insert) e recalcular o progresso uma vez
+  async criarEtapas(etapas) {
+    try {
+      if (!etapas?.length) return { success: true, data: [] };
+
+      const { data, error } = await supabase
+        .from('execucao_obras_etapas')
+        .insert(etapas)
+        .select();
+
+      if (error) throw error;
+
+      await this.recalcularProgressoObra(etapas[0].obra_id);
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao criar etapas:', error);
+      return { success: false, message: error.message };
+    }
+  },
   // Criar etapa
   async criarEtapa(etapa) {
     try {
@@ -1182,47 +1207,21 @@ const _execucaoService = {
     }
   },
 
-  // Excluir etapa
+  // Excluir etapa (e atividades/pedidos vinculados por etapa_id)
   async excluirEtapa(id) {
     try {
-      // Buscar dados da etapa antes de excluir
-      const { data: etapa } = await supabase
+      const { data: etapa, error: etapaError } = await supabase
         .from('execucao_obras_etapas')
-        .select(`
-          obra_id,
-          nome,
-          data_inicio,
-          tipo,
-          obra:execucao_obras(nome_cliente)
-        `)
+        .select('obra_id, tipo')
         .eq('id', id)
         .single();
 
-      if (etapa) {
-        // Se for etapa de estoque, excluir pedidos de material relacionados
-        if (etapa.tipo === 'estoque') {
-          const descricaoPedido = `${etapa.nome} - Obra: ${etapa.obra?.nome_cliente || ''}`;
-          await supabase
-            .from('execucao_pedidos_material')
-            .delete()
-            .ilike('descricao', `%${etapa.nome}%`)
-            .ilike('descricao', `%${etapa.obra?.nome_cliente || 'N/A'}%`);
-          
-          console.log('🗑️ Pedidos de material relacionados excluídos');
-        } else {
-          // Excluir atividades relacionadas (mesmo título + cliente + data)
-          await supabase
-            .from('execucao_atividades')
-            .delete()
-            .eq('titulo', etapa.nome)
-            .eq('cliente_nome', etapa.obra?.nome_cliente || '')
-            .eq('data_programada', etapa.data_inicio);
-          
-          console.log('🗑️ Atividades relacionadas excluídas');
-        }
-      }
+      if (etapaError) throw etapaError;
 
-      // Excluir a etapa
+      const tabela = etapa.tipo === 'estoque' ? 'execucao_pedidos_material' : 'execucao_atividades';
+      const { error: vinculosError } = await supabase.from(tabela).delete().eq('etapa_id', id);
+      if (vinculosError) throw vinculosError;
+
       const { error } = await supabase
         .from('execucao_obras_etapas')
         .delete()
@@ -1230,10 +1229,7 @@ const _execucaoService = {
 
       if (error) throw error;
 
-      // Recalcular progresso da obra
-      if (etapa) {
-        await this.recalcularProgressoObra(etapa.obra_id);
-      }
+      await this.recalcularProgressoObra(etapa.obra_id);
 
       return { success: true };
     } catch (error) {
@@ -1314,28 +1310,40 @@ const _execucaoService = {
 
       if (etapaError) throw etapaError;
 
-      // Verificar se já existe atividade para esta etapa (pelo título + cliente + data)
-      const { data: atividadeExistente, error: buscaError } = await supabase
+      // Reaproveita a atividade já vinculada à etapa; senão, tenta o vínculo legado (título + cliente + data)
+      const { data: vinculada, error: vinculadaError } = await supabase
         .from('execucao_atividades')
         .select('id')
-        .eq('titulo', dadosAtividade.titulo || etapa.nome)
-        .eq('cliente_nome', dadosAtividade.cliente_nome || etapa.obra?.nome_cliente || '')
-        .eq('data_programada', dadosAtividade.data_programada || etapa.data_inicio)
+        .eq('etapa_id', etapaId)
+        .limit(1)
         .maybeSingle();
 
-      // Ignorar erro de "não encontrado" - é esperado quando não existe atividade
-      if (buscaError && buscaError.code !== 'PGRST116') {
-        console.warn('Aviso ao buscar atividade existente:', buscaError);
+      if (vinculadaError) throw vinculadaError;
+
+      let atividadeExistente = vinculada;
+      if (!atividadeExistente) {
+        const { data: legada, error: buscaError } = await supabase
+          .from('execucao_atividades')
+          .select('id')
+          .is('etapa_id', null)
+          .eq('titulo', dadosAtividade.titulo || etapa.nome)
+          .eq('cliente_nome', dadosAtividade.cliente_nome || etapa.obra?.nome_cliente || '')
+          .eq('data_programada', dadosAtividade.data_programada || etapa.data_inicio)
+          .limit(1)
+          .maybeSingle();
+
+        if (buscaError) throw buscaError;
+        atividadeExistente = legada;
       }
 
       // Se já existe, atualizar ao invés de criar
       if (atividadeExistente) {
-        console.log('📝 Atualizando atividade existente:', atividadeExistente.id);
         return await this.atualizarAtividade(atividadeExistente.id, {
           tecnico_responsavel_id: dadosAtividade.tecnico_responsavel_id || etapa.responsavel_id,
           data_programada: dadosAtividade.data_programada || etapa.data_inicio,
-          observacoes: dadosAtividade.observacoes
-        });
+          observacoes: dadosAtividade.observacoes,
+          etapa_id: etapaId
+        }, usuarioId);
       }
 
       // Mapear tipo da etapa para tipo_execucao da atividade
@@ -1466,34 +1474,22 @@ const _execucaoService = {
   // Alias para compatibilidade - lista planejamentos de um mês específico
   async listarPlanejamentoMacro(ano, mes) {
     try {
-      // Calcular primeiro e último dia do mês
-      const primeiroDia = new Date(ano, mes - 1, 1).toISOString().split('T')[0];
-      const ultimoDia = new Date(ano, mes, 0).toISOString().split('T')[0];
+      const primeiroDia = dataLocalISO(new Date(ano, mes - 1, 1));
+      const ultimoDia = dataLocalISO(new Date(ano, mes, 0));
 
-      const { data, error } = await supabase
+      // Interseção com o mês: começa até o último dia e (sem fim ou termina a partir do primeiro dia)
+      const data = await fetchAll(() => supabase
         .from('execucao_planejamento_macro')
         .select(`
           *,
           responsavel:usuarios!responsavel_id(id, nome_completo)
         `)
-        .or(`data_inicio.gte.${primeiroDia},data_fim.gte.${primeiroDia}`)
-        .or(`data_inicio.lte.${ultimoDia},data_fim.lte.${ultimoDia}`)
-        .order('data_inicio', { ascending: true });
+        .lte('data_inicio', ultimoDia)
+        .or(`data_fim.is.null,data_fim.gte.${primeiroDia}`)
+        .order('data_inicio', { ascending: true })
+        .order('id', { ascending: true }));
 
-      if (error) throw error;
-      
-      // Filtrar apenas planejamentos que intersectam com o mês
-      const planejamentosFiltrados = data.filter(p => {
-        const inicio = new Date(p.data_inicio);
-        const fim = p.data_fim ? new Date(p.data_fim) : inicio;
-        const inicioMes = new Date(ano, mes - 1, 1);
-        const fimMes = new Date(ano, mes, 0);
-        
-        // Verifica se há interseção entre o período do planejamento e o mês
-        return inicio <= fimMes && fim >= inicioMes;
-      });
-
-      return { success: true, data: planejamentosFiltrados };
+      return { success: true, data };
     } catch (error) {
       console.error('Erro ao listar planejamento macro:', error);
       return { success: false, message: error.message };
@@ -1505,27 +1501,24 @@ const _execucaoService = {
   // ==========================================
 
   async buscarEstatisticasDia(data = null) {
-    const hoje = data || new Date().toISOString().split('T')[0];
-    
+    const hoje = data || dataLocalISO();
+    const inicioHoje = inicioDoDiaISO(hoje);
+
     try {
-      // Buscar atividades do dia + atrasadas (incluindo pausadas) + concluídas hoje
-      const { data: atividades, error } = await supabase
+      // Atividades do dia + atrasadas (incluindo pausadas) + concluídas hoje
+      const atividades = await fetchAll(() => supabase
         .from('execucao_atividades')
-        .select('status, prioridade, data_programada, updated_at')
-        .or(`data_programada.eq.${hoje},and(data_programada.lt.${hoje},status.in.(pendente,em_andamento,pausada)),and(status.eq.concluida,updated_at.gte.${hoje})`);
+        .select('id, status, prioridade, data_programada, updated_at')
+        .or(`data_programada.eq.${hoje},and(data_programada.lt.${hoje},status.in.(pendente,em_andamento,pausada)),and(status.eq.concluida,updated_at.gte.${inicioHoje})`)
+        .order('id', { ascending: true }));
 
-      if (error) throw error;
+      const emAberto = ['pendente', 'em_andamento', 'pausada'];
+      const atrasadas = atividades.filter(a => a.data_programada < hoje && emAberto.includes(a.status));
 
-      // Separar atrasadas para contagem (inclui pausadas também)
-      const atrasadas = atividades.filter(a => 
-        a.data_programada < hoje && 
-        (a.status === 'pendente' || a.status === 'em_andamento' || a.status === 'pausada')
-      );
-
-      // Atividades concluídas hoje (independente da data programada)
-      const concluidasHoje = atividades.filter(a => 
-        a.status === 'concluida' && 
-        a.updated_at?.startsWith(hoje)
+      // Concluídas hoje (independente da data programada), comparando em fuso local
+      const inicio = new Date(inicioHoje);
+      const concluidasHoje = atividades.filter(a =>
+        a.status === 'concluida' && a.updated_at && new Date(a.updated_at) >= inicio
       );
 
       const stats = {
@@ -1546,26 +1539,146 @@ const _execucaoService = {
 
   async buscarEstatisticasTecnico(tecnicoId, dataInicio, dataFim) {
     try {
-      const { data: atividades, error } = await supabase
-        .from('execucao_atividades')
-        .select('status, prioridade, data_programada')
-        .eq('tecnico_responsavel_id', tecnicoId)
-        .gte('data_programada', dataInicio)
-        .lte('data_programada', dataFim);
+      const linhas = await this._agregado(dataInicio, dataFim, tecnicoId);
+      const total = linhas.reduce((acc, l) => acc + l.total, 0);
+      const concluidas = linhas.filter(l => l.status === 'concluida').reduce((acc, l) => acc + l.total, 0);
 
-      if (error) throw error;
-
-      const stats = {
-        total: atividades.length,
-        concluidas: atividades.filter(a => a.status === 'concluida').length,
-        taxa_conclusao: atividades.length > 0 
-          ? Math.round((atividades.filter(a => a.status === 'concluida').length / atividades.length) * 100) 
-          : 0
+      return {
+        success: true,
+        data: {
+          total,
+          concluidas,
+          taxa_conclusao: total > 0 ? Math.round((concluidas / total) * 100) : 0
+        }
       };
-
-      return { success: true, data: stats };
     } catch (error) {
       console.error('Erro ao buscar estatísticas do técnico:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // ==========================================
+  // DESEMPENHO (agregado no banco via RPC)
+  // ==========================================
+
+  async _agregado(inicio, fim, tecnicoId = null) {
+    const { data, error } = await supabase.rpc('execucao_atividades_agregado', {
+      p_inicio: inicio,
+      p_fim: fim,
+      p_tecnico: tecnicoId
+    });
+    if (error) throw error;
+    return (data ?? []).map(l => ({ ...l, total: Number(l.total) }));
+  },
+
+  _porTipo(linhas) {
+    const porTipo = { eletrica: 0, civil: 0, galpao: 0, gestao: 0 };
+    for (const l of linhas) {
+      if (l.tipo_execucao in porTipo) porTipo[l.tipo_execucao] += l.total;
+    }
+    return porTipo;
+  },
+
+  async buscarRankingTecnicos(periodo = 'mes') {
+    try {
+      const { inicio, fim } = intervaloPeriodo(periodo);
+      const [linhas, tecnicosResult] = await Promise.all([
+        this._agregado(inicio, fim),
+        this.buscarTecnicos()
+      ]);
+      const tecnicos = (tecnicosResult.data ?? []).filter(t => t.nivel_acesso?.nome === 'TECNICO');
+
+      const ranking = tecnicos.map(t => {
+        const doTecnico = linhas.filter(l => l.tecnico_id === t.id);
+        const total = doTecnico.reduce((acc, l) => acc + l.total, 0);
+        const concluidas = doTecnico.filter(l => l.status === 'concluida').reduce((acc, l) => acc + l.total, 0);
+        return {
+          id: t.id,
+          nome: t.nome_completo,
+          total,
+          concluidas,
+          taxa_conclusao: total ? Math.round((concluidas / total) * 100) : 0
+        };
+      }).sort((a, b) => b.concluidas - a.concluidas || b.taxa_conclusao - a.taxa_conclusao);
+
+      return { success: true, data: ranking };
+    } catch (error) {
+      console.error('Erro ao buscar ranking:', error);
+      return { success: false, message: error.message, data: [] };
+    }
+  },
+
+  async buscarDesempenhoIndividual(tecnicoId, periodo = 'mes') {
+    try {
+      const { inicio, fim } = intervaloPeriodo(periodo);
+      const [linhasTodos, ranking] = await Promise.all([
+        this._agregado(inicio, fim),
+        this.buscarRankingTecnicos(periodo)
+      ]);
+      const linhas = linhasTodos.filter(l => l.tecnico_id === tecnicoId);
+
+      const porDia = {};
+      for (const l of linhas) {
+        porDia[l.data_programada] ??= { data: l.data_programada, total: 0, concluidas: 0 };
+        porDia[l.data_programada].total += l.total;
+        if (l.status === 'concluida') porDia[l.data_programada].concluidas += l.total;
+      }
+
+      const soma = (filtro) => linhas.filter(filtro).reduce((acc, l) => acc + l.total, 0);
+      const posicao = (ranking.data ?? []).findIndex(r => r.id === tecnicoId);
+
+      return {
+        success: true,
+        data: {
+          total: soma(() => true),
+          concluidas: soma(l => l.status === 'concluida'),
+          pendentes: soma(l => ['pendente', 'em_andamento', 'pausada'].includes(l.status)),
+          por_tipo: this._porTipo(linhas),
+          historico: Object.values(porDia).sort((a, b) => a.data.localeCompare(b.data)),
+          ranking: posicao >= 0 ? posicao + 1 : null
+        }
+      };
+    } catch (error) {
+      console.error('Erro ao buscar desempenho individual:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  async buscarDesempenhoTime(periodo = 'mes') {
+    try {
+      const atual = intervaloPeriodo(periodo);
+      const anterior = intervaloPeriodoAnterior(periodo);
+      const [linhas, linhasAnt, tecnicosResult] = await Promise.all([
+        this._agregado(atual.inicio, atual.fim),
+        this._agregado(anterior.inicio, anterior.fim),
+        this.buscarTecnicos()
+      ]);
+
+      const totalTecnicos = (tecnicosResult.data ?? []).filter(t => t.nivel_acesso?.nome === 'TECNICO').length;
+      const total = linhas.reduce((acc, l) => acc + l.total, 0);
+      const totalAnterior = linhasAnt.reduce((acc, l) => acc + l.total, 0);
+      const concluidas = linhas.filter(l => l.status === 'concluida').reduce((acc, l) => acc + l.total, 0);
+
+      const porDia = {};
+      for (const l of linhas) {
+        porDia[l.data_programada] ??= { data: l.data_programada, eletrica: 0, civil: 0, galpao: 0, gestao: 0 };
+        if (l.tipo_execucao in porDia[l.data_programada]) porDia[l.data_programada][l.tipo_execucao] += l.total;
+      }
+
+      return {
+        success: true,
+        data: {
+          total_tecnicos: totalTecnicos,
+          total_atividades: total,
+          taxa_conclusao: total ? Math.round((concluidas / total) * 100) : 0,
+          media_por_tecnico: totalTecnicos ? Math.round(total / totalTecnicos) : 0,
+          variacao_total: totalAnterior ? Math.round(((total - totalAnterior) / totalAnterior) * 100) : 0,
+          por_tipo: this._porTipo(linhas),
+          evolucao: Object.values(porDia).sort((a, b) => a.data.localeCompare(b.data))
+        }
+      };
+    } catch (error) {
+      console.error('Erro ao buscar desempenho do time:', error);
       return { success: false, message: error.message };
     }
   },
@@ -1583,18 +1696,19 @@ const _execucaoService = {
           nome_completo,
           email,
           ativo,
-          nivel_acesso:niveis_acesso(id, nome)
+          niveis_acesso!inner(id, nome)
         `)
-        .in('nivel_acesso_id', [
-          '94519cec-cb25-4559-9c31-02cb7c22f799', // TECNICO
-          '694a84e6-f00b-44b0-8857-6b7e308bd1ac', // ADMIN_EXECUCAO
-          'd011db6c-a00b-41d8-a62a-b44e787d269f'  // Administrador
-        ])
+        .in('niveis_acesso.nome', ['TECNICO', 'ADMIN_EXECUCAO', 'Administrador'])
         .eq('ativo', true)
         .order('nome_completo');
 
       if (error) throw error;
-      return { success: true, data };
+
+      // Mantém o formato esperado pelos componentes (nivel_acesso)
+      return {
+        success: true,
+        data: data.map(({ niveis_acesso, ...usuario }) => ({ ...usuario, nivel_acesso: niveis_acesso }))
+      };
     } catch (error) {
       console.error('Erro ao buscar técnicos:', error);
       return { success: false, message: error.message };
@@ -1654,7 +1768,7 @@ const _execucaoService = {
     try {
       const { count, error } = await supabase
         .from('execucao_notificacoes')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('lida', false);
 
       if (error) throw error;
@@ -1708,46 +1822,12 @@ const _execucaoService = {
     }
   },
 
-  // Criar notificação de atraso (para atividades que passaram da data programada)
+  // Gera as notificações de atraso (uma por atividade/dia) em uma única chamada no banco
   async verificarECriarNotificacoesAtraso() {
     try {
-      const hoje = new Date().toISOString().split('T')[0];
-      
-      // Buscar atividades atrasadas que ainda não têm notificação de atraso recente
-      const { data: atrasadas, error } = await supabase
-        .from('execucao_atividades')
-        .select(`
-          id, titulo, data_programada, status,
-          tecnico:usuarios!tecnico_responsavel_id(id, nome_completo)
-        `)
-        .lt('data_programada', hoje)
-        .in('status', ['pendente', 'em_andamento', 'pausada']);
-
+      const { data, error } = await supabase.rpc('gerar_notificacoes_atraso');
       if (error) throw error;
-
-      // Para cada atividade atrasada, verificar se já existe notificação de atraso hoje
-      for (const atividade of atrasadas || []) {
-        const { data: notificacaoExistente } = await supabase
-          .from('execucao_notificacoes')
-          .select('id')
-          .eq('atividade_id', atividade.id)
-          .eq('tipo', 'atraso')
-          .gte('created_at', hoje)
-          .limit(1);
-
-        if (!notificacaoExistente || notificacaoExistente.length === 0) {
-          const tecnicoNome = atividade.tecnico?.nome_completo || 'Sem técnico';
-          await this.criarNotificacao({
-            tipo: 'atraso',
-            titulo: '⚠️ Atividade em Atraso',
-            mensagem: `A atividade "${atividade.titulo}" (${tecnicoNome}) está atrasada desde ${new Date(atividade.data_programada).toLocaleDateString('pt-BR')}`,
-            atividade_id: atividade.id,
-            usuario_origem_id: null
-          });
-        }
-      }
-
-      return { success: true, count: atrasadas?.length || 0 };
+      return { success: true, count: data ?? 0 };
     } catch (error) {
       console.error('Erro ao verificar atrasos:', error);
       return { success: false, message: error.message };
@@ -1805,15 +1885,14 @@ const _execucaoService = {
   async uploadArquivosObra(obraId, arquivos) {
     try {
       const resultados = [];
+      const falhas = [];
 
       for (const arquivo of arquivos) {
-        // Gerar nome único para o arquivo
-        const timestamp = Date.now();
-        const nomeArquivo = `${obraId}/${timestamp}_${arquivo.name}`;
-        
-        // Upload para o Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('obras-arquivos')
+        const nomeSeguro = arquivo.name.replace(/[^\w.-]+/g, '_');
+        const nomeArquivo = `${obraId}/${crypto.randomUUID()}-${nomeSeguro}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET_OBRAS)
           .upload(nomeArquivo, arquivo, {
             cacheControl: '3600',
             upsert: false
@@ -1821,15 +1900,15 @@ const _execucaoService = {
 
         if (uploadError) {
           console.error('Erro no upload:', uploadError);
+          falhas.push({ arquivo: arquivo.name, message: uploadError.message });
           continue;
         }
 
-        // Salvar referência no banco
         const { data: arquivoData, error: dbError } = await supabase
           .from('execucao_obras_arquivos')
           .insert([{
             obra_id: obraId,
-            nome: arquivo.name.replace('.pdf', ''),
+            nome: arquivo.name.replace(/\.pdf$/i, ''),
             nome_arquivo_original: arquivo.name,
             caminho_storage: nomeArquivo,
             tamanho_bytes: arquivo.size,
@@ -1840,13 +1919,16 @@ const _execucaoService = {
 
         if (dbError) {
           console.error('Erro ao salvar referência:', dbError);
+          // Evita arquivo órfão no Storage
+          await supabase.storage.from(BUCKET_OBRAS).remove([nomeArquivo]);
+          falhas.push({ arquivo: arquivo.name, message: dbError.message });
           continue;
         }
 
         resultados.push(arquivoData);
       }
 
-      return { success: true, data: resultados };
+      return { success: falhas.length === 0, data: resultados, falhas };
     } catch (error) {
       console.error('Erro ao fazer upload de arquivos:', error);
       return { success: false, message: error.message };
@@ -1870,39 +1952,44 @@ const _execucaoService = {
     }
   },
 
-  // Obter URL pública de um arquivo
-  async obterUrlArquivo(caminhoStorage) {
+  // URL assinada e temporária (bucket privado)
+  async obterUrlArquivo(caminhoStorage, expiraEmSegundos = 300) {
     try {
-      const { data } = supabase.storage
-        .from('obras-arquivos')
-        .getPublicUrl(caminhoStorage);
+      const { data, error } = await supabase.storage
+        .from(BUCKET_OBRAS)
+        .createSignedUrl(caminhoStorage, expiraEmSegundos);
 
-      return { success: true, url: data.publicUrl };
+      if (error) throw error;
+      return { success: true, url: data.signedUrl };
     } catch (error) {
       console.error('Erro ao obter URL:', error);
       return { success: false, message: error.message };
     }
   },
 
-  // Excluir arquivo
-  async excluirArquivoObra(arquivoId, caminhoStorage) {
+  // Excluir arquivo (o caminho é lido do banco, nunca recebido do cliente)
+  async excluirArquivoObra(arquivoId) {
     try {
-      // Excluir do Storage
-      const { error: storageError } = await supabase.storage
-        .from('obras-arquivos')
-        .remove([caminhoStorage]);
+      const { data: arquivo, error: buscaError } = await supabase
+        .from('execucao_obras_arquivos')
+        .select('caminho_storage')
+        .eq('id', arquivoId)
+        .single();
 
-      if (storageError) {
-        console.error('Erro ao excluir do storage:', storageError);
-      }
+      if (buscaError) throw buscaError;
 
-      // Excluir do banco
       const { error: dbError } = await supabase
         .from('execucao_obras_arquivos')
         .delete()
         .eq('id', arquivoId);
 
       if (dbError) throw dbError;
+
+      const { error: storageError } = await supabase.storage
+        .from(BUCKET_OBRAS)
+        .remove([arquivo.caminho_storage]);
+
+      if (storageError) console.error('Erro ao excluir do storage:', storageError);
       return { success: true };
     } catch (error) {
       console.error('Erro ao excluir arquivo:', error);
@@ -2022,17 +2109,16 @@ const _execucaoService = {
 
       if (templateError) throw templateError;
 
-      // Se itens foram enviados, atualizar todos
+      // Se itens foram enviados, substitui todos. Insere os novos antes de remover os antigos:
+      // uma falha no meio deixa itens duplicados, nunca um template sem itens.
       if (itens !== undefined) {
-        // Excluir itens antigos
-        const { error: deleteError } = await supabase
+        const { data: antigos, error: antigosError } = await supabase
           .from('execucao_templates_etapas_itens')
-          .delete()
+          .select('id')
           .eq('template_id', templateId);
 
-        if (deleteError) throw deleteError;
+        if (antigosError) throw antigosError;
 
-        // Inserir novos itens
         if (itens && itens.length > 0) {
           const itensComTemplateId = itens.map((item, index) => ({
             nome: item.nome,
@@ -2048,6 +2134,15 @@ const _execucaoService = {
             .insert(itensComTemplateId);
 
           if (itensError) throw itensError;
+        }
+
+        if (antigos?.length) {
+          const { error: deleteError } = await supabase
+            .from('execucao_templates_etapas_itens')
+            .delete()
+            .in('id', antigos.map(i => i.id));
+
+          if (deleteError) throw deleteError;
         }
       }
 
@@ -2143,7 +2238,10 @@ const _execucaoService = {
       if (fetchError) throw fetchError;
 
       // Criar cópia
-      const { id, created_at, updated_at, itens, ...dadosTemplate } = original;
+      const dadosTemplate = Object.fromEntries(
+        Object.entries(original).filter(([campo]) => !['id', 'created_at', 'updated_at', 'itens'].includes(campo))
+      );
+      const itens = original.itens;
       const novoTemplate = {
         ...dadosTemplate,
         nome: novoNome || `${original.nome} (Cópia)`

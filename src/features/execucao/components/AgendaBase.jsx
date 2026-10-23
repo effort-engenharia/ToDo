@@ -1,119 +1,136 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  FaPlus, 
-  FaCalendarAlt, 
-  FaClock, 
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  FaPlus,
+  FaCalendarAlt,
+  FaClock,
   FaMapMarkerAlt,
   FaUser,
   FaEdit,
   FaTrash,
   FaCheck,
-  FaTimes,
   FaExclamationTriangle,
-  FaFilter,
   FaSearch
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
+import { dataLocalISO, parseDataLocal, intervaloSemana, addDias } from '../utils/datas';
+import { useAsyncData } from '../hooks/useAsyncData';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useExecucaoUI } from './ui/ExecucaoUI';
+import Modal from './ui/Modal';
+import { Carregando, ErroCarregamento, EstadoVazio } from './ui/Estados';
 
-const AgendaBase = ({ 
-  usuario, 
-  tipoExecucao, 
-  titulo, 
-  iconColor = 'text-blue-400' 
-}) => {
-  const [loading, setLoading] = useState(true);
-  const [atividades, setAtividades] = useState([]);
+const FORMATO_DIA = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+const STATUS_CLASSE = {
+  pendente: 'pendente',
+  em_andamento: 'em-andamento',
+  concluida: 'concluida',
+  urgente: 'urgente'
+};
+
+const STATUS_LABEL = {
+  pendente: 'Pendente',
+  em_andamento: 'Em Andamento',
+  concluida: 'Concluída',
+  transferida: 'Transferida',
+  cancelada: 'Cancelada'
+};
+
+const formularioVazio = () => ({
+  titulo: '',
+  descricao: '',
+  data_programada: dataLocalISO(),
+  hora_inicio: '08:00',
+  hora_fim: '17:00',
+  prioridade: 'normal',
+  tecnico_responsavel_id: '',
+  cliente_nome: '',
+  endereco: '',
+  observacoes: ''
+});
+
+const montarFiltros = (tipoExecucao, filtroStatus, filtroPeriodo) => {
+  const filtros = { tipo_execucao: tipoExecucao };
+  if (filtroStatus !== 'todos') filtros.status = filtroStatus;
+
+  if (filtroPeriodo === 'hoje') {
+    filtros.data_programada = dataLocalISO();
+  } else if (filtroPeriodo === 'semana') {
+    const { inicio, fim } = intervaloSemana();
+    filtros.data_inicio = inicio;
+    filtros.data_fim = fim;
+  } else if (filtroPeriodo === 'mes') {
+    const hoje = new Date();
+    filtros.data_inicio = dataLocalISO(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+    filtros.data_fim = dataLocalISO(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0));
+  }
+  return filtros;
+};
+
+const rotuloDia = (dataStr, hojeISO, amanhaISO) => {
+  if (dataStr === hojeISO) return 'Hoje';
+  if (dataStr === amanhaISO) return 'Amanhã';
+  const data = parseDataLocal(dataStr);
+  return data ? FORMATO_DIA.format(data) : 'Sem data';
+};
+
+const AgendaBase = ({ usuario, tipoExecucao, titulo }) => {
+  const { toast, confirmar } = useExecucaoUI();
   const [filtroStatus, setFiltroStatus] = useState('todos');
   const [filtroPeriodo, setFiltroPeriodo] = useState('semana');
   const [busca, setBusca] = useState('');
+  const buscaDebounced = useDebouncedValue(busca, 250);
   const [showModal, setShowModal] = useState(false);
   const [atividadeEditando, setAtividadeEditando] = useState(null);
-  const [tecnicos, setTecnicos] = useState([]);
+  const [formData, setFormData] = useState(formularioVazio);
+  const [salvando, setSalvando] = useState(false);
+  const [acaoEmAndamento, setAcaoEmAndamento] = useState(null);
 
-  // Form state
-  const [formData, setFormData] = useState({
-    titulo: '',
-    descricao: '',
-    data_programada: new Date().toISOString().split('T')[0],
-    hora_inicio: '08:00',
-    hora_fim: '17:00',
-    prioridade: 'normal',
-    tecnico_responsavel_id: '',
-    cliente_nome: '',
-    endereco: '',
-    observacoes: ''
-  });
+  const { data: atividades, loading, error, reload } = useAsyncData(
+    () => execucaoService.buscarAtividades(montarFiltros(tipoExecucao, filtroStatus, filtroPeriodo)),
+    [tipoExecucao, filtroStatus, filtroPeriodo],
+    { initialData: [] }
+  );
 
-  useEffect(() => {
-    carregarDados();
-    carregarTecnicos();
-  }, [filtroStatus, filtroPeriodo]);
+  const { data: tecnicos } = useAsyncData(() => execucaoService.buscarTecnicos(), [], { initialData: [] });
 
-  const carregarDados = async () => {
-    setLoading(true);
-    try {
-      const filtros = { tipo_execucao: tipoExecucao };
-      
-      if (filtroStatus !== 'todos') {
-        filtros.status = filtroStatus;
-      }
+  const grupos = useMemo(() => {
+    const termo = buscaDebounced.trim().toLowerCase();
+    const filtradas = termo
+      ? atividades.filter((a) =>
+          a.titulo?.toLowerCase().includes(termo) ||
+          a.cliente_nome?.toLowerCase().includes(termo) ||
+          a.tecnico?.nome_completo?.toLowerCase().includes(termo))
+      : atividades;
 
-      // Calcular datas baseado no período
-      const hoje = new Date();
-      if (filtroPeriodo === 'hoje') {
-        filtros.data_programada = hoje.toISOString().split('T')[0];
-      } else if (filtroPeriodo === 'semana') {
-        const inicioSemana = new Date(hoje);
-        inicioSemana.setDate(hoje.getDate() - hoje.getDay());
-        const fimSemana = new Date(inicioSemana);
-        fimSemana.setDate(inicioSemana.getDate() + 6);
-        filtros.data_inicio = inicioSemana.toISOString().split('T')[0];
-        filtros.data_fim = fimSemana.toISOString().split('T')[0];
-      } else if (filtroPeriodo === 'mes') {
-        const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-        const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
-        filtros.data_inicio = inicioMes.toISOString().split('T')[0];
-        filtros.data_fim = fimMes.toISOString().split('T')[0];
-      }
+    const porData = new Map();
+    filtradas.forEach((atividade) => {
+      const data = atividade.data_programada;
+      if (!porData.has(data)) porData.set(data, []);
+      porData.get(data).push(atividade);
+    });
 
-      const result = await execucaoService.buscarAtividades(filtros);
-      if (result.success) {
-        setAtividades(result.data);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar atividades:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const hojeISO = dataLocalISO();
+    const amanhaISO = dataLocalISO(addDias(new Date(), 1));
+    return [...porData.entries()]
+      .sort(([a], [b]) => String(a).localeCompare(String(b)))
+      .map(([data, items]) => ({ data, items, rotulo: rotuloDia(data, hojeISO, amanhaISO) }));
+  }, [atividades, buscaDebounced]);
 
-  const carregarTecnicos = async () => {
-    const result = await execucaoService.buscarTecnicos();
-    if (result.success) {
-      setTecnicos(result.data);
-    }
-  };
+  const atualizarCampo = (campo) => (e) => setFormData((f) => ({ ...f, [campo]: e.target.value }));
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const dados = {
-        ...formData,
-        tipo_execucao: tipoExecucao
-      };
+  // Estável: o Modal reexecuta o foco inicial sempre que onClose muda
+  const salvandoRef = useRef(false);
+  const fecharModal = useCallback(() => {
+    if (salvandoRef.current) return;
+    setShowModal(false);
+    setAtividadeEditando(null);
+  }, []);
 
-      if (atividadeEditando) {
-        await execucaoService.atualizarAtividade(atividadeEditando.id, dados, usuario.id);
-      } else {
-        await execucaoService.criarAtividade(dados, usuario.id);
-      }
-
-      setShowModal(false);
-      resetForm();
-      carregarDados();
-    } catch (error) {
-      console.error('Erro ao salvar atividade:', error);
-    }
+  const handleNova = () => {
+    setAtividadeEditando(null);
+    setFormData(formularioVazio());
+    setShowModal(true);
   };
 
   const handleEditar = (atividade) => {
@@ -121,7 +138,7 @@ const AgendaBase = ({
     setFormData({
       titulo: atividade.titulo || '',
       descricao: atividade.descricao || '',
-      data_programada: atividade.data_programada || new Date().toISOString().split('T')[0],
+      data_programada: atividade.data_programada || dataLocalISO(),
       hora_inicio: atividade.hora_inicio?.substring(0, 5) || '08:00',
       hora_fim: atividade.hora_fim?.substring(0, 5) || '17:00',
       prioridade: atividade.prioridade || 'normal',
@@ -133,109 +150,82 @@ const AgendaBase = ({
     setShowModal(true);
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (salvandoRef.current) return;
+    salvandoRef.current = true;
+    setSalvando(true);
+    try {
+      const dados = { ...formData, tipo_execucao: tipoExecucao };
+      const result = atividadeEditando
+        ? await execucaoService.atualizarAtividade(atividadeEditando.id, dados, usuario.id)
+        : await execucaoService.criarAtividade(dados, usuario.id);
+
+      if (!result?.success) {
+        toast.error(result?.message || 'Não foi possível salvar a atividade.');
+        return;
+      }
+
+      toast.success(atividadeEditando ? 'Atividade atualizada.' : 'Atividade criada.');
+      setShowModal(false);
+      setAtividadeEditando(null);
+      reload();
+    } catch (err) {
+      console.error('Erro ao salvar atividade:', err);
+      toast.error('Erro inesperado ao salvar a atividade.');
+    } finally {
+      salvandoRef.current = false;
+      setSalvando(false);
+    }
+  };
+
+  const executarAcao = async (id, acao, mensagemSucesso, mensagemErro) => {
+    if (acaoEmAndamento) return;
+    setAcaoEmAndamento(id);
+    try {
+      const result = await acao();
+      if (!result?.success) {
+        toast.error(result?.message || mensagemErro);
+        return;
+      }
+      toast.success(mensagemSucesso);
+      reload();
+    } catch (err) {
+      console.error(mensagemErro, err);
+      toast.error(mensagemErro);
+    } finally {
+      setAcaoEmAndamento(null);
+    }
+  };
+
   const handleExcluir = async (id) => {
-    if (window.confirm('Tem certeza que deseja excluir esta atividade?')) {
-      await execucaoService.excluirAtividade(id);
-      carregarDados();
-    }
-  };
-
-  const handleAlterarStatus = async (id, novoStatus) => {
-    await execucaoService.alterarStatusAtividade(id, novoStatus, usuario.id);
-    carregarDados();
-  };
-
-  const resetForm = () => {
-    setAtividadeEditando(null);
-    setFormData({
-      titulo: '',
-      descricao: '',
-      data_programada: new Date().toISOString().split('T')[0],
-      hora_inicio: '08:00',
-      hora_fim: '17:00',
-      prioridade: 'normal',
-      tecnico_responsavel_id: '',
-      cliente_nome: '',
-      endereco: '',
-      observacoes: ''
+    const ok = await confirmar({
+      titulo: 'Excluir atividade',
+      mensagem: 'Tem certeza que deseja excluir esta atividade?',
+      confirmarTexto: 'Excluir'
     });
+    if (!ok) return;
+    executarAcao(id, () => execucaoService.excluirAtividade(id), 'Atividade excluída.', 'Não foi possível excluir a atividade.');
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pendente': return 'pendente';
-      case 'em_andamento': return 'em-andamento';
-      case 'concluida': return 'concluida';
-      case 'urgente': return 'urgente';
-      default: return 'pendente';
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'pendente': return 'Pendente';
-      case 'em_andamento': return 'Em Andamento';
-      case 'concluida': return 'Concluída';
-      case 'transferida': return 'Transferida';
-      case 'cancelada': return 'Cancelada';
-      default: return status;
-    }
-  };
-
-  const getPrioridadeColor = (prioridade) => {
-    switch (prioridade) {
-      case 'baixa': return 'text-slate-400';
-      case 'normal': return 'text-blue-400';
-      case 'alta': return 'text-orange-400';
-      case 'urgente': return 'text-red-400';
-      default: return 'text-slate-400';
-    }
-  };
-
-  // Filtrar por busca
-  const atividadesFiltradas = atividades.filter(a => 
-    a.titulo?.toLowerCase().includes(busca.toLowerCase()) ||
-    a.cliente_nome?.toLowerCase().includes(busca.toLowerCase()) ||
-    a.tecnico?.nome_completo?.toLowerCase().includes(busca.toLowerCase())
-  );
-
-  // Agrupar por data
-  const atividadesAgrupadas = atividadesFiltradas.reduce((acc, atividade) => {
-    const data = atividade.data_programada;
-    if (!acc[data]) {
-      acc[data] = [];
-    }
-    acc[data].push(atividade);
-    return acc;
-  }, {});
-
-  const formatarData = (dataStr) => {
-    const data = new Date(dataStr + 'T00:00:00');
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const amanha = new Date(hoje);
-    amanha.setDate(amanha.getDate() + 1);
-
-    if (data.toDateString() === hoje.toDateString()) {
-      return 'Hoje';
-    }
-    if (data.toDateString() === amanha.toDateString()) {
-      return 'Amanhã';
-    }
-    return data.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-  };
+  const handleConcluir = (id) =>
+    executarAcao(
+      id,
+      () => execucaoService.alterarStatusAtividade(id, 'concluida', usuario.id),
+      'Atividade concluída.',
+      'Não foi possível concluir a atividade.'
+    );
 
   return (
-    <div className="execucao-animate-fade-in">
-      {/* Header com filtros */}
+    <section className="execucao-animate-fade-in" aria-label={titulo}>
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div className="flex flex-wrap gap-2">
-          {/* Filtro de período */}
           <select
             value={filtroPeriodo}
             onChange={(e) => setFiltroPeriodo(e.target.value)}
             className="execucao-select"
             style={{ width: 'auto' }}
+            aria-label="Filtrar por período"
           >
             <option value="hoje">Hoje</option>
             <option value="semana">Esta Semana</option>
@@ -243,12 +233,12 @@ const AgendaBase = ({
             <option value="todos">Todos</option>
           </select>
 
-          {/* Filtro de status */}
           <select
             value={filtroStatus}
             onChange={(e) => setFiltroStatus(e.target.value)}
             className="execucao-select"
             style={{ width: 'auto' }}
+            aria-label="Filtrar por status"
           >
             <option value="todos">Todos os Status</option>
             <option value="pendente">Pendentes</option>
@@ -258,287 +248,278 @@ const AgendaBase = ({
         </div>
 
         <div className="flex gap-2">
-          {/* Busca */}
           <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-2">
-            <FaSearch className="text-slate-500" size={14} />
-            <input 
+            <FaSearch className="text-slate-500" size={14} aria-hidden="true" />
+            <input
               type="text"
               placeholder="Buscar..."
+              aria-label="Buscar atividades"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               className="bg-transparent border-none outline-none text-slate-300 text-sm w-40 placeholder-slate-500"
             />
           </div>
 
-          {/* Botão adicionar */}
-          <button 
-            className="execucao-btn execucao-btn-primary"
-            onClick={() => {
-              resetForm();
-              setShowModal(true);
-            }}
-          >
-            <FaPlus /> Nova Atividade
+          <button type="button" className="execucao-btn execucao-btn-primary" onClick={handleNova}>
+            <FaPlus aria-hidden="true" /> Nova Atividade
           </button>
         </div>
       </div>
 
-      {/* Lista de atividades */}
       {loading ? (
-        <div className="execucao-loading">
-          <div className="execucao-spinner"></div>
-        </div>
-      ) : Object.keys(atividadesAgrupadas).length === 0 ? (
-        <div className="execucao-card">
-          <div className="execucao-empty-state">
-            <div className="execucao-empty-icon">
-              <FaCalendarAlt />
-            </div>
-            <div className="execucao-empty-title">Nenhuma atividade encontrada</div>
-            <div className="execucao-empty-text">
-              Não há atividades para o período selecionado.
-            </div>
-          </div>
-        </div>
+        <Carregando />
+      ) : error ? (
+        <ErroCarregamento mensagem={error} onTentarNovamente={reload} />
+      ) : grupos.length === 0 ? (
+        <EstadoVazio
+          icone={<FaCalendarAlt aria-hidden="true" />}
+          titulo="Nenhuma atividade encontrada"
+          texto={`Não há atividades de ${titulo} para o período selecionado.`}
+        />
       ) : (
         <div className="space-y-6">
-          {Object.entries(atividadesAgrupadas).sort().map(([data, items]) => (
+          {grupos.map(({ data, items, rotulo }) => (
             <div key={data}>
-              <h3 className="text-sm font-semibold text-slate-400 uppercase mb-3">
-                {formatarData(data)}
-              </h3>
+              <h3 className="text-sm font-semibold text-slate-400 uppercase mb-3">{rotulo}</h3>
               <div className="space-y-3">
-                {items.map((atividade) => (
-                  <div key={atividade.id} className="execucao-activity-card">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className={`execucao-activity-status ${getStatusColor(atividade.status)}`}>
-                            {getStatusLabel(atividade.status)}
-                          </span>
-                          {atividade.prioridade === 'urgente' && (
-                            <span className="execucao-badge execucao-badge-red">
-                              <FaExclamationTriangle size={10} className="mr-1" />
-                              Urgente
+                {items.map((atividade) => {
+                  const ocupada = acaoEmAndamento === atividade.id;
+                  return (
+                    <div key={atividade.id} className="execucao-activity-card">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`execucao-activity-status ${STATUS_CLASSE[atividade.status] || 'pendente'}`}>
+                              {STATUS_LABEL[atividade.status] || atividade.status}
                             </span>
-                          )}
+                            {atividade.prioridade === 'urgente' && (
+                              <span className="execucao-badge execucao-badge-red">
+                                <FaExclamationTriangle size={10} className="mr-1" aria-hidden="true" />
+                                Urgente
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="text-slate-100 font-semibold mb-2">{atividade.titulo}</h4>
+                          <div className="execucao-activity-meta">
+                            {atividade.hora_inicio && (
+                              <span className="execucao-activity-meta-item">
+                                <FaClock size={12} aria-hidden="true" />
+                                {atividade.hora_inicio.substring(0, 5)} - {atividade.hora_fim?.substring(0, 5) || ''}
+                              </span>
+                            )}
+                            {atividade.cliente_nome && (
+                              <span className="execucao-activity-meta-item">
+                                <FaUser size={12} aria-hidden="true" />
+                                {atividade.cliente_nome}
+                              </span>
+                            )}
+                            {atividade.endereco && (
+                              <span className="execucao-activity-meta-item">
+                                <FaMapMarkerAlt size={12} aria-hidden="true" />
+                                {atividade.endereco.length > 30 ? `${atividade.endereco.substring(0, 30)}...` : atividade.endereco}
+                              </span>
+                            )}
+                            {atividade.tecnico?.nome_completo && (
+                              <span className="execucao-activity-meta-item">
+                                <FaUser size={12} aria-hidden="true" />
+                                {atividade.tecnico.nome_completo}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <h4 className="text-slate-100 font-semibold mb-2">
-                          {atividade.titulo}
-                        </h4>
-                        <div className="execucao-activity-meta">
-                          {atividade.hora_inicio && (
-                            <span className="execucao-activity-meta-item">
-                              <FaClock size={12} />
-                              {atividade.hora_inicio.substring(0, 5)} - {atividade.hora_fim?.substring(0, 5) || ''}
-                            </span>
+                        <div className="flex gap-2">
+                          {atividade.status !== 'concluida' && (
+                            <button
+                              type="button"
+                              onClick={() => handleConcluir(atividade.id)}
+                              disabled={!!acaoEmAndamento}
+                              className="execucao-btn execucao-btn-success execucao-btn-sm"
+                              title="Concluir"
+                              aria-label={`Concluir atividade ${atividade.titulo}`}
+                              aria-busy={ocupada}
+                            >
+                              <FaCheck aria-hidden="true" />
+                            </button>
                           )}
-                          {atividade.cliente_nome && (
-                            <span className="execucao-activity-meta-item">
-                              <FaUser size={12} />
-                              {atividade.cliente_nome}
-                            </span>
-                          )}
-                          {atividade.endereco && (
-                            <span className="execucao-activity-meta-item">
-                              <FaMapMarkerAlt size={12} />
-                              {atividade.endereco.substring(0, 30)}...
-                            </span>
-                          )}
-                          {atividade.tecnico?.nome_completo && (
-                            <span className="execucao-activity-meta-item">
-                              <FaUser size={12} />
-                              {atividade.tecnico.nome_completo}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {atividade.status !== 'concluida' && (
                           <button
-                            onClick={() => handleAlterarStatus(atividade.id, 'concluida')}
-                            className="execucao-btn execucao-btn-success execucao-btn-sm"
-                            title="Concluir"
+                            type="button"
+                            onClick={() => handleEditar(atividade)}
+                            disabled={!!acaoEmAndamento}
+                            className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+                            title="Editar"
+                            aria-label={`Editar atividade ${atividade.titulo}`}
                           >
-                            <FaCheck />
+                            <FaEdit aria-hidden="true" />
                           </button>
-                        )}
-                        <button
-                          onClick={() => handleEditar(atividade)}
-                          className="execucao-btn execucao-btn-secondary execucao-btn-sm"
-                          title="Editar"
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          onClick={() => handleExcluir(atividade.id)}
-                          className="execucao-btn execucao-btn-danger execucao-btn-sm"
-                          title="Excluir"
-                        >
-                          <FaTrash />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => handleExcluir(atividade.id)}
+                            disabled={!!acaoEmAndamento}
+                            className="execucao-btn execucao-btn-danger execucao-btn-sm"
+                            title="Excluir"
+                            aria-label={`Excluir atividade ${atividade.titulo}`}
+                          >
+                            <FaTrash aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Modal de criação/edição */}
       {showModal && (
-        <div className="execucao-modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="execucao-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="execucao-modal-header">
-              <h3 className="execucao-modal-title">
-                {atividadeEditando ? 'Editar Atividade' : 'Nova Atividade'}
-              </h3>
-              <button 
-                className="execucao-modal-close"
-                onClick={() => setShowModal(false)}
-              >
-                <FaTimes />
-              </button>
-            </div>
+        <Modal titulo={atividadeEditando ? 'Editar Atividade' : 'Nova Atividade'} onClose={fecharModal}>
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4">
+              <div>
+                <label className="execucao-label" htmlFor="agenda-titulo">Título *</label>
+                <input
+                  id="agenda-titulo"
+                  type="text"
+                  className="execucao-input"
+                  value={formData.titulo}
+                  onChange={atualizarCampo('titulo')}
+                  required
+                />
+              </div>
 
-            <form onSubmit={handleSubmit}>
-              <div className="execucao-modal-body space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="execucao-label">Título *</label>
+                  <label className="execucao-label" htmlFor="agenda-data">Data *</label>
                   <input
-                    type="text"
+                    id="agenda-data"
+                    type="date"
                     className="execucao-input"
-                    value={formData.titulo}
-                    onChange={(e) => setFormData({...formData, titulo: e.target.value})}
+                    value={formData.data_programada}
+                    onChange={atualizarCampo('data_programada')}
                     required
                   />
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="execucao-label">Data *</label>
-                    <input
-                      type="date"
-                      className="execucao-input"
-                      value={formData.data_programada}
-                      onChange={(e) => setFormData({...formData, data_programada: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="execucao-label">Prioridade</label>
-                    <select
-                      className="execucao-select"
-                      value={formData.prioridade}
-                      onChange={(e) => setFormData({...formData, prioridade: e.target.value})}
-                    >
-                      <option value="baixa">Baixa</option>
-                      <option value="normal">Normal</option>
-                      <option value="alta">Alta</option>
-                      <option value="urgente">Urgente</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="execucao-label">Hora Início</label>
-                    <input
-                      type="time"
-                      className="execucao-input"
-                      value={formData.hora_inicio}
-                      onChange={(e) => setFormData({...formData, hora_inicio: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <label className="execucao-label">Hora Fim</label>
-                    <input
-                      type="time"
-                      className="execucao-input"
-                      value={formData.hora_fim}
-                      onChange={(e) => setFormData({...formData, hora_fim: e.target.value})}
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label className="execucao-label">Técnico Responsável</label>
+                  <label className="execucao-label" htmlFor="agenda-prioridade">Prioridade</label>
                   <select
+                    id="agenda-prioridade"
                     className="execucao-select"
-                    value={formData.tecnico_responsavel_id}
-                    onChange={(e) => setFormData({...formData, tecnico_responsavel_id: e.target.value})}
+                    value={formData.prioridade}
+                    onChange={atualizarCampo('prioridade')}
                   >
-                    <option value="">Selecione...</option>
-                    {tecnicos.map(t => (
-                      <option key={t.id} value={t.id}>{t.nome_completo}</option>
-                    ))}
+                    <option value="baixa">Baixa</option>
+                    <option value="normal">Normal</option>
+                    <option value="alta">Alta</option>
+                    <option value="urgente">Urgente</option>
                   </select>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="execucao-label">Cliente</label>
+                  <label className="execucao-label" htmlFor="agenda-hora-inicio">Hora Início</label>
                   <input
-                    type="text"
+                    id="agenda-hora-inicio"
+                    type="time"
                     className="execucao-input"
-                    value={formData.cliente_nome}
-                    onChange={(e) => setFormData({...formData, cliente_nome: e.target.value})}
-                    placeholder="Nome do cliente"
+                    value={formData.hora_inicio}
+                    onChange={atualizarCampo('hora_inicio')}
                   />
                 </div>
-
                 <div>
-                  <label className="execucao-label">Endereço</label>
+                  <label className="execucao-label" htmlFor="agenda-hora-fim">Hora Fim</label>
                   <input
-                    type="text"
+                    id="agenda-hora-fim"
+                    type="time"
                     className="execucao-input"
-                    value={formData.endereco}
-                    onChange={(e) => setFormData({...formData, endereco: e.target.value})}
-                    placeholder="Endereço completo"
-                  />
-                </div>
-
-                <div>
-                  <label className="execucao-label">Descrição</label>
-                  <textarea
-                    className="execucao-input"
-                    rows={3}
-                    value={formData.descricao}
-                    onChange={(e) => setFormData({...formData, descricao: e.target.value})}
-                    placeholder="Descrição da atividade"
-                  />
-                </div>
-
-                <div>
-                  <label className="execucao-label">Observações</label>
-                  <textarea
-                    className="execucao-input"
-                    rows={2}
-                    value={formData.observacoes}
-                    onChange={(e) => setFormData({...formData, observacoes: e.target.value})}
-                    placeholder="Observações adicionais"
+                    value={formData.hora_fim}
+                    onChange={atualizarCampo('hora_fim')}
                   />
                 </div>
               </div>
 
-              <div className="execucao-modal-footer">
-                <button 
-                  type="button" 
-                  className="execucao-btn execucao-btn-secondary"
-                  onClick={() => setShowModal(false)}
+              <div>
+                <label className="execucao-label" htmlFor="agenda-tecnico">Técnico Responsável</label>
+                <select
+                  id="agenda-tecnico"
+                  className="execucao-select"
+                  value={formData.tecnico_responsavel_id}
+                  onChange={atualizarCampo('tecnico_responsavel_id')}
                 >
-                  Cancelar
-                </button>
-                <button type="submit" className="execucao-btn execucao-btn-primary">
-                  {atividadeEditando ? 'Salvar' : 'Criar Atividade'}
-                </button>
+                  <option value="">Selecione...</option>
+                  {tecnicos.map((t) => (
+                    <option key={t.id} value={t.id}>{t.nome_completo}</option>
+                  ))}
+                </select>
               </div>
-            </form>
-          </div>
-        </div>
+
+              <div>
+                <label className="execucao-label" htmlFor="agenda-cliente">Cliente</label>
+                <input
+                  id="agenda-cliente"
+                  type="text"
+                  className="execucao-input"
+                  value={formData.cliente_nome}
+                  onChange={atualizarCampo('cliente_nome')}
+                  placeholder="Nome do cliente"
+                />
+              </div>
+
+              <div>
+                <label className="execucao-label" htmlFor="agenda-endereco">Endereço</label>
+                <input
+                  id="agenda-endereco"
+                  type="text"
+                  className="execucao-input"
+                  value={formData.endereco}
+                  onChange={atualizarCampo('endereco')}
+                  placeholder="Endereço completo"
+                />
+              </div>
+
+              <div>
+                <label className="execucao-label" htmlFor="agenda-descricao">Descrição</label>
+                <textarea
+                  id="agenda-descricao"
+                  className="execucao-input"
+                  rows={3}
+                  value={formData.descricao}
+                  onChange={atualizarCampo('descricao')}
+                  placeholder="Descrição da atividade"
+                />
+              </div>
+
+              <div>
+                <label className="execucao-label" htmlFor="agenda-observacoes">Observações</label>
+                <textarea
+                  id="agenda-observacoes"
+                  className="execucao-input"
+                  rows={2}
+                  value={formData.observacoes}
+                  onChange={atualizarCampo('observacoes')}
+                  placeholder="Observações adicionais"
+                />
+              </div>
+            </div>
+
+            <div className="execucao-modal-footer">
+              <button
+                type="button"
+                className="execucao-btn execucao-btn-secondary"
+                onClick={fecharModal}
+                disabled={salvando}
+              >
+                Cancelar
+              </button>
+              <button type="submit" className="execucao-btn execucao-btn-primary" disabled={salvando}>
+                {salvando ? 'Salvando...' : atividadeEditando ? 'Salvar' : 'Criar Atividade'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
-    </div>
+    </section>
   );
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import Dashboard from './features/dashboard/components/Dashboard';
 import DashboardV2 from './features/dashboard-v2/DashboardV2';
 import ApontamentosComercial from './components/ApontamentosComercial';
@@ -8,21 +8,23 @@ import AdminPanel from './components/AdminPanel';
 import ProtectedRoute from './components/ProtectedRoute';
 import SmartRedirect from './components/SmartRedirect';
 import ResetPasswordPage from './components/ResetPasswordPage';
-import ExecucaoDashboard from './features/execucao/components/ExecucaoDashboard';
 import ImpersonationBar from './components/ImpersonationBar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LayoutProvider, useLayout } from './contexts/LayoutContext';
 import { useGoogleSheetsData } from './hooks/useGoogleSheetsData';
 
-function AppContent() {
-  // Verificar se estamos na página de reset de senha
-  const isResetPasswordPage = window.location.pathname === '/reset-password';
-  
-  // Se for página de reset, renderizar apenas ela
-  if (isResetPasswordPage) {
-    return <ResetPasswordPage />;
-  }
+// O módulo Execução só é baixado por quem tem acesso a ele
+const ExecucaoDashboard = lazy(() => import('./features/execucao/components/ExecucaoDashboard'));
 
+function TelaCarregando() {
+  return (
+    <div className="min-h-screen flex items-center justify-center login-dark-bg">
+      <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-orange-500" role="status" aria-label="Carregando"></div>
+    </div>
+  );
+}
+
+function AppContent() {
   const [currentPage, setCurrentPage] = useState(null); // null inicialmente para determinar automaticamente
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(true);
@@ -163,10 +165,12 @@ function AppContent() {
             <SmartRedirect onRedirect={setCurrentPage} />
           }
         >
-          <ExecucaoDashboard 
-            usuario={usuario}
-            onVoltar={() => setCurrentPage('dashboard')} 
-          />
+          <Suspense fallback={<TelaCarregando />}>
+            <ExecucaoDashboard 
+              usuario={usuario}
+              onVoltar={() => setCurrentPage('dashboard')} 
+            />
+          </Suspense>
         </ProtectedRoute>
         <AdminPanel 
           isOpen={showAdminPanel} 
@@ -207,11 +211,14 @@ function DashboardSelector({ setCurrentPage }) {
 }
 
 function App() {
+  // A página de reset de senha não usa o app autenticado; decidir aqui evita hooks após return condicional
+  const isResetPasswordPage = window.location.pathname === '/reset-password';
+
   return (
     <AuthProvider>
       <LayoutProvider>
         <ImpersonationBar />
-        <AppContent />
+        {isResetPasswordPage ? <ResetPasswordPage /> : <AppContent />}
       </LayoutProvider>
     </AuthProvider>
   );

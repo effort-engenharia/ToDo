@@ -171,7 +171,7 @@ export const AuthProvider = ({ children }) => {
       // Páginas comerciais e execução
       const paginasComerciais = ['dashboard', 'apontamentos', 'arsenal'];
       const paginasExecucao = ['execucao', 'execucao/atividades-dia', 'execucao/agenda-eletrica', 
-        'execucao/agenda-civil', 'execucao/agenda-galpao', 'execucao/pedido-material',
+        'execucao/agenda-civil', 'execucao/agenda-galpao', 'execucao/agenda-gestao', 'execucao/pedido-material',
         'execucao/desempenho-individual', 'execucao/desempenho-time', 'execucao/planejamento-macro',
         'execucao/pops', 'execucao/minhas-atividades'];
       const todasPaginas = [...paginasComerciais, ...paginasExecucao];

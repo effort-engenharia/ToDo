@@ -366,10 +366,13 @@ CREATE TABLE public.execucao_pops (
   created_by uuid,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  tipo_execucao character varying,
+  conteudo text,
+  tags text[] NOT NULL DEFAULT '{}',
   CONSTRAINT execucao_pops_pkey PRIMARY KEY (id),
   CONSTRAINT execucao_pops_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.usuarios(id)
 );
--- CONSTRAINT execucao_pops_categoria_check CHECK (((categoria)::text = ANY ((ARRAY['eletrica'::character varying, 'civil'::character varying, 'galpao'::character varying, 'seguranca'::character varying, 'geral'::character varying, 'gestao'::character varying])::text[])))
+-- CONSTRAINT execucao_pops_tipo_execucao_check CHECK (tipo_execucao IS NULL OR tipo_execucao IN ('eletrica', 'civil', 'galpao', 'gestao', 'estoque'))
 
 -- Arquivos (fotos, vídeos, documentos) anexados aos POPs
 CREATE TABLE public.execucao_pops_arquivos (

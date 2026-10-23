@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  FaCalendarDay, 
-  FaClock, 
-  FaCheckCircle, 
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  FaCalendarDay,
+  FaClock,
+  FaCheckCircle,
   FaPlay,
   FaCheck,
   FaBolt,
@@ -16,320 +16,288 @@ import {
   FaPaperPlane
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
+import { formatarDataBR } from '../utils/datas';
+import { useAsyncData } from '../hooks/useAsyncData';
+import { useExecucaoUI } from './ui/ExecucaoUI';
+import Modal from './ui/Modal';
+import { Carregando, ErroCarregamento, EstadoVazio } from './ui/Estados';
+
+const formatarDataHora = (valor) => (valor ? new Date(valor).toLocaleString('pt-BR') : '—');
+
+const TIPO_LABEL = { eletrica: 'Elétrica', civil: 'Civil', galpao: 'Galpão' };
+
+const STATUS_CLASSE = { pendente: 'pendente', em_andamento: 'em-andamento', concluida: 'concluida' };
+
+const STATUS_LABEL = {
+  pendente: 'Pendente',
+  em_andamento: 'Em Andamento',
+  concluida: 'Concluída',
+  transferida: 'Transferida',
+  cancelada: 'Cancelada'
+};
+
+const getTipoIcon = (tipo) => {
+  switch (tipo) {
+    case 'eletrica': return <FaBolt className="text-yellow-400" aria-hidden="true" />;
+    case 'civil': return <FaHardHat className="text-orange-400" aria-hidden="true" />;
+    case 'galpao': return <FaWarehouse className="text-blue-400" aria-hidden="true" />;
+    default: return <FaCalendarDay className="text-gray-400" aria-hidden="true" />;
+  }
+};
+
+const FILTROS_RESUMO = [
+  { valor: 'todas', rotulo: 'Total', chave: 'total', icone: FaClipboardList, cor: 'blue', borda: 'border-blue-500' },
+  { valor: 'pendente', rotulo: 'Pendentes', chave: 'pendentes', icone: FaClock, cor: 'yellow', borda: 'border-yellow-500' },
+  { valor: 'em_andamento', rotulo: 'Em Andamento', chave: 'em_andamento', icone: FaPlay, cor: 'purple', borda: 'border-blue-500' },
+  { valor: 'concluida', rotulo: 'Concluídas', chave: 'concluidas', icone: FaCheckCircle, cor: 'green', borda: 'border-green-500' }
+];
 
 const MinhasAtividades = ({ usuario }) => {
-  const [loading, setLoading] = useState(true);
-  const [atividades, setAtividades] = useState([]);
+  const { toast } = useExecucaoUI();
   const [atividadeSelecionada, setAtividadeSelecionada] = useState(null);
-  const [showDetalhes, setShowDetalhes] = useState(false);
   const [filtroStatus, setFiltroStatus] = useState('todas');
   const [comentario, setComentario] = useState('');
-  const [historico, setHistorico] = useState([]);
-  const [comentarios, setComentarios] = useState([]);
   const [tab, setTab] = useState('hoje');
+  const [detalhes, setDetalhes] = useState({ historico: [], comentarios: [], loading: false, error: null });
+  const [alterandoId, setAlterandoId] = useState(null);
+  const [enviandoComentario, setEnviandoComentario] = useState(false);
+  const detalhesReq = useRef(0);
 
-  useEffect(() => {
-    carregarAtividades();
-  }, [tab]);
+  const { data: atividades, loading, error, reload } = useAsyncData(
+    () => execucaoService.buscarAtividadesTecnico(usuario.id, tab),
+    [usuario.id, tab],
+    { initialData: [] }
+  );
 
-  const carregarAtividades = async () => {
-    setLoading(true);
+  // A resposta mais antiga nunca sobrescreve a de uma atividade aberta depois
+  const carregarDetalhes = useCallback(async (id, { silencioso = false } = {}) => {
+    const reqId = ++detalhesReq.current;
+    if (!silencioso) setDetalhes({ historico: [], comentarios: [], loading: true, error: null });
     try {
-      let result;
-      if (tab === 'hoje') {
-        result = await execucaoService.buscarAtividadesTecnico(usuario.id, 'hoje');
-      } else if (tab === 'semana') {
-        result = await execucaoService.buscarAtividadesTecnico(usuario.id, 'semana');
-      } else {
-        result = await execucaoService.buscarAtividadesTecnico(usuario.id, 'todas');
+      const [historicoResult, comentariosResult] = await Promise.all([
+        execucaoService.buscarHistoricoAtividade(id),
+        execucaoService.buscarComentariosAtividade(id)
+      ]);
+      if (reqId !== detalhesReq.current) return;
+      const falha = [historicoResult, comentariosResult].find((r) => !r?.success);
+      setDetalhes((d) => ({
+        historico: historicoResult?.success ? historicoResult.data : d.historico,
+        comentarios: comentariosResult?.success ? comentariosResult.data : d.comentarios,
+        loading: false,
+        error: falha ? falha.message || 'Falha ao carregar detalhes' : null
+      }));
+    } catch (err) {
+      console.error('Erro ao carregar detalhes:', err);
+      if (reqId === detalhesReq.current) {
+        setDetalhes((d) => ({ ...d, loading: false, error: err.message || 'Falha ao carregar detalhes' }));
       }
-
-      if (result.success) {
-        setAtividades(result.data);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar atividades:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, []);
 
-  const carregarDetalhes = async (atividade) => {
+  const abrirDetalhes = (atividade) => {
     setAtividadeSelecionada(atividade);
-    setShowDetalhes(true);
-    
-    // Carregar histórico e comentários
-    const [historicoResult, comentariosResult] = await Promise.all([
-      execucaoService.buscarHistoricoAtividade(atividade.id),
-      execucaoService.buscarComentariosAtividade(atividade.id)
-    ]);
-
-    if (historicoResult.success) {
-      setHistorico(historicoResult.data);
-    }
-    if (comentariosResult.success) {
-      setComentarios(comentariosResult.data);
-    }
+    setComentario('');
+    carregarDetalhes(atividade.id);
   };
+
+  const fecharDetalhes = useCallback(() => {
+    detalhesReq.current += 1;
+    setAtividadeSelecionada(null);
+  }, []);
 
   const handleAlterarStatus = async (id, novoStatus) => {
-    const result = await execucaoService.alterarStatusAtividade(id, novoStatus, usuario.id);
-    if (result.success) {
-      carregarAtividades();
-      if (atividadeSelecionada?.id === id) {
-        setAtividadeSelecionada(prev => ({ ...prev, status: novoStatus }));
-        const historicoResult = await execucaoService.buscarHistoricoAtividade(id);
-        if (historicoResult.success) {
-          setHistorico(historicoResult.data);
-        }
+    if (alterandoId) return;
+    setAlterandoId(id);
+    try {
+      const result = await execucaoService.alterarStatusAtividade(id, novoStatus, usuario.id);
+      if (!result?.success) {
+        toast.error(result?.message || 'Não foi possível alterar o status.');
+        return;
       }
+      toast.success(novoStatus === 'concluida' ? 'Atividade concluída.' : 'Atividade iniciada.');
+      reload();
+      setAtividadeSelecionada((atual) => (atual?.id === id ? { ...atual, status: novoStatus } : atual));
+      if (atividadeSelecionada?.id === id) carregarDetalhes(id, { silencioso: true });
+    } catch (err) {
+      console.error('Erro ao alterar status:', err);
+      toast.error('Erro inesperado ao alterar o status.');
+    } finally {
+      setAlterandoId(null);
     }
   };
 
   const handleEnviarComentario = async () => {
-    if (!comentario.trim() || !atividadeSelecionada) return;
-
-    const result = await execucaoService.adicionarComentario(
-      atividadeSelecionada.id,
-      usuario.id,
-      comentario
-    );
-
-    if (result.success) {
-      setComentario('');
-      const comentariosResult = await execucaoService.buscarComentariosAtividade(atividadeSelecionada.id);
-      if (comentariosResult.success) {
-        setComentarios(comentariosResult.data);
+    if (!comentario.trim() || !atividadeSelecionada || enviandoComentario) return;
+    setEnviandoComentario(true);
+    try {
+      const result = await execucaoService.adicionarComentario(atividadeSelecionada.id, usuario.id, comentario.trim());
+      if (!result?.success) {
+        toast.error(result?.message || 'Não foi possível enviar o comentário.');
+        return;
       }
+      setComentario('');
+      carregarDetalhes(atividadeSelecionada.id, { silencioso: true });
+    } catch (err) {
+      console.error('Erro ao enviar comentário:', err);
+      toast.error('Erro inesperado ao enviar o comentário.');
+    } finally {
+      setEnviandoComentario(false);
     }
   };
 
-  const getTipoIcon = (tipo) => {
-    switch (tipo) {
-      case 'eletrica': return <FaBolt className="text-yellow-400" />;
-      case 'civil': return <FaHardHat className="text-orange-400" />;
-      case 'galpao': return <FaWarehouse className="text-blue-400" />;
-      default: return <FaCalendarDay className="text-gray-400" />;
-    }
-  };
-
-  const getTipoLabel = (tipo) => {
-    switch (tipo) {
-      case 'eletrica': return 'Elétrica';
-      case 'civil': return 'Civil';
-      case 'galpao': return 'Galpão';
-      default: return tipo;
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pendente': return 'pendente';
-      case 'em_andamento': return 'em-andamento';
-      case 'concluida': return 'concluida';
-      default: return 'pendente';
-    }
-  };
-
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'pendente': return 'Pendente';
-      case 'em_andamento': return 'Em Andamento';
-      case 'concluida': return 'Concluída';
-      case 'transferida': return 'Transferida';
-      case 'cancelada': return 'Cancelada';
-      default: return status;
-    }
-  };
-
-  // Filtrar atividades
-  const atividadesFiltradas = atividades.filter(a => 
-    filtroStatus === 'todas' || a.status === filtroStatus
+  const atividadesFiltradas = useMemo(
+    () => atividades.filter((a) => filtroStatus === 'todas' || a.status === filtroStatus),
+    [atividades, filtroStatus]
   );
 
-  // Estatísticas
-  const stats = {
+  const stats = useMemo(() => ({
     total: atividades.length,
-    pendentes: atividades.filter(a => a.status === 'pendente').length,
-    em_andamento: atividades.filter(a => a.status === 'em_andamento').length,
-    concluidas: atividades.filter(a => a.status === 'concluida').length
-  };
+    pendentes: atividades.filter((a) => a.status === 'pendente').length,
+    em_andamento: atividades.filter((a) => a.status === 'em_andamento').length,
+    concluidas: atividades.filter((a) => a.status === 'concluida').length
+  }), [atividades]);
 
-  if (loading) {
+  const abas = [
+    { valor: 'hoje', rotulo: 'Hoje', icone: FaCalendarDay },
+    { valor: 'semana', rotulo: 'Esta Semana', icone: FaClock },
+    { valor: 'todas', rotulo: 'Todas', icone: FaClipboardList }
+  ];
+
+  const botaoStatus = (atividade, classe, tamanhoIcone, aoClicar) => {
+    if (atividade.status !== 'pendente' && atividade.status !== 'em_andamento') return null;
+    const iniciar = atividade.status === 'pendente';
     return (
-      <div className="execucao-loading">
-        <div className="execucao-spinner"></div>
-      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          aoClicar(atividade.id, iniciar ? 'em_andamento' : 'concluida');
+        }}
+        disabled={!!alterandoId}
+        className={`execucao-btn ${iniciar ? 'execucao-btn-primary' : 'execucao-btn-success'} ${classe}`}
+      >
+        {iniciar ? <FaPlay size={tamanhoIcone} aria-hidden="true" /> : <FaCheck size={tamanhoIcone} aria-hidden="true" />}
+        {iniciar ? ' Iniciar' : ' Concluir'}
+      </button>
     );
-  }
+  };
 
   return (
     <div className="execucao-animate-fade-in">
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6">
-        <button
-          className={`execucao-btn ${tab === 'hoje' ? 'execucao-btn-primary' : 'execucao-btn-secondary'}`}
-          onClick={() => setTab('hoje')}
-        >
-          <FaCalendarDay /> Hoje
-        </button>
-        <button
-          className={`execucao-btn ${tab === 'semana' ? 'execucao-btn-primary' : 'execucao-btn-secondary'}`}
-          onClick={() => setTab('semana')}
-        >
-          <FaClock /> Esta Semana
-        </button>
-        <button
-          className={`execucao-btn ${tab === 'todas' ? 'execucao-btn-primary' : 'execucao-btn-secondary'}`}
-          onClick={() => setTab('todas')}
-        >
-          <FaClipboardList /> Todas
-        </button>
+      <div className="flex gap-2 mb-6" role="group" aria-label="Período das atividades">
+        {abas.map(({ valor, rotulo, icone }) => {
+          const Icon = icone;
+          return (
+          <button
+            key={valor}
+            type="button"
+            aria-pressed={tab === valor}
+            className={`execucao-btn ${tab === valor ? 'execucao-btn-primary' : 'execucao-btn-secondary'}`}
+            onClick={() => setTab(valor)}
+          >
+            <Icon aria-hidden="true" /> {rotulo}
+          </button>
+          );
+        })}
       </div>
 
-      {/* Cards de resumo */}
       <div className="execucao-grid execucao-grid-4 mb-6">
-        <div 
-          className={`execucao-stat-card cursor-pointer ${filtroStatus === 'todas' ? 'border-blue-500' : ''}`}
-          onClick={() => setFiltroStatus('todas')}
-        >
-          <div className="execucao-stat-icon blue">
-            <FaClipboardList />
-          </div>
-          <div className="execucao-stat-content">
-            <div className="execucao-stat-label">Total</div>
-            <div className="execucao-stat-value">{stats.total}</div>
-          </div>
-        </div>
-
-        <div 
-          className={`execucao-stat-card cursor-pointer ${filtroStatus === 'pendente' ? 'border-yellow-500' : ''}`}
-          onClick={() => setFiltroStatus('pendente')}
-        >
-          <div className="execucao-stat-icon yellow">
-            <FaClock />
-          </div>
-          <div className="execucao-stat-content">
-            <div className="execucao-stat-label">Pendentes</div>
-            <div className="execucao-stat-value">{stats.pendentes}</div>
-          </div>
-        </div>
-
-        <div 
-          className={`execucao-stat-card cursor-pointer ${filtroStatus === 'em_andamento' ? 'border-blue-500' : ''}`}
-          onClick={() => setFiltroStatus('em_andamento')}
-        >
-          <div className="execucao-stat-icon purple">
-            <FaPlay />
-          </div>
-          <div className="execucao-stat-content">
-            <div className="execucao-stat-label">Em Andamento</div>
-            <div className="execucao-stat-value">{stats.em_andamento}</div>
-          </div>
-        </div>
-
-        <div 
-          className={`execucao-stat-card cursor-pointer ${filtroStatus === 'concluida' ? 'border-green-500' : ''}`}
-          onClick={() => setFiltroStatus('concluida')}
-        >
-          <div className="execucao-stat-icon green">
-            <FaCheckCircle />
-          </div>
-          <div className="execucao-stat-content">
-            <div className="execucao-stat-label">Concluídas</div>
-            <div className="execucao-stat-value">{stats.concluidas}</div>
-          </div>
-        </div>
+        {FILTROS_RESUMO.map(({ valor, rotulo, chave, icone, cor, borda }) => {
+          const Icon = icone;
+          return (
+          <button
+            key={valor}
+            type="button"
+            aria-pressed={filtroStatus === valor}
+            className={`execucao-stat-card cursor-pointer text-left w-full ${filtroStatus === valor ? borda : ''}`}
+            onClick={() => setFiltroStatus(valor)}
+          >
+            <div className={`execucao-stat-icon ${cor}`}>
+              <Icon aria-hidden="true" />
+            </div>
+            <div className="execucao-stat-content">
+              <div className="execucao-stat-label">{rotulo}</div>
+              <div className="execucao-stat-value">{stats[chave]}</div>
+            </div>
+          </button>
+          );
+        })}
       </div>
 
-      {/* Lista de atividades */}
-      {atividadesFiltradas.length === 0 ? (
-        <div className="execucao-card">
-          <div className="execucao-empty-state">
-            <div className="execucao-empty-icon">
-              <FaClipboardList />
-            </div>
-            <div className="execucao-empty-title">Nenhuma atividade encontrada</div>
-            <div className="execucao-empty-text">
-              {tab === 'hoje' 
-                ? 'Você não tem atividades programadas para hoje.' 
-                : 'Não há atividades para exibir com o filtro selecionado.'}
-            </div>
-          </div>
-        </div>
+      {loading ? (
+        <Carregando />
+      ) : error ? (
+        <ErroCarregamento mensagem={error} onTentarNovamente={reload} />
+      ) : atividadesFiltradas.length === 0 ? (
+        <EstadoVazio
+          icone={<FaClipboardList aria-hidden="true" />}
+          titulo="Nenhuma atividade encontrada"
+          texto={tab === 'hoje'
+            ? 'Você não tem atividades programadas para hoje.'
+            : 'Não há atividades para exibir com o filtro selecionado.'}
+        />
       ) : (
         <div className="space-y-4">
           {atividadesFiltradas.map((atividade) => (
-            <div 
-              key={atividade.id} 
+            <div
+              key={atividade.id}
               className="execucao-card cursor-pointer hover:border-blue-500/50"
-              onClick={() => carregarDetalhes(atividade)}
+              onClick={() => abrirDetalhes(atividade)}
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     {getTipoIcon(atividade.tipo_execucao)}
                     <span className="text-xs text-slate-500 uppercase">
-                      {getTipoLabel(atividade.tipo_execucao)}
+                      {TIPO_LABEL[atividade.tipo_execucao] || atividade.tipo_execucao}
                     </span>
-                    <span className={`execucao-activity-status ${getStatusColor(atividade.status)}`}>
-                      {getStatusLabel(atividade.status)}
+                    <span className={`execucao-activity-status ${STATUS_CLASSE[atividade.status] || 'pendente'}`}>
+                      {STATUS_LABEL[atividade.status] || atividade.status}
                     </span>
                     {atividade.prioridade === 'urgente' && (
                       <span className="execucao-badge execucao-badge-red">
-                        <FaExclamationTriangle size={10} className="mr-1" />
+                        <FaExclamationTriangle size={10} className="mr-1" aria-hidden="true" />
                         Urgente
                       </span>
                     )}
                   </div>
-                  
+
                   <h4 className="text-lg font-semibold text-slate-100 mb-2">
-                    {atividade.titulo}
+                    <button
+                      type="button"
+                      className="text-left"
+                      aria-haspopup="dialog"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        abrirDetalhes(atividade);
+                      }}
+                    >
+                      {atividade.titulo}
+                    </button>
                   </h4>
-                  
+
                   <div className="execucao-activity-meta">
                     <span className="execucao-activity-meta-item">
-                      <FaCalendarDay size={12} />
-                      {new Date(atividade.data).toLocaleDateString('pt-BR')}
+                      <FaCalendarDay size={12} aria-hidden="true" />
+                      {formatarDataBR(atividade.data_programada)}
                     </span>
                     {atividade.hora_inicio && atividade.hora_fim && (
                       <span className="execucao-activity-meta-item">
-                        <FaClock size={12} />
+                        <FaClock size={12} aria-hidden="true" />
                         {atividade.hora_inicio.substring(0, 5)} - {atividade.hora_fim.substring(0, 5)}
                       </span>
                     )}
                     {atividade.endereco && (
                       <span className="execucao-activity-meta-item">
-                        <FaMapMarkerAlt size={12} />
-                        {atividade.endereco.substring(0, 40)}...
+                        <FaMapMarkerAlt size={12} aria-hidden="true" />
+                        {atividade.endereco.length > 40 ? `${atividade.endereco.substring(0, 40)}...` : atividade.endereco}
                       </span>
                     )}
                   </div>
                 </div>
 
                 <div className="flex gap-2">
-                  {atividade.status === 'pendente' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAlterarStatus(atividade.id, 'em_andamento');
-                      }}
-                      className="execucao-btn execucao-btn-primary"
-                    >
-                      <FaPlay size={12} /> Iniciar
-                    </button>
-                  )}
-                  {atividade.status === 'em_andamento' && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleAlterarStatus(atividade.id, 'concluida');
-                      }}
-                      className="execucao-btn execucao-btn-success"
-                    >
-                      <FaCheck size={12} /> Concluir
-                    </button>
-                  )}
+                  {botaoStatus(atividade, '', 12, handleAlterarStatus)}
                 </div>
               </div>
             </div>
@@ -337,167 +305,159 @@ const MinhasAtividades = ({ usuario }) => {
         </div>
       )}
 
-      {/* Modal de Detalhes */}
-      {showDetalhes && atividadeSelecionada && (
-        <div className="execucao-modal-overlay" onClick={() => setShowDetalhes(false)}>
-          <div className="execucao-modal execucao-modal-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="execucao-modal-header">
-              <h3 className="execucao-modal-title flex items-center gap-2">
-                {getTipoIcon(atividadeSelecionada.tipo_execucao)}
-                {atividadeSelecionada.titulo}
-              </h3>
-              <button 
-                className="execucao-modal-close"
-                onClick={() => setShowDetalhes(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="execucao-modal-body max-h-[70vh] overflow-y-auto">
-              <div className="space-y-6">
-                {/* Status e ações */}
-                <div className="flex items-center justify-between p-4 bg-slate-800 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <span className={`execucao-activity-status ${getStatusColor(atividadeSelecionada.status)}`}>
-                      {getStatusLabel(atividadeSelecionada.status)}
-                    </span>
-                    <span className="text-sm text-slate-400">
-                      {getTipoLabel(atividadeSelecionada.tipo_execucao)}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    {atividadeSelecionada.status === 'pendente' && (
-                      <button
-                        onClick={() => handleAlterarStatus(atividadeSelecionada.id, 'em_andamento')}
-                        className="execucao-btn execucao-btn-primary execucao-btn-sm"
-                      >
-                        <FaPlay size={10} /> Iniciar
-                      </button>
-                    )}
-                    {atividadeSelecionada.status === 'em_andamento' && (
-                      <button
-                        onClick={() => handleAlterarStatus(atividadeSelecionada.id, 'concluida')}
-                        className="execucao-btn execucao-btn-success execucao-btn-sm"
-                      >
-                        <FaCheck size={10} /> Concluir
-                      </button>
-                    )}
-                  </div>
+      {atividadeSelecionada && (
+        <Modal
+          onClose={fecharDetalhes}
+          tamanho="lg"
+          titulo={atividadeSelecionada.titulo}
+          cabecalho={
+            <span className="flex items-center gap-2">
+              {getTipoIcon(atividadeSelecionada.tipo_execucao)}
+              {atividadeSelecionada.titulo}
+            </span>
+          }
+        >
+          <div className="max-h-[70vh] overflow-y-auto">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-slate-800 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <span className={`execucao-activity-status ${STATUS_CLASSE[atividadeSelecionada.status] || 'pendente'}`}>
+                    {STATUS_LABEL[atividadeSelecionada.status] || atividadeSelecionada.status}
+                  </span>
+                  <span className="text-sm text-slate-400">
+                    {TIPO_LABEL[atividadeSelecionada.tipo_execucao] || atividadeSelecionada.tipo_execucao}
+                  </span>
                 </div>
-
-                {/* Informações */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm text-slate-400">Data</label>
-                    <p className="text-slate-200">
-                      {new Date(atividadeSelecionada.data).toLocaleDateString('pt-BR')}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-slate-400">Horário</label>
-                    <p className="text-slate-200">
-                      {atividadeSelecionada.hora_inicio?.substring(0, 5) || '--:--'} - {atividadeSelecionada.hora_fim?.substring(0, 5) || '--:--'}
-                    </p>
-                  </div>
+                <div className="flex gap-2">
+                  {botaoStatus(atividadeSelecionada, 'execucao-btn-sm', 10, handleAlterarStatus)}
                 </div>
+              </div>
 
-                {atividadeSelecionada.descricao && (
-                  <div>
-                    <label className="text-sm text-slate-400">Descrição</label>
-                    <p className="text-slate-200">{atividadeSelecionada.descricao}</p>
-                  </div>
-                )}
-
-                {atividadeSelecionada.cliente_nome && (
-                  <div>
-                    <label className="text-sm text-slate-400">Cliente</label>
-                    <p className="text-slate-200">{atividadeSelecionada.cliente_nome}</p>
-                  </div>
-                )}
-
-                {atividadeSelecionada.endereco && (
-                  <div>
-                    <label className="text-sm text-slate-400">Endereço</label>
-                    <p className="text-slate-200">{atividadeSelecionada.endereco}</p>
-                  </div>
-                )}
-
-                {/* Histórico */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="flex items-center gap-2 text-slate-100 font-semibold mb-3">
-                    <FaHistory className="text-blue-400" />
-                    Histórico
-                  </h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {historico.length === 0 ? (
-                      <p className="text-sm text-slate-400">Nenhum histórico disponível.</p>
-                    ) : (
-                      historico.map((item, idx) => (
-                        <div key={idx} className="flex items-start gap-3 p-2 bg-slate-800 rounded">
-                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
-                          <div className="flex-1">
-                            <p className="text-sm text-slate-200">{item.descricao}</p>
-                            <p className="text-xs text-slate-500">
-                              {item.usuario?.nome_completo} - {new Date(item.created_at).toLocaleString('pt-BR')}
-                            </p>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                  <span className="text-sm text-slate-400">Data</span>
+                  <p className="text-slate-200">{formatarDataBR(atividadeSelecionada.data_programada)}</p>
                 </div>
-
-                {/* Comentários */}
                 <div>
-                  <h4 className="flex items-center gap-2 text-slate-100 font-semibold mb-3">
-                    <FaComments className="text-green-400" />
-                    Comentários
-                  </h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto mb-3">
-                    {comentarios.length === 0 ? (
-                      <p className="text-sm text-slate-400">Nenhum comentário.</p>
-                    ) : (
-                      comentarios.map((item, idx) => (
-                        <div key={idx} className="p-3 bg-slate-800 rounded">
-                          <p className="text-sm text-slate-200">{item.comentario}</p>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {item.usuario?.nome_completo} - {new Date(item.created_at).toLocaleString('pt-BR')}
+                  <span className="text-sm text-slate-400">Horário</span>
+                  <p className="text-slate-200">
+                    {atividadeSelecionada.hora_inicio?.substring(0, 5) || '--:--'} - {atividadeSelecionada.hora_fim?.substring(0, 5) || '--:--'}
+                  </p>
+                </div>
+              </div>
+
+              {atividadeSelecionada.descricao && (
+                <div>
+                  <span className="text-sm text-slate-400">Descrição</span>
+                  <p className="text-slate-200">{atividadeSelecionada.descricao}</p>
+                </div>
+              )}
+
+              {atividadeSelecionada.cliente_nome && (
+                <div>
+                  <span className="text-sm text-slate-400">Cliente</span>
+                  <p className="text-slate-200">{atividadeSelecionada.cliente_nome}</p>
+                </div>
+              )}
+
+              {atividadeSelecionada.endereco && (
+                <div>
+                  <span className="text-sm text-slate-400">Endereço</span>
+                  <p className="text-slate-200">{atividadeSelecionada.endereco}</p>
+                </div>
+              )}
+
+              {detalhes.error && (
+                <div className="text-sm text-red-400" role="alert">
+                  Não foi possível carregar parte dos detalhes: {detalhes.error}{' '}
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => carregarDetalhes(atividadeSelecionada.id)}
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
+
+              <div>
+                <h4 className="flex items-center gap-2 text-slate-100 font-semibold mb-3">
+                  <FaHistory className="text-blue-400" aria-hidden="true" />
+                  Histórico
+                </h4>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {detalhes.loading ? (
+                    <Carregando />
+                  ) : detalhes.historico.length === 0 ? (
+                    <p className="text-sm text-slate-400">Nenhum histórico disponível.</p>
+                  ) : (
+                    detalhes.historico.map((item) => (
+                      <div key={item.id} className="flex items-start gap-3 p-2 bg-slate-800 rounded">
+                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-2" aria-hidden="true"></div>
+                        <div className="flex-1">
+                          <p className="text-sm text-slate-200">{item.descricao}</p>
+                          <p className="text-xs text-slate-500">
+                            {item.usuario?.nome_completo} - {formatarDataHora(item.created_at)}
                           </p>
                         </div>
-                      ))
-                    )}
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      className="execucao-form-input flex-1"
-                      placeholder="Adicionar comentário..."
-                      value={comentario}
-                      onChange={(e) => setComentario(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleEnviarComentario()}
-                    />
-                    <button
-                      onClick={handleEnviarComentario}
-                      className="execucao-btn execucao-btn-primary"
-                      disabled={!comentario.trim()}
-                    >
-                      <FaPaperPlane />
-                    </button>
-                  </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="flex items-center gap-2 text-slate-100 font-semibold mb-3">
+                  <FaComments className="text-green-400" aria-hidden="true" />
+                  Comentários
+                </h4>
+                <div className="space-y-2 max-h-40 overflow-y-auto mb-3">
+                  {detalhes.loading ? (
+                    <Carregando />
+                  ) : detalhes.comentarios.length === 0 ? (
+                    <p className="text-sm text-slate-400">Nenhum comentário.</p>
+                  ) : (
+                    detalhes.comentarios.map((item) => (
+                      <div key={item.id} className="p-3 bg-slate-800 rounded">
+                        <p className="text-sm text-slate-200">{item.comentario}</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {item.usuario?.nome_completo} - {formatarDataHora(item.created_at)}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="execucao-form-input flex-1"
+                    placeholder="Adicionar comentário..."
+                    aria-label="Adicionar comentário"
+                    value={comentario}
+                    onChange={(e) => setComentario(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleEnviarComentario()}
+                    disabled={enviandoComentario}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleEnviarComentario}
+                    className="execucao-btn execucao-btn-primary"
+                    disabled={!comentario.trim() || enviandoComentario}
+                    aria-label="Enviar comentário"
+                  >
+                    <FaPaperPlane aria-hidden="true" />
+                  </button>
                 </div>
               </div>
             </div>
-            <div className="execucao-modal-footer">
-              <button 
-                className="execucao-btn execucao-btn-secondary"
-                onClick={() => setShowDetalhes(false)}
-              >
-                Fechar
-              </button>
-            </div>
           </div>
-        </div>
+          <div className="execucao-modal-footer">
+            <button type="button" className="execucao-btn execucao-btn-secondary" onClick={fecharDetalhes}>
+              Fechar
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

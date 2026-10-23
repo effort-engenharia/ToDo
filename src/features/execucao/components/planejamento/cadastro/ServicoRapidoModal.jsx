@@ -4,15 +4,13 @@ import { execucaoPlanejamentoService } from '../../../../../services/supabase/ex
 import { addDias, dataLocalISO, parseDataLocal } from '../../../utils/datas';
 import Modal from '../../ui/Modal';
 import { useExecucaoUI } from '../../ui/ExecucaoUI';
-import { ehDiaUtil, proximoDiaUtil } from '../utils';
+import { addDiasUteis, ehDiaUtil, proximoDiaUtil } from '../utils';
 import {
   camposDoContrato,
   equipeDaLinha,
   etapasParaPayload,
-  gerarEtapasPrevia,
   resolverCidade,
   sugerirTemplate,
-  terminoPrevisto,
   tipoEtapaDoTipoObra
 } from './cadastroUtils';
 import { formatarHoras } from '../../../utils/formatos';
@@ -21,29 +19,69 @@ import SeletorEquipe from './SeletorEquipe';
 import { useDadosCadastro } from './useDadosCadastro';
 import './cadastro.css';
 
-// Linhas "1. Etapa · 1d · 2h" / "1.1 Sub-etapa · 30min" para o resumo do template escolhido
+// Serviço rápido com template = UMA atividade com o nome do serviço (o do template) e todos os itens do
+// template como passos dentro dela. Item que tem sub-etapas é só um título de grupo: as horas ficam nas sub-etapas.
+const itemTemSubs = (template, item) => template.itens.some((i) => i.pai_ordem === item.ordem);
+
+const horasDoItem = (template, item) => (itemTemSubs(template, item) ? 0 : Number(item.horas_previstas) || 0);
+
+const diasDoTemplate = (template) =>
+  Math.max(1, template.itens
+    .filter((i) => i.pai_ordem == null)
+    .reduce((soma, i) => soma + Math.max(1, Number(i.duracao_dias) || 1), 0));
+
 const resumoTemplate = (template) => {
-  let principal = 0;
-  const rotulos = new Map();
-  const contagem = new Map();
-  return template.itens.map((item, i) => {
-    const sub = item.pai_ordem != null;
-    let rotulo;
-    if (!sub) {
-      principal += 1;
-      rotulo = `${principal}`;
-      rotulos.set(item.ordem, rotulo);
-    } else {
-      const n = (contagem.get(item.pai_ordem) ?? 0) + 1;
-      contagem.set(item.pai_ordem, n);
-      rotulo = `${rotulos.get(item.pai_ordem) ?? '?'}.${n}`;
-    }
-    const partes = [
-      sub ? null : `${item.duracao_dias || 1}d`,
-      item.horas_previstas ? formatarHoras(item.horas_previstas) : null
-    ].filter(Boolean);
-    return { chave: item.id ?? i, rotulo, nome: item.nome, sub, detalhe: partes.join(' · ') };
-  });
+  const horas = template.itens.reduce((soma, item) => soma + horasDoItem(template, item), 0);
+  return {
+    titulo: template.nome,
+    horas,
+    dias: diasDoTemplate(template),
+    passos: template.itens.map((item, i) => ({
+      chave: item.id ?? i,
+      nome: item.nome,
+      sub: item.pai_ordem != null,
+      detalhe: horasDoItem(template, item) > 0 ? formatarHoras(horasDoItem(template, item)) : ''
+    }))
+  };
+};
+
+const montarLinhasRapido = (template, { data, calendario, equipe, tipoEtapa }) => {
+  const inicio = parseDataLocal(data);
+  const fim = addDiasUteis(inicio, diasDoTemplate(template) - 1, calendario);
+  const base = {
+    data_inicio: dataLocalISO(inicio),
+    data_fim: dataLocalISO(fim),
+    lider_id: equipe.liderId,
+    apoio_ids: equipe.apoioIds,
+    progresso: 0
+  };
+  const topo = {
+    ...base,
+    _chave: 'rapido-topo',
+    pai_chave: null,
+    nome: template.nome,
+    descricao: '',
+    tipo: tipoEtapa,
+    ordem: 1,
+    duracao_dias: diasDoTemplate(template),
+    horas_previstas: '',
+    qtd_tecnicos: 1 + equipe.apoioIds.length,
+    pop_id: null
+  };
+  const passos = template.itens.map((item, i) => ({
+    ...base,
+    _chave: `rapido-passo-${i}`,
+    pai_chave: topo._chave,
+    nome: item.nome,
+    descricao: item.descricao || '',
+    tipo: item.tipo || 'geral',
+    ordem: i + 2,
+    duracao_dias: 0,
+    horas_previstas: horasDoItem(template, item) > 0 ? String(horasDoItem(template, item)) : '',
+    qtd_tecnicos: item.qtd_tecnicos || 1,
+    pop_id: item.pop_id || null
+  }));
+  return [topo, ...passos];
 };
 
 // "09:30" + 2.25h -> "11:45" (limitado ao fim do dia)
@@ -129,22 +167,23 @@ const ServicoRapidoModal = ({
     }
 
     const tipoEtapa = itemBase?.tipo && itemBase.tipo !== 'estoque' ? itemBase.tipo : tipoEtapaDoTipoObra(tipo?.tipo_obra);
-    // Com template: todas as etapas e sub-etapas dele, a partir da data escolhida, com a mesma equipe
+    // Com template: uma atividade com o nome do template e os itens dele como passos
+    const tipoDoTemplate = template?.itens?.find((i) => i.tipo && i.tipo !== 'estoque')?.tipo;
     const linhasTemplate = template
-      ? gerarEtapasPrevia(template, { inicioISO: data, calendario, responsavelId: equipe.liderId, primeiroNaData: true })
-          .map((l) => ({ ...l, lider_id: equipe.liderId, apoio_ids: equipe.apoioIds }))
+      ? montarLinhasRapido(template, {
+          data,
+          calendario,
+          equipe,
+          tipoEtapa: tipoDoTemplate || tipoEtapaDoTipoObra(tipo?.tipo_obra)
+        })
       : [];
-    // Horário opcional: vale para a 1ª etapa principal; o fim sai das horas previstas dela (soma das sub-etapas)
+    // Horário opcional: o fim sai das horas previstas dos passos (padrão de 2h se o template não tiver horas)
     if (linhasTemplate.length && inicioTemplate) {
-      const primeira = linhasTemplate[0];
-      const subsDaPrimeira = linhasTemplate.filter((l) => l.pai_chave === primeira._chave);
-      const horasPrimeira = subsDaPrimeira.length
-        ? subsDaPrimeira.reduce((soma, l) => soma + (Number(l.horas_previstas) || 0), 0)
-        : Number(primeira.horas_previstas) || 0;
+      const horas = linhasTemplate.reduce((soma, l) => soma + (l.pai_chave ? Number(l.horas_previstas) || 0 : 0), 0);
       linhasTemplate[0] = {
         ...linhasTemplate[0],
         hora_inicio: inicioTemplate,
-        hora_fim: horasPrimeira > 0 ? somarHoras(inicioTemplate, horasPrimeira) : somarHoras(inicioTemplate, 2)
+        hora_fim: somarHoras(inicioTemplate, horas > 0 ? horas : 2)
       };
     }
     const obra = {
@@ -153,7 +192,7 @@ const ServicoRapidoModal = ({
       cidade: contrato?.cidade || '',
       cidade_id: cidadeId,
       data_inicio_prevista: data,
-      data_fim_prevista: linhasTemplate.length ? (terminoPrevisto(linhasTemplate) || data) : data,
+      data_fim_prevista: linhasTemplate.length ? linhasTemplate[0].data_fim : data,
       tipo_obra: tipo?.tipo_obra || template?.tipo_obra || 'eletrica',
       prioridade: 'media',
       responsavel_id: equipe.liderId,
@@ -279,16 +318,27 @@ const ServicoRapidoModal = ({
                 </option>
               ))}
             </select>
-            {template && (
-              <ul className="cad-rapido-etapas" aria-label="Etapas que serão criadas">
-                {resumoTemplate(template).map((linha) => (
-                  <li key={linha.chave} className={linha.sub ? 'cad-rapido-sub' : undefined}>
-                    {linha.rotulo}. {linha.nome}
-                    <span className="text-slate-500">{linha.detalhe ? ` · ${linha.detalhe}` : ''}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            {template && (() => {
+              const resumo = resumoTemplate(template);
+              return (
+                <div className="cad-rapido-resumo" aria-label="O que será criado">
+                  <div className="cad-rapido-atividade">
+                    Atividade: <strong>{resumo.titulo}</strong>
+                    <span className="text-slate-400">
+                      {resumo.horas > 0 ? ` · ${formatarHoras(resumo.horas)}` : ''}{resumo.dias > 1 ? ` · ${resumo.dias} dias úteis` : ''}
+                    </span>
+                  </div>
+                  <ul className="cad-rapido-etapas" aria-label="Passos da atividade">
+                    {resumo.passos.map((passo) => (
+                      <li key={passo.chave} className={passo.sub ? 'cad-rapido-sub' : undefined}>
+                        {passo.nome}
+                        <span className="text-slate-500">{passo.detalhe ? ` · ${passo.detalhe}` : ''}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
 
           <div className={`grid grid-cols-1 gap-4 ${template ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
@@ -343,7 +393,7 @@ const ServicoRapidoModal = ({
           </div>
           {template && (
             <p className="text-xs text-slate-400">
-              Cada etapa vira uma atividade na agenda do técnico; as sub-etapas aparecem dentro dela, como passos. Sem horário, a atividade fica sem hora marcada.
+              Vira uma única atividade na agenda do técnico, com o nome do template; as etapas dele aparecem dentro dela, como passos. Sem horário, a atividade fica sem hora marcada.
             </p>
           )}
           {diaNaoUtil && (

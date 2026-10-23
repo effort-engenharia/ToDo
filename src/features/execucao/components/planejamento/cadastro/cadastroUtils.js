@@ -203,6 +203,8 @@ export const etapasParaPayload = (etapas, { andamento = false, hojeISO = dataLoc
       horas_previstas: horas,
       qtd_tecnicos: Math.max(1, parseInt(etapa.qtd_tecnicos, 10) || 1),
       pop_id: etapa.pop_id || '',
+      hora_inicio: etapa.hora_inicio || '',
+      hora_fim: etapa.hora_fim || '',
       status: situacao,
       progresso,
       data_inicio_real: situacao === 'pendente' ? '' : etapa.data_inicio,

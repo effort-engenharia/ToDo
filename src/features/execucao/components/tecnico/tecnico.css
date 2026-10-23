@@ -336,3 +336,13 @@ button.tec-pendencia-item:hover {
     width: 100%;
   }
 }
+
+/* Passos (sub-etapas) dentro da atividade */
+.tec-passos { margin: 0.5rem 0; padding: 0.5rem 0.65rem; border-radius: 0.5rem; background: rgba(148, 163, 184, 0.08); }
+.tec-passos-titulo { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 600; color: #94a3b8; margin-bottom: 0.25rem; }
+.tec-passos-lista { list-style: none; margin: 0; padding: 0; }
+.tec-passos-lista li { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.9rem; color: #e2e8f0; }
+.tec-passos-lista li svg { flex-shrink: 0; color: #64748b; }
+.tec-passo-nome { flex: 1; min-width: 0; }
+.tec-passo-horas { color: #94a3b8; font-size: 0.8rem; white-space: nowrap; }
+.tec-passo-feito .tec-passo-nome { text-decoration: line-through; color: #94a3b8; }

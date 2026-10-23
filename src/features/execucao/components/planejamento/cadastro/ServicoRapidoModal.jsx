@@ -46,6 +46,13 @@ const resumoTemplate = (template) => {
   });
 };
 
+// "09:30" + 2.25h -> "11:45" (limitado ao fim do dia)
+const somarHoras = (hhmm, horas) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = Math.min(23 * 60 + 59, h * 60 + m + Math.round((Number(horas) || 0) * 60));
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+};
+
 const mensagemDe = (resultado) => resultado?.message || 'erro desconhecido';
 
 // Início do contrato no futuro vira a data sugerida; contratos vencidos ou sem data usam o próximo dia útil
@@ -74,6 +81,7 @@ const ServicoRapidoModal = ({
   const [data, setData] = useState(() => dataSugerida(contratoInicial));
   const [horaInicio, setHoraInicio] = useState('09:00');
   const [horaFim, setHoraFim] = useState('11:00');
+  const [inicioTemplate, setInicioTemplate] = useState(''); // horário de início opcional (modo template)
   const [equipe, setEquipe] = useState({ liderId: '', apoioIds: [] });
   const [observacao, setObservacao] = useState('');
   const [salvando, setSalvando] = useState(false);
@@ -111,7 +119,7 @@ const ServicoRapidoModal = ({
       toast.error('Informe o cliente.');
       return;
     }
-    if (horaFim <= horaInicio) {
+    if (!template && horaFim <= horaInicio) {
       toast.error('O horário final deve ser depois do inicial.');
       return;
     }
@@ -126,6 +134,19 @@ const ServicoRapidoModal = ({
       ? gerarEtapasPrevia(template, { inicioISO: data, calendario, responsavelId: equipe.liderId, primeiroNaData: true })
           .map((l) => ({ ...l, lider_id: equipe.liderId, apoio_ids: equipe.apoioIds }))
       : [];
+    // Horário opcional: vale para a 1ª etapa principal; o fim sai das horas previstas dela (soma das sub-etapas)
+    if (linhasTemplate.length && inicioTemplate) {
+      const primeira = linhasTemplate[0];
+      const subsDaPrimeira = linhasTemplate.filter((l) => l.pai_chave === primeira._chave);
+      const horasPrimeira = subsDaPrimeira.length
+        ? subsDaPrimeira.reduce((soma, l) => soma + (Number(l.horas_previstas) || 0), 0)
+        : Number(primeira.horas_previstas) || 0;
+      linhasTemplate[0] = {
+        ...linhasTemplate[0],
+        hora_inicio: inicioTemplate,
+        hora_fim: horasPrimeira > 0 ? somarHoras(inicioTemplate, horasPrimeira) : somarHoras(inicioTemplate, 2)
+      };
+    }
     const obra = {
       nome_cliente: cliente.trim(),
       endereco: endereco.trim(),
@@ -270,7 +291,7 @@ const ServicoRapidoModal = ({
             )}
           </div>
 
-          <div className={`grid grid-cols-1 gap-4 ${template ? 'sm:grid-cols-1' : 'sm:grid-cols-3'}`}>
+          <div className={`grid grid-cols-1 gap-4 ${template ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
             <div className="execucao-form-group !mb-0">
               <label htmlFor="rapido-data" className="execucao-form-label">{template ? 'Data de início *' : 'Data *'}</label>
               <input
@@ -283,6 +304,18 @@ const ServicoRapidoModal = ({
                 required
               />
             </div>
+            {template && (
+              <div className="execucao-form-group !mb-0">
+                <label htmlFor="rapido-inicio-tpl" className="execucao-form-label">Horário de início (opcional)</label>
+                <input
+                  id="rapido-inicio-tpl"
+                  type="time"
+                  className="execucao-form-input"
+                  value={inicioTemplate}
+                  onChange={(e) => setInicioTemplate(e.target.value)}
+                />
+              </div>
+            )}
             {!template && (<>
             <div className="execucao-form-group !mb-0">
               <label htmlFor="rapido-hora-inicio" className="execucao-form-label">Início</label>
@@ -310,7 +343,7 @@ const ServicoRapidoModal = ({
           </div>
           {template && (
             <p className="text-xs text-slate-400">
-              As etapas seguem em dias úteis a partir da data de início e as sub-etapas entram na agenda do técnico dentro do dia da etapa.
+              Cada etapa vira uma atividade na agenda do técnico; as sub-etapas aparecem dentro dela, como passos. Sem horário, a atividade fica sem hora marcada.
             </p>
           )}
           {diaNaoUtil && (

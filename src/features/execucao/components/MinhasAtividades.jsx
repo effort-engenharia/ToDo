@@ -36,6 +36,7 @@ import { useAbrirAtividadePedida } from './tecnico/navegacaoNotificacao';
 import { clienteDaAtividade, contatoDaAtividade } from './tecnico/contatos';
 import { equipeDaAtividade, formatarHoras, horasDoTecnico, textoMaterial } from './tecnico/utilsDia';
 import './tecnico/tecnico.css';
+import PassosAtividade from './tecnico/PassosAtividade';
 
 const formatarDataHora = (valor) => (valor ? new Date(valor).toLocaleString('pt-BR') : '—');
 
@@ -377,6 +378,7 @@ const MinhasAtividades = ({ usuario }) => {
                     {linhaEquipeHoras(atividade)}
                     {linhaMaterial(atividade.id)}
                   </div>
+                  <PassosAtividade atividade={atividade} compacto />
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -428,6 +430,8 @@ const MinhasAtividades = ({ usuario }) => {
                   </p>
                 </div>
               </div>
+
+              <PassosAtividade atividade={atividadeSelecionada} />
 
               {atividadeSelecionada.descricao && (
                 <div>

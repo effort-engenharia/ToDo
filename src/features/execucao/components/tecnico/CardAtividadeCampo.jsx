@@ -25,6 +25,7 @@ import {
 } from './utilsDia';
 import '../../offline/FaixaStatusOffline.css';
 import './tecnico.css';
+import PassosAtividade from './PassosAtividade';
 
 const STATUS_ROTULO = {
   pendente: 'Pendente',
@@ -110,6 +111,8 @@ export default function CardAtividadeCampo({
           <span>Realizadas: {formatarHoras(atividade.horas_realizadas)}</span>
         )}
       </div>
+
+      <PassosAtividade atividade={atividade} />
 
       {equipe.length > 1 && (
         <div className="tec-linha">

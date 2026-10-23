@@ -25,6 +25,7 @@ import { execucaoService } from '../../../services/supabase/execucao';
 import { execucaoTecnicoService } from '../../../services/supabase/execucaoTecnico';
 import { formatarDataBR } from '../utils/datas';
 import { useAsyncData } from '../hooks/useAsyncData';
+import { useAtualizacaoAoVivo } from '../hooks/useAtualizacaoAoVivo';
 import FaixaStatusOffline from '../offline/FaixaStatusOffline';
 import { carregarAtividadesTecnico } from '../offline/leituras';
 import { useExecucaoUI } from './ui/ExecucaoUI';
@@ -78,13 +79,16 @@ const MinhasAtividades = ({ usuario }) => {
   const [enviandoComentario, setEnviandoComentario] = useState(false);
   const detalhesReq = useRef(0);
 
-  const { data: lista, loading, error, reload } = useAsyncData(
+  const { data: lista, loading, error, reload, refresh } = useAsyncData(
     () => carregarAtividadesTecnico(usuario.id, tab),
     [usuario.id, tab],
     { initialData: { atividades: [], material: {} } }
   );
   const atividades = lista.atividades;
   const material = lista.material;
+
+  // Atividade nova, transferida ou alterada aparece sozinha
+  useAtualizacaoAoVivo(usuario.id, refresh);
 
   // A resposta mais antiga nunca sobrescreve a de uma atividade aberta depois
   const carregarDetalhes = useCallback(async (id, { silencioso = false } = {}) => {

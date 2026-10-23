@@ -17,6 +17,7 @@ import { execucaoService } from '../../../services/supabase/execucao';
 import { execucaoTecnicoService } from '../../../services/supabase/execucaoTecnico';
 import { destinoDaNotificacao, irParaDestino } from './tecnico/navegacaoNotificacao';
 import '../styles/execucao.css';
+import { useAtualizacaoAoVivo } from '../hooks/useAtualizacaoAoVivo';
 
 const INTERVALO_MS = 30000;
 
@@ -31,7 +32,8 @@ const ICONES = {
   hora_extra: <FaRegClock className="text-blue-400" aria-hidden="true" />,
   replanejamento: <FaCalendarAlt className="text-purple-400" aria-hidden="true" />,
   transferencia: <FaExchangeAlt className="text-cyan-400" aria-hidden="true" />,
-  pendencia: <FaClipboardList className="text-yellow-400" aria-hidden="true" />
+  pendencia: <FaClipboardList className="text-yellow-400" aria-hidden="true" />,
+  nova_atividade: <FaClipboardList className="text-green-400" aria-hidden="true" />
 };
 
 const FUNDOS = {
@@ -44,7 +46,8 @@ const FUNDOS = {
   hora_extra: 'bg-blue-900/30',
   replanejamento: 'bg-purple-900/30',
   transferencia: 'bg-cyan-900/30',
-  pendencia: 'bg-yellow-900/30'
+  pendencia: 'bg-yellow-900/30',
+  nova_atividade: 'bg-green-900/30'
 };
 
 const getIcone = (tipo) => ICONES[tipo] ?? <FaBell className="text-slate-400" aria-hidden="true" />;
@@ -139,6 +142,9 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
       document.removeEventListener('visibilitychange', aoMudarVisibilidade);
     };
   }, [usuarioId, isAdmin, carregarNotificacoes]);
+
+  // Notificação nova aparece na hora (Realtime); o polling acima continua como reforço
+  useAtualizacaoAoVivo(usuarioId, () => carregarNotificacoes({ silencioso: true }), { intervaloMs: 120000 });
 
   // Fechar ao clicar fora ou com Esc (listeners só existem enquanto aberto)
   useEffect(() => {

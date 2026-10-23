@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { FaBell, FaChevronDown, FaChevronRight, FaClipboardList, FaExclamationTriangle, FaPause, FaRegClock } from 'react-icons/fa';
 import { execucaoService } from '../../../../services/supabase/execucao';
 import { execucaoTecnicoService } from '../../../../services/supabase/execucaoTecnico';
 import { dataLocalISO, parseDataLocal } from '../../utils/datas';
 import { useAsyncData } from '../../hooks/useAsyncData';
+import { useAtualizacaoAoVivo } from '../../hooks/useAtualizacaoAoVivo';
 import { aplicarPendencias } from '../../offline/aplicarPendencias';
 import { carregarComCache, preCarregar, preservarContexto } from '../../offline/cacheLeitura';
 import FaixaStatusOffline from '../../offline/FaixaStatusOffline';
@@ -92,16 +93,10 @@ const MeuDia = ({ usuario }) => {
   const hoje = dataLocalISO();
   const [amanhaAberto, setAmanhaAberto] = useState(false);
 
-  const { data, loading, error, reload } = useAsyncData(() => carregarDia(usuario.id, hoje), [usuario.id, hoje]);
+  const { data, loading, error, reload, refresh } = useAsyncData(() => carregarDia(usuario.id, hoje), [usuario.id, hoje]);
 
-  // Ao voltar para o app (aba/tela ligada), atualiza o dia
-  useEffect(() => {
-    const aoVoltar = () => {
-      if (document.visibilityState === 'visible') reload();
-    };
-    document.addEventListener('visibilitychange', aoVoltar);
-    return () => document.removeEventListener('visibilitychange', aoVoltar);
-  }, [reload]);
+  // Atividade nova, transferida ou alterada aparece sozinha (Realtime + reforço a cada minuto e ao voltar para o app)
+  useAtualizacaoAoVivo(usuario.id, refresh);
 
   const acoes = useAcoesAtividade({ usuarioId: usuario.id, onAtualizado: () => reload() });
 

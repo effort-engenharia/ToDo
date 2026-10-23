@@ -34,6 +34,18 @@
   }
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* No módulo Execução a tela nunca rola para o lado (evita o Chrome do celular "afastar" a página para caber) */
+html:has(.execucao-theme),
+body:has(.execucao-theme) {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
 body {
   margin: 0;
   padding: 0;

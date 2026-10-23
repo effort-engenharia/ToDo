@@ -5,6 +5,7 @@ import ExecucaoHeader from './ExecucaoHeader';
 import { ExecucaoUIProvider } from './ui/ExecucaoUI';
 import ErrorBoundary from './ui/ErrorBoundary';
 import { Carregando } from './ui/Estados';
+import AvisoSessao from './ui/AvisoSessao';
 import { isAdminExecucao, PAGINAS_TECNICO, paginaInicial } from '../utils/permissoes';
 import { useBadgesMenu } from '../hooks/useBadgesMenu';
 import '../styles/execucao.css';
@@ -156,6 +157,7 @@ const ExecucaoDashboard = ({ onVoltar }) => {
             />
 
             <div className="execucao-content">
+              <AvisoSessao />
               <ErrorBoundary resetKey={currentPage}>
                 <Suspense fallback={<Carregando />}>
                   {renderPage()}

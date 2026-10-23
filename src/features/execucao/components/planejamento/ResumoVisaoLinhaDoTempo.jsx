@@ -10,6 +10,7 @@ const MS_DIA = 1000 * 60 * 60 * 24;
 const LARGURA_ROTULO = 270;
 const PX_POR_DIA = { semana: 22, mes: 5 };
 const MARGEM_DIAS = 7;
+const LARGURA_MINIMA_TRILHA = 900; // evita uma linha do tempo minúscula quando há poucas obras
 const LIMITE_INICIAL = 100;
 
 const AGRUPAMENTOS = [
@@ -69,7 +70,9 @@ const ResumoVisaoLinhaDoTempo = ({ obras, filtroTipo, saudePorObra, onAbrirObra 
       });
     });
     const inicio = new Date(minimo.getFullYear(), minimo.getMonth(), minimo.getDate() - MARGEM_DIAS);
-    const fim = new Date(maximo.getFullYear(), maximo.getMonth(), maximo.getDate() + MARGEM_DIAS);
+    const diasMinimos = Math.ceil(LARGURA_MINIMA_TRILHA / pxDia);
+    const diasAteMaximo = dias(inicio, maximo) + MARGEM_DIAS + 1;
+    const fim = new Date(maximo.getFullYear(), maximo.getMonth(), maximo.getDate() + MARGEM_DIAS + Math.max(0, diasMinimos - diasAteMaximo));
     const totalDias = dias(inicio, fim) + 1;
 
     const meses = [];

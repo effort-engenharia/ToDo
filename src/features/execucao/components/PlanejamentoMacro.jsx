@@ -720,6 +720,7 @@ const PlanejamentoMacro = ({ usuario }) => {
                   <FaFilter className="text-slate-400" size={12} aria-hidden="true" />
                   <select
                     aria-label="Período"
+                    style={{ width: 'auto' }}
                     className="execucao-form-select text-sm py-1 min-w-[140px]"
                     value={filtroPeriodo}
                     onChange={(e) => setFiltroPeriodo(e.target.value)}
@@ -734,7 +735,8 @@ const PlanejamentoMacro = ({ usuario }) => {
 
                 <select
                   aria-label="Status"
-                  className="execucao-form-select text-sm py-1"
+                  style={{ width: 'auto' }}
+                    className="execucao-form-select text-sm py-1"
                   value={filtroStatus}
                   onChange={(e) => setFiltroStatus(e.target.value)}
                 >
@@ -747,7 +749,8 @@ const PlanejamentoMacro = ({ usuario }) => {
 
                 <select
                   aria-label="Filtrar por situação"
-                  className="execucao-form-select text-sm py-1"
+                  style={{ width: 'auto' }}
+                    className="execucao-form-select text-sm py-1"
                   value={filtroCarteira}
                   onChange={(e) => handleFiltrarCarteira(e.target.value)}
                 >
@@ -756,7 +759,8 @@ const PlanejamentoMacro = ({ usuario }) => {
 
                 <select
                   aria-label="Ordenar obras"
-                  className="execucao-form-select text-sm py-1"
+                  style={{ width: 'auto' }}
+                    className="execucao-form-select text-sm py-1"
                   value={ordenacaoObras}
                   onChange={(e) => setOrdenacaoObras(e.target.value)}
                 >

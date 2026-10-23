@@ -8,6 +8,13 @@
   touch-action: manipulation;
 }
 
+/* Sem isso os ícones são espremidos pelo flex quando o texto é longo */
+.execucao-btn.tec-btn svg {
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+}
+
 .execucao-btn.tec-btn-grande {
   width: 100%;
   min-height: 56px;

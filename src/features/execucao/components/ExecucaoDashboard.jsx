@@ -5,7 +5,8 @@ import ExecucaoHeader from './ExecucaoHeader';
 import { ExecucaoUIProvider } from './ui/ExecucaoUI';
 import ErrorBoundary from './ui/ErrorBoundary';
 import { Carregando } from './ui/Estados';
-import { isAdminExecucao, PAGINAS_TECNICO } from '../utils/permissoes';
+import { isAdminExecucao, PAGINAS_TECNICO, paginaInicial } from '../utils/permissoes';
+import { useBadgesMenu } from '../hooks/useBadgesMenu';
 import '../styles/execucao.css';
 
 // Cada página vira um chunk separado: o técnico não baixa Planejamento (PDF/Excel), gráficos etc.
@@ -18,6 +19,11 @@ const DesempenhoTime = lazy(() => import('./DesempenhoTime'));
 const PlanejamentoMacro = lazy(() => import('./PlanejamentoMacro'));
 const POPs = lazy(() => import('./POPs'));
 const MinhasAtividades = lazy(() => import('./MinhasAtividades'));
+const MeuDia = lazy(() => import('./tecnico/MeuDia'));
+const HorasExtras = lazy(() => import('./capacidade/HorasExtras'));
+const CapacidadeEquipe = lazy(() => import('./capacidade/CapacidadeEquipe'));
+const HistoricoAlteracoes = lazy(() => import('./historico/HistoricoAlteracoes'));
+const ConfiguracoesExecucao = lazy(() => import('./config/ConfiguracoesExecucao'));
 
 const AGENDAS = {
   'agenda-eletrica': { tipoExecucao: 'eletrica', titulo: 'Agenda Elétrica' },
@@ -36,42 +42,49 @@ const pageTitles = {
   'planejamento-macro': 'Planejamento Macro',
   'pops': 'Procedimentos Operacionais',
   'minhas-atividades': 'Minhas Atividades',
+  'meu-dia': 'Meu Dia',
+  'horas-extras': 'Horas Extras e Emergências',
+  'capacidade': 'Capacidade da Equipe',
+  'historico': 'Histórico de Alterações',
+  'configuracoes': 'Configurações',
   ...Object.fromEntries(Object.entries(AGENDAS).map(([id, { titulo }]) => [id, titulo])),
 };
 
 const PAGINAS_VALIDAS = new Set(Object.keys(pageTitles));
 const PREFIXO_HASH = '#/execucao';
 
-// A página atual vive no hash (#/execucao/pops): sobrevive ao F5 e funciona com o botão "voltar"
-const paginaDoHash = () => {
+// A página atual vive no hash (#/execucao/pops): sobrevive ao F5 e funciona com o botão "voltar".
+// Sem hash válido, abre a página inicial do perfil (técnico: "Meu Dia").
+const paginaDoHash = (inicial = 'home') => {
   const pagina = window.location.hash.startsWith(PREFIXO_HASH)
     ? window.location.hash.slice(PREFIXO_HASH.length).replace(/^\//, '')
     : '';
-  return PAGINAS_VALIDAS.has(pagina) ? pagina : 'home';
+  return PAGINAS_VALIDAS.has(pagina) ? pagina : inicial;
 };
 
 const ExecucaoDashboard = ({ onVoltar }) => {
   const { usuario, logout } = useAuth();
-  const [pagina, setPagina] = useState(paginaDoHash);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
   const isAdmin = isAdminExecucao(usuario);
+  const inicial = paginaInicial(usuario);
+  const [pagina, setPagina] = useState(() => paginaDoHash(inicial));
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const badges = useBadgesMenu(isAdmin);
 
   // Técnico só acessa as páginas permitidas; qualquer outra cai em "Minhas Atividades"
   const currentPage = isAdmin || PAGINAS_TECNICO.includes(pagina) ? pagina : 'minhas-atividades';
 
   const navegar = useCallback((destino) => {
-    const alvo = PAGINAS_VALIDAS.has(destino) ? destino : 'home';
+    const alvo = PAGINAS_VALIDAS.has(destino) ? destino : inicial;
     setPagina(alvo);
     const hash = alvo === 'home' ? PREFIXO_HASH : `${PREFIXO_HASH}/${alvo}`;
     if (window.location.hash !== hash) window.history.pushState(null, '', hash);
-  }, []);
+  }, [inicial]);
 
   useEffect(() => {
-    const aoVoltar = () => setPagina(paginaDoHash());
+    const aoVoltar = () => setPagina(paginaDoHash(inicial));
     window.addEventListener('popstate', aoVoltar);
     return () => window.removeEventListener('popstate', aoVoltar);
-  }, []);
+  }, [inicial]);
 
   const handleLogout = async () => {
     try {
@@ -102,6 +115,16 @@ const ExecucaoDashboard = ({ onVoltar }) => {
         return <POPs usuario={usuario} isAdmin={isAdmin} />;
       case 'minhas-atividades':
         return <MinhasAtividades usuario={usuario} />;
+      case 'meu-dia':
+        return <MeuDia usuario={usuario} onNavigate={navegar} />;
+      case 'horas-extras':
+        return <HorasExtras usuario={usuario} />;
+      case 'capacidade':
+        return <CapacidadeEquipe usuario={usuario} />;
+      case 'historico':
+        return <HistoricoAlteracoes usuario={usuario} />;
+      case 'configuracoes':
+        return <ConfiguracoesExecucao usuario={usuario} />;
       case 'home':
       default:
         return <ExecucaoHome usuario={usuario} isAdmin={isAdmin} onNavigate={navegar} />;
@@ -120,6 +143,7 @@ const ExecucaoDashboard = ({ onVoltar }) => {
             onLogout={handleLogout}
             isMobileOpen={isMobileMenuOpen}
             onCloseMobile={() => setIsMobileMenuOpen(false)}
+            badges={badges}
           />
 
           <main className="execucao-main">
@@ -128,6 +152,7 @@ const ExecucaoDashboard = ({ onVoltar }) => {
               onMenuToggle={() => setIsMobileMenuOpen((aberto) => !aberto)}
               usuario={usuario}
               isAdmin={isAdmin}
+              onNavigate={navegar}
             />
 
             <div className="execucao-content">

@@ -74,13 +74,21 @@ const _execucaoService = {
   // Atividades de um técnico: 'hoje' | 'semana' (seg-dom) | 'todas'
   async buscarAtividadesTecnico(tecnicoId, periodo = 'hoje') {
     try {
+      // Inclui atividades em que o técnico é apoio (equipe), não só as que ele lidera
+      const { data: vinculos } = await supabase
+        .from('execucao_atividades_equipe')
+        .select('atividade_id')
+        .eq('usuario_id', tecnicoId);
+      const idsDaEquipe = (vinculos ?? []).map(v => v.atividade_id).join(',') || '00000000-0000-0000-0000-000000000000';
+
       let query = supabase
         .from('execucao_atividades')
         .select(`
           *,
-          tecnico:usuarios!tecnico_responsavel_id(id, nome_completo, email)
+          tecnico:usuarios!tecnico_responsavel_id(id, nome_completo, email),
+          equipe:execucao_atividades_equipe(usuario_id, papel)
         `)
-        .eq('tecnico_responsavel_id', tecnicoId)
+        .or(`tecnico_responsavel_id.eq.${tecnicoId},id.in.(${idsDaEquipe})`)
         .order('data_programada', { ascending: true })
         .order('hora_inicio', { ascending: true, nullsFirst: false });
 
@@ -276,12 +284,18 @@ const _execucaoService = {
   },
 
   // Alterar status da atividade (RPC transacional: status + histórico + notificação + etapa vinculada)
-  async alterarStatusAtividade(id, novoStatus, _usuarioId, motivo = null) {
+  // extras (opcionais): { motivoCodigo, ocorridoEm, idCliente, solicitaReplanejamento, horasRealizadas }
+  async alterarStatusAtividade(id, novoStatus, _usuarioId, motivo = null, extras = {}) {
     try {
       const { data, error } = await supabase.rpc('alterar_status_atividade', {
         p_id: id,
         p_status: novoStatus,
-        p_motivo: motivo
+        p_motivo: motivo,
+        p_motivo_codigo: extras.motivoCodigo ?? null,
+        p_ocorrido_em: extras.ocorridoEm ?? null,
+        p_id_cliente: extras.idCliente ?? null,
+        p_solicita_replanejamento: extras.solicitaReplanejamento ?? null,
+        p_horas_realizadas: extras.horasRealizadas ?? null
       });
 
       if (error) throw error;
@@ -794,13 +808,6 @@ const _execucaoService = {
 
   async excluirPOP(id) {
     try {
-      const { data: arquivos, error: arqError } = await supabase
-        .from('execucao_pops_arquivos')
-        .select('caminho_storage')
-        .eq('pop_id', id);
-
-      if (arqError) throw arqError;
-
       const { error } = await supabase
         .from('execucao_pops')
         .delete()
@@ -808,14 +815,8 @@ const _execucaoService = {
 
       if (error) throw error;
 
-      // Depois do delete no banco, remove os anexos do Storage (evita arquivos órfãos)
-      if (arquivos?.length) {
-        const { error: storageError } = await supabase.storage
-          .from(BUCKET_POPS)
-          .remove(arquivos.map(a => a.caminho_storage));
-        if (storageError) console.error('Erro ao remover anexos do POP:', storageError);
-      }
-
+      // Os anexos ficam na lixeira do Storage (gatilho no banco) e são apagados após 30 dias,
+      // para que "Desfazer" no histórico consiga restaurá-los
       return { success: true };
     } catch (error) {
       console.error('Erro ao excluir POP:', error);
@@ -878,14 +879,6 @@ const _execucaoService = {
 
   async excluirArquivoPOP(arquivoId) {
     try {
-      const { data: arquivo, error: buscaError } = await supabase
-        .from('execucao_pops_arquivos')
-        .select('caminho_storage')
-        .eq('id', arquivoId)
-        .single();
-
-      if (buscaError) throw buscaError;
-
       const { error } = await supabase
         .from('execucao_pops_arquivos')
         .delete()
@@ -893,11 +886,7 @@ const _execucaoService = {
 
       if (error) throw error;
 
-      const { error: storageError } = await supabase.storage
-        .from(BUCKET_POPS)
-        .remove([arquivo.caminho_storage]);
-      if (storageError) console.error('Erro ao remover arquivo do Storage:', storageError);
-
+      // O objeto do Storage vai para a lixeira (gatilho no banco) e é apagado após 30 dias
       return { success: true };
     } catch (error) {
       console.error('Erro ao excluir arquivo do POP:', error);
@@ -1098,11 +1087,6 @@ const _execucaoService = {
       if (pedidosError) throw pedidosError;
 
       // Etapas e registros de arquivos são excluídos por CASCADE; os objetos do Storage são removidos depois
-      const { data: arquivos } = await supabase
-        .from('execucao_obras_arquivos')
-        .select('caminho_storage')
-        .eq('obra_id', id);
-
       const { error } = await supabase
         .from('execucao_obras')
         .delete()
@@ -1110,12 +1094,7 @@ const _execucaoService = {
 
       if (error) throw error;
 
-      if (arquivos?.length) {
-        const { error: storageError } = await supabase.storage
-          .from(BUCKET_OBRAS)
-          .remove(arquivos.map(a => a.caminho_storage));
-        if (storageError) console.error('Erro ao remover arquivos da obra:', storageError);
-      }
+      // Os arquivos ficam na lixeira do Storage (gatilho no banco) e são apagados após 30 dias
       return { success: true };
     } catch (error) {
       console.error('Erro ao excluir obra:', error);
@@ -1241,24 +1220,9 @@ const _execucaoService = {
   // Recalcular progresso geral da obra baseado nas etapas
   async recalcularProgressoObra(obraId) {
     try {
-      const { data: etapas } = await supabase
-        .from('execucao_obras_etapas')
-        .select('progresso')
-        .eq('obra_id', obraId);
-
-      if (etapas && etapas.length > 0) {
-        const progressoTotal = etapas.reduce((acc, e) => acc + (e.progresso || 0), 0);
-        const progressoMedio = Math.round(progressoTotal / etapas.length);
-
-        await supabase
-          .from('execucao_obras')
-          .update({ 
-            progresso_geral: progressoMedio,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', obraId);
-      }
-
+      // Progresso ponderado pelas horas previstas; conclui a obra quando todas as etapas terminam
+      const { error } = await supabase.rpc('execucao_recalcular_progresso', { p_obra: obraId });
+      if (error) throw error;
       return { success: true };
     } catch (error) {
       console.error('Erro ao recalcular progresso:', error);
@@ -1970,14 +1934,6 @@ const _execucaoService = {
   // Excluir arquivo (o caminho é lido do banco, nunca recebido do cliente)
   async excluirArquivoObra(arquivoId) {
     try {
-      const { data: arquivo, error: buscaError } = await supabase
-        .from('execucao_obras_arquivos')
-        .select('caminho_storage')
-        .eq('id', arquivoId)
-        .single();
-
-      if (buscaError) throw buscaError;
-
       const { error: dbError } = await supabase
         .from('execucao_obras_arquivos')
         .delete()
@@ -1985,11 +1941,7 @@ const _execucaoService = {
 
       if (dbError) throw dbError;
 
-      const { error: storageError } = await supabase.storage
-        .from(BUCKET_OBRAS)
-        .remove([arquivo.caminho_storage]);
-
-      if (storageError) console.error('Erro ao excluir do storage:', storageError);
+      // O objeto do Storage vai para a lixeira (gatilho no banco) e é apagado após 30 dias
       return { success: true };
     } catch (error) {
       console.error('Erro ao excluir arquivo:', error);

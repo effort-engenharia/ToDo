@@ -1177,3 +1177,17 @@ button.execucao-nav-item {
   border: none;
   font: inherit;
 }
+
+/* Selo de pendências no menu */
+.execucao-nav-badge {
+  margin-left: auto;
+  min-width: 1.25rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25rem;
+  text-align: center;
+}

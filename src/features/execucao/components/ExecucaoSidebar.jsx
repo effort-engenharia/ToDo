@@ -11,7 +11,12 @@ import {
   FaProjectDiagram,
   FaBook,
   FaClipboardList,
-  FaSignOutAlt
+  FaSignOutAlt,
+  FaMobileAlt,
+  FaClock,
+  FaBalanceScale,
+  FaHistory,
+  FaCog
 } from 'react-icons/fa';
 import { NIVEIS, isAdminExecucao } from '../utils/permissoes';
 import '../styles/execucao.css';
@@ -29,9 +34,14 @@ const menuItemsAdmin = [
   { id: 'desempenho-time', label: 'Desempenho do Time', icon: FaUsers, rota: 'execucao/desempenho-time' },
   { id: 'planejamento-macro', label: 'Planejamento Macro', icon: FaProjectDiagram, rota: 'execucao/planejamento-macro' },
   { id: 'pops', label: 'POPs', icon: FaBook, rota: 'execucao/pops' },
+  { id: 'horas-extras', label: 'Horas Extras', icon: FaClock, rota: 'execucao/horas-extras' },
+  { id: 'capacidade', label: 'Capacidade da Equipe', icon: FaBalanceScale, rota: 'execucao/capacidade' },
+  { id: 'historico', label: 'Histórico de Alterações', icon: FaHistory, rota: 'execucao/historico' },
+  { id: 'configuracoes', label: 'Configurações', icon: FaCog, rota: 'execucao/configuracoes' },
 ];
 
 const menuItemsTecnico = [
+  { id: 'meu-dia', label: 'Meu Dia', icon: FaMobileAlt, rota: 'execucao' },
   { id: 'home', label: 'Visão Geral', icon: FaHome, rota: 'execucao' },
   { id: 'minhas-atividades', label: 'Minhas Atividades', icon: FaClipboardList, rota: 'execucao/minhas-atividades' },
   { id: 'pops', label: 'POPs', icon: FaBook, rota: 'execucao/pops' },
@@ -44,7 +54,8 @@ const ExecucaoSidebar = ({
   isAdmin,
   onLogout,
   isMobileOpen,
-  onCloseMobile
+  onCloseMobile,
+  badges = {}
 }) => {
   const menuItems = isAdmin ? menuItemsAdmin : menuItemsTecnico;
 
@@ -60,7 +71,11 @@ const ExecucaoSidebar = ({
     },
     {
       title: 'Gestão',
-      items: menuItems.filter(item => ['pedido-material', 'desempenho-individual', 'desempenho-time', 'planejamento-macro', 'pops'].includes(item.id))
+      items: menuItems.filter(item => ['pedido-material', 'desempenho-individual', 'desempenho-time', 'planejamento-macro', 'pops', 'horas-extras', 'capacidade'].includes(item.id))
+    },
+    {
+      title: 'Sistema',
+      items: menuItems.filter(item => ['historico', 'configuracoes'].includes(item.id))
     }
   ] : [
     {
@@ -137,6 +152,14 @@ const ExecucaoSidebar = ({
                       <Icon />
                     </span>
                     <span>{item.label}</span>
+                    {badges[item.id] > 0 && (
+                      <span
+                        className="execucao-nav-badge"
+                        aria-label={`${badges[item.id]} pendente(s)`}
+                      >
+                        {badges[item.id] > 99 ? '99+' : badges[item.id]}
+                      </span>
+                    )}
                   </button>
                 );
               })}

@@ -8,4 +8,7 @@ export const NIVEIS = {
 export const isAdminExecucao = (usuario) =>
   [NIVEIS.ADMIN_EXEC, NIVEIS.ADMIN].includes(usuario?.nivel_acesso?.nome);
 
-export const PAGINAS_TECNICO = ['home', 'minhas-atividades', 'pops'];
+export const PAGINAS_TECNICO = ['meu-dia', 'home', 'minhas-atividades', 'pops'];
+
+// Página inicial de cada perfil
+export const paginaInicial = (usuario) => (isAdminExecucao(usuario) ? 'home' : 'meu-dia');

@@ -12,7 +12,9 @@ export default function Modal({ titulo, onClose, children, tamanho = 'md', cabec
   useEffect(() => {
     const anterior = document.activeElement;
     const foco = dialogRef.current?.querySelector('[autofocus], input, select, textarea, button:not(.execucao-modal-close)');
-    (foco || dialogRef.current)?.focus();
+    // preventScroll: sem isso, focar um botão do rodapé abria a janela já rolada para baixo (e o topo ficava escondido)
+    (foco || dialogRef.current)?.focus({ preventScroll: true });
+    if (dialogRef.current) dialogRef.current.scrollTop = 0;
 
     const onKeyDown = (e) => {
       if (e.key === 'Escape') onCloseRef.current?.();

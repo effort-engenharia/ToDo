@@ -367,3 +367,45 @@
   color: #fff;
   cursor: pointer;
 }
+
+/* Lista do admin: atualizar, carregamento sem "piscar", navegação no visualizador */
+.evid-atualizar {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  min-width: 32px;
+  min-height: 32px;
+}
+.evid-atualizar:hover:not(:disabled) { color: var(--text-primary, #f1f5f9); }
+
+.evid-galeria-esqueleto { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.evid-galeria-esqueleto span {
+  height: 9rem;
+  border-radius: 0.5rem;
+  background: rgba(148, 163, 184, 0.12);
+  animation: evid-pulso 1.4s ease-in-out infinite;
+}
+@keyframes evid-pulso { 50% { opacity: 0.45; } }
+
+.evid-visualizador-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: 0;
+  background: rgba(15, 23, 42, 0.75);
+  color: #fff;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+}
+.evid-visualizador-nav-anterior { left: 1rem; }
+.evid-visualizador-nav-proxima { right: 1rem; }
+.evid-visualizador-legenda { margin-top: 0.5rem; text-align: center; color: #cbd5e1; font-size: 0.85rem; }
+.evid-visualizador-legenda a { color: #7dd3fc; }
+.evid-visualizador-audio { width: min(90vw, 420px); }

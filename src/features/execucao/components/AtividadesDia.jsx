@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   FaCalendarDay,
   FaClock,
@@ -23,7 +23,7 @@ import { dataLocalISO, parseDataLocal } from '../utils/datas';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useExecucaoUI } from './ui/ExecucaoUI';
 import Modal from './ui/Modal';
-import EvidenciasLista from './tecnico/evidencias/EvidenciasLista';
+import DetalhesCompletosAtividade from './DetalhesCompletosAtividade';
 import { Carregando, ErroCarregamento, EstadoVazio } from './ui/Estados';
 
 const FORMATO_DATA_CURTA = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
@@ -93,8 +93,6 @@ const AtividadesDia = ({ usuario }) => {
   const [alterandoId, setAlterandoId] = useState(null);
   // { atividade, motivo, erro, solicitar, etapa: 'form' | 'confirmacao', salvando }
   const [pausa, setPausa] = useState(null);
-  const [historicoPausas, setHistoricoPausas] = useState({ itens: [], loading: false, error: null });
-  const historicoReq = useRef(0);
 
   const { data, loading, error, reload } = useAsyncData(carregarDia, [], {
     initialData: { atividades: [], stats: null }
@@ -218,28 +216,9 @@ const AtividadesDia = ({ usuario }) => {
     executarPausa(pausa.atividade, pausa.motivo, comSolicitacao);
   };
 
-  const handleAbrirDetalhes = async (atividade) => {
-    const reqId = ++historicoReq.current;
-    setAtividadeSelecionada(atividade);
-    setHistoricoPausas({ itens: [], loading: true, error: null });
-    try {
-      const result = await execucaoService.buscarHistorico(atividade.id);
-      if (reqId !== historicoReq.current) return;
-      if (!result?.success) throw new Error(result?.message || 'Falha ao carregar o histórico');
-      const itens = result.data.filter((h) => h.tipo_acao === 'pausa' || h.tipo_acao === 'retomada');
-      setHistoricoPausas({ itens, loading: false, error: null });
-    } catch (err) {
-      console.error('Erro ao buscar histórico de pausas:', err);
-      if (reqId === historicoReq.current) {
-        setHistoricoPausas({ itens: [], loading: false, error: err.message });
-      }
-    }
-  };
+  const handleAbrirDetalhes = (atividade) => setAtividadeSelecionada(atividade);
 
-  const fecharDetalhes = useCallback(() => {
-    historicoReq.current += 1;
-    setAtividadeSelecionada(null);
-  }, []);
+  const fecharDetalhes = useCallback(() => setAtividadeSelecionada(null), []);
 
   // Vindo de uma notificação: abre o detalhe da atividade pedida
   useAbrirAtividadePedida('atividades-dia', async (id) => {
@@ -475,6 +454,7 @@ const AtividadesDia = ({ usuario }) => {
       {sel && (
         <Modal
           onClose={fecharDetalhes}
+          tamanho="lg"
           titulo={sel.titulo}
           cabecalho={
             <span className="flex items-center gap-2">
@@ -574,67 +554,7 @@ const AtividadesDia = ({ usuario }) => {
               </div>
             )}
 
-            {historicoPausas.error && (
-              <p className="text-sm text-red-400" role="alert">
-                Não foi possível carregar o histórico de pausas: {historicoPausas.error}
-              </p>
-            )}
-
-            {(historicoPausas.itens.length > 0 || historicoPausas.loading) && (
-              <div className="bg-orange-500/10 border border-orange-500/30 p-3 rounded-lg">
-                <span className="text-xs text-orange-400 uppercase flex items-center gap-2 mb-3">
-                  <FaHistory size={10} aria-hidden="true" />
-                  Histórico de Pausas
-                  {historicoPausas.itens.length > 0 && (
-                    <span className="bg-orange-500/30 px-1.5 py-0.5 rounded text-[10px]">
-                      {historicoPausas.itens.length}
-                    </span>
-                  )}
-                </span>
-
-                {historicoPausas.loading ? (
-                  <div className="flex items-center gap-2 text-slate-400 text-sm" role="status">
-                    <div className="animate-spin w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full"></div>
-                    Carregando histórico...
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {historicoPausas.itens.map((registro) => (
-                      <div
-                        key={registro.id}
-                        className={`p-3 rounded-lg ${
-                          registro.tipo_acao === 'pausa'
-                            ? 'bg-orange-500/10 border-l-2 border-orange-500'
-                            : 'bg-green-500/10 border-l-2 border-green-500'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-xs font-medium uppercase ${
-                            registro.tipo_acao === 'pausa' ? 'text-orange-400' : 'text-green-400'
-                          }`}>
-                            {registro.tipo_acao === 'pausa' ? '⏸️ Pausada' : '▶️ Retomada'}
-                          </span>
-                          <span className="text-xs text-slate-500">
-                            {formatarCom(FORMATO_DATA_HORA, registro.created_at)}
-                          </span>
-                        </div>
-                        {registro.tipo_acao === 'pausa' && registro.descricao && (
-                          <p className="text-sm text-slate-300 mt-1">
-                            <strong className="text-orange-300">Motivo:</strong>{' '}
-                            {registro.descricao.replace('Atividade pausada. Motivo: ', '')}
-                          </p>
-                        )}
-                        {registro.usuario?.nome_completo && (
-                          <p className="text-xs text-slate-500 mt-1">Por: {registro.usuario.nome_completo}</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <EvidenciasLista atividadeId={sel.id} />
+            <DetalhesCompletosAtividade atividade={sel} />
 
             <div className="border-t border-slate-700 pt-3 mt-3">
               <div className="flex justify-between text-xs text-slate-500">

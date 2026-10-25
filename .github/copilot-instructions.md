@@ -219,5 +219,8 @@ npm run jev -- --state "<contexto curto ou @arquivo>" --questions '<json>'
 - `score`: posicionar em níveis ordenados (ex.: risco, complexidade). Retorna `score` (0..n-1) + `confidence`.
 - `noul`: probabilidade (0–1) de uma afirmação ser verdadeira (ex.: "a mudança quebra a API pública").
 - Faça várias perguntas independentes numa única chamada; cada pergunta deve ser atômica e o `state` deve conter o contexto necessário (combine com a saída de `graphify query`).
+- `--questions` é um objeto indexado por id, não array: `'{"q1":{"type":"noul","instructions":"A mudança quebra a API pública"}}'`. `choice` exige `criteria` como objeto; `score` exige `criteria` como array de níveis; `noul` não usa `criteria`. A saída traz `answers` com os mesmos ids.
 - Aja automaticamente só com confiança alta (choice/score ≥ 0.8, noul ≥ 0.8 ou ≤ 0.2); caso contrário, investigue no código ou pergunte ao usuário.
 - Para detalhes da API e padrões, use a skill `typesafe-ai` em `.agents/skills/typesafe-ai/`.
+
+**Registro de uso (medição):** cada agente em `.github/agents/` informa no fim do relatório `Uso de graphify/Jev: N consultas graphify, N consultas Jev`, e o orquestrador consolida esses totais no resumo final. Isso permite medir se graphify e Jev reduzem o consumo de tokens sem perda de qualidade. Como subagentes não têm memória, o orquestrador deve incluir essa instrução em todo prompt de delegação.

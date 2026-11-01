@@ -1,20 +1,27 @@
-import React, { useId, useRef, useState } from 'react';
+import React, { useId, useMemo, useRef, useState } from 'react';
 import { FaBox, FaCheck, FaList, FaMagic, FaPlus, FaSave, FaTrash } from 'react-icons/fa';
 import { execucaoService } from '../../../../services/supabase/execucao';
+import { useAsyncData } from '../../hooks/useAsyncData';
 import { dataLocalISO, formatarDataBR } from '../../utils/datas';
 import { useExecucaoUI } from '../ui/ExecucaoUI';
+import CampoQuantidade from './CampoQuantidade';
 import IconeTemplate from './IconeTemplate';
 import ModalLargo from './ModalLargo';
+import { STATUS_ITENS_TRAVADOS } from '../compras/statusCompra';
 import {
   UNIDADES,
+  atualizarCampoItem,
   converterParaNovoFormato,
   itemPreenchido,
   itensComKey,
   itensSemKey,
+  marcarItensInvalidos,
   novoItem
 } from './utils';
 
 const mensagemErro = (result, padrao) => result?.message || padrao;
+
+const STATUS_OBRA_ENCERRADA = ['concluida', 'cancelada'];
 
 // Etapa "Chegada dos Materiais" no cronograma da obra; lança erro se não for criada
 const criarEtapaChegadaMateriais = async (pedido, dataDisponivel) => {
@@ -45,7 +52,10 @@ export default function FormularioPedido({
   onClose,
   onSalvo,
   onRecarregar,
-  onTemplatesAlterados
+  onTemplatesAlterados,
+  // Questionamentos abertos do pedido (F17): faixa no topo e itens marcados
+  questionamentosAbertos = [],
+  onVerConversa
 }) {
   const { toast } = useExecucaoUI();
   const idBase = useId();
@@ -65,6 +75,22 @@ export default function FormularioPedido({
 
   const atualizarCampo = (campo, valor) => setFormData((prev) => ({ ...prev, [campo]: valor }));
 
+  const pedidoDeObra = Boolean(pedido?.obra_id);
+  // Depois de "comprado" o banco recusa mudar os itens (Anexo F.2-7): o formulário os mostra só para leitura
+  const itensTravados = STATUS_ITENS_TRAVADOS.includes(pedido?.status_compra);
+
+  // Sugestões de cliente: obras em andamento/planejadas. Só para pedido avulso; falha não impede o uso.
+  const { data: obras } = useAsyncData(
+    () => (pedidoDeObra ? Promise.resolve({ success: true, data: [] }) : execucaoService.buscarClientesDeObras()),
+    [pedidoDeObra]
+  );
+  const sugestoesCliente = useMemo(() => {
+    const nomes = (obras ?? [])
+      .filter((o) => o.nome_cliente && !STATUS_OBRA_ENCERRADA.includes(o.status))
+      .map((o) => o.nome_cliente.trim());
+    return [...new Set(nomes)].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [obras]);
+
   const adicionarItem = () => {
     setFormData((prev) => ({ ...prev, itens: [...prev.itens, novoItem()] }));
   };
@@ -76,8 +102,18 @@ export default function FormularioPedido({
   const atualizarItem = (key, campo, valor) => {
     setFormData((prev) => ({
       ...prev,
-      itens: prev.itens.map((item) => (item._key === key ? { ...item, [campo]: valor } : item))
+      itens: prev.itens.map((item) => (item._key === key ? atualizarCampoItem(item, campo, valor) : item))
     }));
+  };
+
+  // Marca erro nos itens preenchidos com quantidade vazia/≤0 e leva o foco ao primeiro; true se tudo ok
+  const validarQuantidades = () => {
+    const { itens, primeiraKey } = marcarItensInvalidos(formData.itens);
+    if (!primeiraKey) return true;
+    setFormData((prev) => ({ ...prev, itens }));
+    toast.error('Informe a quantidade (maior que zero) dos itens destacados.');
+    requestAnimationFrame(() => document.getElementById(`${idBase}-qtd-${primeiraKey}`)?.focus());
+    return false;
   };
 
   const limparSelecaoTemplate = () => {
@@ -116,6 +152,7 @@ export default function FormularioPedido({
       toast.error('Adicione pelo menos um item antes de salvar como template.');
       return;
     }
+    if (!validarQuantidades()) return;
 
     setSalvarTemplate((prev) => ({ ...prev, salvando: true }));
     try {
@@ -150,6 +187,8 @@ export default function FormularioPedido({
       observacoes: formData.observacoes,
       data_material_disponivel: formData.data_material_disponivel || null
     };
+    // Pedido de obra: cliente vem da obra (somente leitura), não é regravado
+    if (!pedidoDeObra) dados.cliente_nome = formData.cliente_nome.trim();
     const feito = persistido.current;
     const dadosNovos = { ...dados, data_material_disponivel: dados.data_material_disponivel ?? '' };
 
@@ -161,6 +200,7 @@ export default function FormularioPedido({
         observacoes: pedido.observacoes,
         data_material_disponivel: pedido.data_material_disponivel
       };
+      if (!pedidoDeObra) dadosAnteriores.cliente_nome = pedido.cliente_nome ?? '';
 
       if (!feito.pedido) {
         const result = await execucaoService.atualizarPedidoMaterial(pedido.id, dados);
@@ -226,6 +266,13 @@ export default function FormularioPedido({
       toast.error('Usuário não identificado. Faça login novamente.');
       return;
     }
+    // Cliente obrigatório no pedido avulso novo (⛳ N1-c)
+    if (!pedido && !formData.cliente_nome.trim()) {
+      toast.error('Informe o cliente do pedido.');
+      document.getElementById(`${idBase}-cliente`)?.focus();
+      return;
+    }
+    if (!validarQuantidades()) return;
 
     setSalvando(true);
     try {
@@ -260,6 +307,21 @@ export default function FormularioPedido({
     >
       <form onSubmit={handleSubmit}>
         <div className="execucao-modal-body">
+          {questionamentosAbertos.length > 0 && (
+            <div
+              className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-sm text-purple-200"
+              role="status"
+            >
+              <span>
+                ❓ Há {questionamentosAbertos.length} {questionamentosAbertos.length === 1 ? 'questionamento aguardando' : 'questionamentos aguardando'} sua resposta
+              </span>
+              {onVerConversa && (
+                <button type="button" className="execucao-btn execucao-btn-secondary execucao-btn-sm min-h-[44px]" onClick={onVerConversa}>
+                  Ver conversa
+                </button>
+              )}
+            </div>
+          )}
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="execucao-form-group">
@@ -292,6 +354,41 @@ export default function FormularioPedido({
             </div>
 
             <div className="execucao-form-group">
+              <label className="execucao-form-label" htmlFor={`${idBase}-cliente`}>
+                Cliente {!pedido && <span className="text-red-400">*</span>}
+              </label>
+              {pedidoDeObra ? (
+                <input
+                  id={`${idBase}-cliente`}
+                  type="text"
+                  className="execucao-form-input opacity-60 cursor-not-allowed"
+                  value={pedido.cliente_nome || ''}
+                  readOnly
+                  aria-readonly="true"
+                />
+              ) : (
+                <>
+                  <input
+                    id={`${idBase}-cliente`}
+                    type="text"
+                    className="execucao-form-input"
+                    placeholder="Nome do cliente"
+                    list={`${idBase}-clientes`}
+                    autoComplete="off"
+                    value={formData.cliente_nome}
+                    onChange={(e) => atualizarCampo('cliente_nome', e.target.value)}
+                    required={!pedido}
+                  />
+                  <datalist id={`${idBase}-clientes`}>
+                    {sugestoesCliente.map((nome) => (
+                      <option key={nome} value={nome} />
+                    ))}
+                  </datalist>
+                </>
+              )}
+            </div>
+
+            <fieldset disabled={itensTravados} className="execucao-form-group border-0 p-0 m-0 min-w-0">
               <div className="flex items-center justify-between mb-2">
                 <span className="execucao-form-label">Itens</span>
                 <div className="flex gap-2">
@@ -313,6 +410,12 @@ export default function FormularioPedido({
                   </button>
                 </div>
               </div>
+
+              {itensTravados && (
+                <p className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200" role="status">
+                  🔒 Este pedido já foi comprado: os itens não podem mais ser alterados. Os demais campos continuam editáveis.
+                </p>
+              )}
 
               {salvarTemplate && (
                 <div className="mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-600">
@@ -484,60 +587,81 @@ export default function FormularioPedido({
               )}
 
               <div className="grid grid-cols-12 gap-2 text-xs text-slate-400 mb-1" aria-hidden="true">
-                <span className="col-span-7">Nome do Item</span>
-                <span className="col-span-2 text-center">Qtd</span>
+                <span className="col-span-5">Nome do Item</span>
+                <span className="col-span-4 text-center">Qtd</span>
                 <span className="col-span-2">Unidade</span>
                 <span className="col-span-1"></span>
               </div>
 
               <div className="space-y-2">
-                {formData.itens.map((item, index) => (
-                  <div key={item._key} className="grid grid-cols-12 gap-2 items-center">
-                    <input
-                      type="text"
-                      className="execucao-form-input col-span-7"
-                      placeholder="Nome do item"
-                      aria-label={`Nome do item ${index + 1}`}
-                      value={item.nome || ''}
-                      onChange={(e) => atualizarItem(item._key, 'nome', e.target.value)}
-                    />
-                    <input
-                      type="number"
-                      className="execucao-form-input col-span-2 text-center"
-                      placeholder="Qtd"
-                      aria-label={`Quantidade do item ${index + 1}`}
-                      min="0.1"
-                      step="0.1"
-                      value={item.quantidade || 1}
-                      onChange={(e) => atualizarItem(item._key, 'quantidade', parseFloat(e.target.value) || 1)}
-                    />
-                    <select
-                      className="execucao-form-select col-span-2"
-                      aria-label={`Unidade do item ${index + 1}`}
-                      value={item.unidade || 'un'}
-                      onChange={(e) => atualizarItem(item._key, 'unidade', e.target.value)}
-                    >
-                      {UNIDADES.map((u) => (
-                        <option key={u.valor} value={u.valor}>{u.rotulo}</option>
-                      ))}
-                    </select>
-                    <div className="col-span-1 flex justify-center">
-                      {formData.itens.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removerItem(item._key)}
-                          className="execucao-btn execucao-btn-danger execucao-btn-sm"
-                          aria-label={`Remover item ${index + 1}`}
-                          title="Remover item"
-                        >
-                          <FaTrash size={10} aria-hidden="true" />
-                        </button>
-                      )}
+                {formData.itens.map((item, index) => {
+                  const questionado = Boolean(item.id) && questionamentosAbertos.some((q) => q.item_id === item.id);
+                  return (
+                  <div
+                    key={item._key}
+                    className={questionado ? 'border-l-4 border-purple-400 bg-purple-500/10 pl-2 rounded-r' : undefined}
+                  >
+                    {questionado && (
+                      <p className="text-xs font-semibold text-purple-300 mb-1">
+                        ❓ Questionado<span className="sr-only"> — há um questionamento aberto neste item</span>
+                      </p>
+                    )}
+                    <div className="grid grid-cols-12 gap-2 items-center">
+                      <input
+                        type="text"
+                        className="execucao-form-input col-span-5"
+                        placeholder="Nome do item"
+                        aria-label={`Nome do item ${index + 1}`}
+                        value={item.nome || ''}
+                        onChange={(e) => atualizarItem(item._key, 'nome', e.target.value)}
+                      />
+                      <CampoQuantidade
+                        className="col-span-4"
+                        id={`${idBase}-qtd-${item._key}`}
+                        ariaLabel={`Quantidade do item ${index + 1}`}
+                        value={item.quantidade ?? null}
+                        unidade={item.unidade || 'un'}
+                        invalido={Boolean(item._erro)}
+                        descricaoId={item._erro ? `${idBase}-erro-${item._key}` : undefined}
+                        onChange={(q) => atualizarItem(item._key, 'quantidade', q)}
+                      />
+                      <select
+                        className="execucao-form-select col-span-2"
+                        aria-label={`Unidade do item ${index + 1}`}
+                        value={item.unidade || 'un'}
+                        onChange={(e) => atualizarItem(item._key, 'unidade', e.target.value)}
+                      >
+                        {UNIDADES.map((u) => (
+                          <option key={u.valor} value={u.valor}>{u.rotulo}</option>
+                        ))}
+                      </select>
+                      <div className="col-span-1 flex justify-center">
+                        {formData.itens.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removerItem(item._key)}
+                            className="execucao-btn execucao-btn-danger execucao-btn-sm"
+                            aria-label={`Remover item ${index + 1}`}
+                            title="Remover item"
+                          >
+                            <FaTrash size={10} aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
                     </div>
+                    {item._erro && (
+                      <p id={`${idBase}-erro-${item._key}`} className="text-xs text-red-400 mt-1" role="alert">
+                        {item._erro}
+                      </p>
+                    )}
+                    {item._aviso && !item._erro && (
+                      <p className="text-xs text-amber-400/90 mt-1" role="status">{item._aviso}</p>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
-            </div>
+            </fieldset>
 
             <div className="execucao-form-group">
               <label className="execucao-form-label" htmlFor={`${idBase}-observacoes`}>Observações</label>

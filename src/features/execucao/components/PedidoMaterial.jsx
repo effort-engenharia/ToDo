@@ -1,7 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { FaBox, FaMagic } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
+import { execucaoComprasService } from '../../../services/supabase/execucaoCompras';
 import { useAsyncData } from '../hooks/useAsyncData';
+import { useAtualizacaoTabelas } from '../hooks/useAtualizacaoTabelas';
 import { useExecucaoUI } from './ui/ExecucaoUI';
 import { Carregando, ErroCarregamento } from './ui/Estados';
 import AlertaEdicaoPedido from './pedido-material/AlertaEdicaoPedido';
@@ -9,11 +11,15 @@ import FormularioPedido from './pedido-material/FormularioPedido';
 import HistoricoPedido from './pedido-material/HistoricoPedido';
 import ListaPedidos from './pedido-material/ListaPedidos';
 import ListasObrasPendentes from './pedido-material/ListasObrasPendentes';
+import ModalConversaPedido from './pedido-material/ModalConversaPedido';
 import TemplatesMateriais from './pedido-material/TemplatesMateriais';
 import { itensComKey, novoItem } from './pedido-material/utils';
+import { PERIODO_INICIAL, filtrosServidorDoPeriodo } from './pedido-material/periodo';
+import { useAbrirPedidoDaNotificacao } from './compras/navegacaoCompras';
 
 const VALORES_VAZIOS = () => ({
   descricao: '',
+  cliente_nome: '',
   urgencia: 'normal',
   itens: [novoItem()],
   observacoes: '',
@@ -26,6 +32,7 @@ const valoresDoPedido = (pedido, { exigirNome = false, novaData = null } = {}) =
 
   return {
     descricao: pedido.descricao || '',
+    cliente_nome: pedido.cliente_nome || '',
     urgencia: pedido.urgencia || 'normal',
     itens: temItens ? itensComKey(pedido.itens) : [novoItem()],
     observacoes: pedido.observacoes || '',
@@ -36,13 +43,53 @@ const valoresDoPedido = (pedido, { exigirNome = false, novaData = null } = {}) =
 const PedidoMaterial = ({ usuario }) => {
   const { toast } = useExecucaoUI();
   const [abaAtiva, setAbaAtiva] = useState('pedidos'); // 'pedidos' ou 'templates'
+  const [periodo, setPeriodo] = useState(PERIODO_INICIAL);
+
+  // Filtro de período (created_at) aplicado no servidor; strings estáveis servem de dependência
+  const { criadoDe, criadoAte } = useMemo(() => filtrosServidorDoPeriodo(periodo), [periodo]);
 
   const {
     data: pedidosData,
     loading: carregandoPedidos,
     error: erroPedidos,
-    reload: recarregarPedidos
-  } = useAsyncData(() => execucaoService.buscarPedidosMaterial(), []);
+    reload: recarregarPedidosPeriodo,
+    refresh: atualizarPedidosPeriodo
+  } = useAsyncData(() => execucaoService.buscarPedidosMaterial({ criadoDe, criadoAte }), [criadoDe, criadoAte]);
+
+  // Listas de obra aguardando preenchimento não dependem do período escolhido
+  const {
+    data: pendentesData,
+    reload: recarregarPendentes,
+    refresh: atualizarPendentes
+  } = useAsyncData(() => execucaoService.buscarPedidosMaterial({ apenasObraPendentes: true }), []);
+
+  // Questionamentos abertos (F17). Falha (ex.: migrations de Compras ainda não aplicadas) não quebra a tela:
+  // `data` fica null e os recursos de conversa simplesmente não aparecem.
+  const { data: questAbertosData, refresh: atualizarQuestionamentos } = useAsyncData(
+    () => execucaoComprasService.buscarQuestionamentosAbertos(),
+    []
+  );
+  const questionamentosDisponiveis = Array.isArray(questAbertosData);
+  const questionamentosAbertosLista = useMemo(() => questAbertosData ?? [], [questAbertosData]);
+  const questionamentosPorPedido = useMemo(() => {
+    const mapa = {};
+    for (const q of questionamentosAbertosLista) mapa[q.pedido_id] = (mapa[q.pedido_id] ?? 0) + 1;
+    return mapa;
+  }, [questionamentosAbertosLista]);
+
+  const recarregarPedidos = useCallback(() => {
+    recarregarPedidosPeriodo();
+    recarregarPendentes();
+    atualizarQuestionamentos();
+  }, [recarregarPedidosPeriodo, recarregarPendentes, atualizarQuestionamentos]);
+
+  // Tempo real: o comprador abre/cancela questionamento ou muda o status → lista, selos e conversa se atualizam
+  const atualizarEmSilencio = useCallback(() => {
+    atualizarPedidosPeriodo();
+    atualizarPendentes();
+    atualizarQuestionamentos();
+  }, [atualizarPedidosPeriodo, atualizarPendentes, atualizarQuestionamentos]);
+  useAtualizacaoTabelas(['execucao_pedidos_material', 'execucao_pedidos_questionamentos'], atualizarEmSilencio);
 
   const {
     data: templatesData,
@@ -52,26 +99,31 @@ const PedidoMaterial = ({ usuario }) => {
   } = useAsyncData(() => execucaoService.buscarTemplatesMateriais(), [], { initialData: [] });
 
   const pedidos = useMemo(() => pedidosData ?? [], [pedidosData]);
+  const pendentesBrutos = useMemo(() => pendentesData ?? [], [pendentesData]);
   const templates = useMemo(() => templatesData ?? [], [templatesData]);
 
   const [formulario, setFormulario] = useState(null); // { pedido, valores, dataDefinidaPeloAlerta }
   const [pedidoParaAlerta, setPedidoParaAlerta] = useState(null);
   const [historico, setHistorico] = useState(null); // { pedido, itens }
+  const [conversa, setConversa] = useState(null); // { pedidoId }
 
   const fecharFormulario = useCallback(() => setFormulario(null), []);
   const fecharAlerta = useCallback(() => setPedidoParaAlerta(null), []);
   const fecharHistorico = useCallback(() => setHistorico(null), []);
+  const fecharConversa = useCallback(() => setConversa(null), []);
 
-  const { listasObrasPendentes, pedidosNormais } = useMemo(() => {
-    const pendentes = [];
-    const normais = [];
-    for (const p of pedidos) {
-      const semItens = !p.itens || p.itens.length === 0 || p.itens.every((i) => !i.nome);
-      if (p.obra_id && semItens && p.status !== 'entregue') pendentes.push(p);
-      if (!p.obra_id || (p.itens?.length > 0 && p.itens.some((i) => i.nome))) normais.push(p);
-    }
-    return { listasObrasPendentes: pendentes, pedidosNormais: normais };
-  }, [pedidos]);
+  // Notificação de questionamento/resposta (F18): abre a conversa do pedido
+  useAbrirPedidoDaNotificacao('pedido-material', ({ id }) => setConversa({ pedidoId: id }));
+
+  const listasObrasPendentes = useMemo(
+    () => pendentesBrutos.filter((p) => !p.itens || p.itens.length === 0 || p.itens.every((i) => !i.nome)),
+    [pendentesBrutos]
+  );
+
+  const pedidosNormais = useMemo(
+    () => pedidos.filter((p) => !p.obra_id || (p.itens?.length > 0 && p.itens.some((i) => i.nome))),
+    [pedidos]
+  );
 
   const handleNovoPedido = () => {
     setFormulario({ pedido: null, valores: VALORES_VAZIOS(), dataDefinidaPeloAlerta: false });
@@ -178,9 +230,15 @@ const PedidoMaterial = ({ usuario }) => {
           <ListasObrasPendentes listas={listasObrasPendentes} onPreencher={handleAbrirListaObra} />
           <ListaPedidos
             pedidos={pedidosNormais}
+            periodo={periodo}
+            onPeriodoChange={setPeriodo}
+            atualizando={carregandoPedidos}
             onNovo={handleNovoPedido}
             onEditar={handleEditar}
             onHistorico={handleVerHistorico}
+            questionamentosAbertos={questionamentosPorPedido}
+            questionamentosDisponiveis={questionamentosDisponiveis}
+            onConversa={(pedido) => setConversa({ pedidoId: pedido.id })}
           />
         </>
       )}
@@ -192,10 +250,12 @@ const PedidoMaterial = ({ usuario }) => {
           dataDefinidaPeloAlerta={formulario.dataDefinidaPeloAlerta}
           templates={templates}
           usuario={usuario}
-          onClose={fecharFormulario}
+          onClose={conversa ? () => {} : fecharFormulario}
           onSalvo={handleSalvo}
           onRecarregar={recarregarPedidos}
           onTemplatesAlterados={recarregarTemplates}
+          questionamentosAbertos={formulario.pedido ? questionamentosAbertosLista.filter((q) => q.pedido_id === formulario.pedido.id) : []}
+          onVerConversa={formulario.pedido ? () => setConversa({ pedidoId: formulario.pedido.id }) : undefined}
         />
       )}
 
@@ -212,6 +272,15 @@ const PedidoMaterial = ({ usuario }) => {
           pedido={historico.pedido}
           historico={historico.itens}
           onClose={fecharHistorico}
+        />
+      )}
+
+      {conversa && (
+        <ModalConversaPedido
+          pedidoId={conversa.pedidoId}
+          usuario={usuario}
+          onClose={fecharConversa}
+          onAlterado={atualizarEmSilencio}
         />
       )}
     </div>

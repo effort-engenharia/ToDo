@@ -14,6 +14,8 @@ npm run test:unit        # testes unitários dos helpers (node:test, sem depend�
 npm run graph:update     # atualiza o grafo do graphify e os vínculos com o banco
 ```
 
+**Variáveis de ambiente (Vite):** `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` são **obrigatórias no build do Netlify**. A página pública de cotação (`/cotacao/`) chama o Supabase direto, sem o app autenticado; sem essas variáveis, o link do fornecedor não funciona. Não colocar `service_role` nem segredos em variáveis `VITE_*`, porque elas vão para o bundle.
+
 ## 📊 Módulos
 
 | Módulo | Descrição |
@@ -21,7 +23,7 @@ npm run graph:update     # atualiza o grafo do graphify e os vínculos com o ban
 | Dashboard Comercial | Métricas, funil, metas e gráficos. Contexto em [`DASHBOARD_COMERCIAL_CONTEXTO.md`](DASHBOARD_COMERCIAL_CONTEXTO.md) |
 | Apontamentos | Cadastro e acompanhamento de oportunidades |
 | Arsenal de Guerra | Links úteis e tabela de administradoras |
-| Execução | Planejamento de obras, técnico em campo, POPs, pedidos de material e Dashboard de Compras. Perfis: `ADMIN_EXECUCAO`, `TECNICO` e `COMPRAS` |
+| Execução | Planejamento de obras, técnico em campo, POPs, pedidos de material, Dashboard de Compras, fornecedores e cotação (esta última aguarda as migrations 34–39). Perfis: `ADMIN_EXECUCAO`, `TECNICO` e `COMPRAS` |
 
 ## 🏗️ Execução
 
@@ -50,11 +52,33 @@ npm run graph:update     # atualiza o grafo do graphify e os vínculos com o ban
 
 **Dashboard de Compras** (nível `COMPRAS`, página `execucao/compras`): fila por status de compra (kanban em telas largas, abas no celular), indicadores, questionamentos e detalhe do pedido. O perfil COMPRAS não lê obras, atividades nem agenda; os dados chegam por RPCs `compras_*`.
 
+## 🛒 Compras: fornecedores e cotação
+
+> **Estado:** front implementado. As RPCs de cotação só existem no banco depois da aplicação das migrations **34 a 39**, que **ainda não foram aplicadas**. Plano e pendências: [`PLANO_COTACAO_FORNECEDORES.md`](PLANO_COTACAO_FORNECEDORES.md) (*Status consolidado*).
+
+- **Fornecedores** (perfis COMPRAS e Administrador): cadastro de empresa, contato e WhatsApp, gravado como `55DDDNÚMERO`. Mesmo WhatsApp com a mesma empresa é bloqueado. Fornecedor com convite ou compra só pode ser inativado. O Administrador anonimiza (LGPD) e o histórico continua íntegro.
+- **Cotação:** a atendente seleciona um ou mais pedidos. Itens iguais de listas diferentes são somados, com a composição por pedido guardada. Escolhe os fornecedores e o prazo (padrão 48 h, prorrogável) e envia **um link por fornecedor** pelo WhatsApp (`wa.me`). O clique marca "enviado"; não há confirmação de entrega.
+- **Página pública do fornecedor:** `/cotacao/#<token>` (ex.: `https://effort-dashboard.netlify.app/cotacao/#<token>`). Não exige login. O token fica só no fragmento da URL e no banco só o hash é gravado. O fornecedor informa preço por item (ou indisponibilidade), condições à vista e parcelada, frete, prazo de entrega e observações. Pode reenviar até o prazo; cada envio gera uma versão.
+- **Comparativo e decisão:** valor presente (taxa configurável, 1,5% a.m. por padrão), frete, propostas parciais, empate técnico (diferença menor que 1%) e compra dividida com a economia. A recomendação é só sugestão. Escolher fora dela exige justificativa.
+- **Histórico de preços:** catálogo de materiais com referência (média dos últimos 6 meses), última e menor compra, variação em R$ e %, e alerta acima de +10%. Visível só para COMPRAS e Administrador.
+- **Alterações da atendente nas listas:** redução de quantidade e remoção pedem só ciência do solicitante. Aumento de quantidade, substituição e inclusão pedem aceite. Tudo fica registrado no histórico do pedido. O solicitante vê a empresa vencedora, nunca os preços.
+- **Alerta de 24 h úteis** sem resposta do solicitante para a atendente e o gestor. Nunca aprova por silêncio.
+
+### Como aplicar o lote 34–39 (pendente)
+
+1. Confirmar que as migrations 32 e 33 estão aplicadas.
+2. Rodar [`supabase/manutencao/diagnostico_cotacao_B00.sql`](supabase/manutencao/diagnostico_cotacao_B00.sql) bloco a bloco no SQL Editor. É só leitura, exceto o item 4, que cria e remove uma função temporária. Registrar o resultado no Anexo A do plano. O item 4 confirma se `cf-connecting-ip` chega na chamada anon.
+3. Aplicar nesta ordem: `20261102_34`, `_35`, `_36`, `_37`; depois `_38` e `_39`. Dependências e rollback em [`supabase/migrations/README.md`](supabase/migrations/README.md).
+4. Depois: advisors de segurança e performance; regenerar `supabase/schema/`; `npm run graph:update`; `npm run check:contract`; `npm run lint`.
+5. Testes do §15 do plano antes de liberar o link ao fornecedor.
+
 ## 🗄️ Banco: migrations e manutenção
 
 As migrations ficam em `supabase/migrations/` e são aplicadas em ordem numérica, pelo SQL Editor do Supabase (ou pelo MCP, se disponível). Cada arquivo traz `-- ROLLBACK:` no topo.
 
 > **Estado atual (2026-11-01):** as migrations `20261101_19` a `_31` estão **aplicadas** no Supabase (a 29 e a 19 pelo orquestrador; as demais pelo Backend, via MCP) e o snapshot `supabase/schema/` foi regenerado. Resultados e testes de fumaça no Anexo A e na seção F.10 do plano.
+>
+> **Lote `20261102` (34 a 39): NÃO aplicado.** Escrito e revisado pelo QA. Ordem e dependências em [`supabase/migrations/README.md`](supabase/migrations/README.md) e na seção Compras acima.
 
 ### Como aplicar o lote 19–31 (já aplicado; mantido como referência para outros ambientes)
 
@@ -81,6 +105,7 @@ Ordem que respeita as dependências (detalhes em [`supabase/migrations/README.md
 Não são migrations.
 
 - **`diagnostico_B0.sql`**: somente `SELECT`. Rodar bloco a bloco no SQL Editor.
+- **`diagnostico_cotacao_B00.sql`**: diagnóstico do lote 34–39 (só leitura, exceto o item 4, que cria e remove uma função temporária). Ver a seção Compras acima.
 - **`corrigir_etapas_pai_concluidas.sql`**: correção de dados que reabre etapas pai concluídas indevidamente. Só depois da migration 19 e da aprovação do Negócio, fora do horário comercial. Ordem: PASSO 1 (dry-run, só `SELECT`) → aprovação → PASSO 3 (`UPDATE` com `ROLLBACK` até conferir a contagem) → PASSO 4 (conferência) → PASSO 5 (reversão, se preciso).
 
 ## 📚 Documentação

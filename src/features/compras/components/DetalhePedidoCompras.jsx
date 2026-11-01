@@ -3,7 +3,7 @@ import { execucaoComprasService } from '../../../services/supabase/execucaoCompr
 import { useAsyncData } from '../../execucao/hooks/useAsyncData';
 import { CONSULTA_ABAIXO_MD, useMediaQuery } from '../../execucao/hooks/useMediaQuery';
 import { formatarDataBR } from '../../execucao/utils/datas';
-import { isAdminExecucao, isCompras } from '../../execucao/utils/permissoes';
+import { isAdministrador, isCompras } from '../../../utils/permissoes';
 import { useExecucaoUI } from '../../execucao/components/ui/ExecucaoUI';
 import Modal from '../../execucao/components/ui/Modal';
 import { ErroCarregamento } from '../../execucao/components/ui/Estados';
@@ -49,7 +49,7 @@ export default function DetalhePedidoCompras({ pedidoId, pedidoInicial = null, a
   const idBase = useId();
   const mobile = useMediaQuery(CONSULTA_ABAIXO_MD);
   const podeOperar = isCompras(usuario); // assumir e questionar (is_compras() no banco)
-  const podeResponder = isAdminExecucao(usuario); // responder/cancelar qualquer questionamento (admin de execução)
+  const podeResponder = isAdministrador(usuario); // responder/cancelar qualquer questionamento (Administrador; ADMIN_EXECUCAO responde no Pedido de Material)
 
   const { data, loading, error, reload, refresh } = useAsyncData(() => execucaoComprasService.buscarDetalhe(pedidoId), [pedidoId]);
 

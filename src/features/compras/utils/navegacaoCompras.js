@@ -3,7 +3,8 @@ import { useEffect, useRef } from 'react';
 // Navegação a partir das notificações de Compras (F18). Mantida fora de tecnico/navegacaoNotificacao.js (esse arquivo
 // é do fluxo do técnico). Compras é um módulo próprio (#/compras). O pedido viaja:
 //  - para o módulo Compras: no hash (#/compras?pedido=ID&aba=conversa), lido pelo DashboardCompras;
-//  - para o Pedido de Material (admin): por sessionStorage + evento, consumido pela tela de destino.
+//  - para o Pedido de Material (ADMIN_EXECUCAO): por sessionStorage + evento, consumido pela tela de destino.
+// Só COMPRAS e Administrador acessam o módulo Compras.
 const CHAVE = 'execucao:abrir-pedido';
 const EVENTO = 'execucao:abrir-pedido';
 const PREFIXO_HASH = '#/execucao';
@@ -18,15 +19,15 @@ export const ehNotificacaoCompras = (notif) => TIPOS_NOTIFICACAO_COMPRAS.include
 
 // Retorna { pagina, pedidoId, aba } ou null (notificação não é de Compras / perfil sem tela de pedido)
 // `noModuloCompras`: o sino está no módulo Compras, onde toda notificação de Compras abre o pedido no próprio módulo
-export const destinoComprasDaNotificacao = (notif, { isAdmin = false, isCompras = false, noModuloCompras = false } = {}) => {
+export const destinoComprasDaNotificacao = (notif, { isAdmin = false, noModuloCompras = false } = {}) => {
   if (!ehNotificacaoCompras(notif)) return null;
   const pedidoId = notif?.referencia?.pedido_id ?? null;
   if (!pedidoId) return null;
   const aba = notif.tipo === 'compra_status' ? 'itens' : 'conversa';
+  // No módulo Compras (COMPRAS/Administrador) toda notificação abre o drawer do pedido
   if (noModuloCompras) return { pagina: 'compras', pedidoId, aba };
-  // Compras sempre abre o drawer do pedido; o admin vê status no Dashboard de Compras e a conversa na gestão do pedido
-  if (isCompras && !isAdmin) return { pagina: 'compras', pedidoId, aba };
-  if (isAdmin) return { pagina: notif.tipo === 'compra_status' ? 'compras' : 'pedido-material', pedidoId, aba };
+  // Na Execução (ADMIN_EXECUCAO) NUNCA abre Compras: o pedido abre na conversa do Pedido de Material
+  if (isAdmin) return { pagina: 'pedido-material', pedidoId, aba: 'conversa' };
   return null;
 };
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { FaShoppingCart, FaSignOutAlt, FaArrowLeft, FaListUl } from 'react-icons/fa';
 import NotificacoesDropdown from '../../execucao/components/NotificacoesDropdown';
-import { NIVEIS } from '../../execucao/utils/permissoes';
+import { NIVEIS } from '../../../utils/permissoes';
 
 const iniciais = (nome) => {
   if (!nome) return '?';
@@ -14,14 +14,13 @@ const iniciais = (nome) => {
 const rotuloPerfil = (usuario) => {
   const nivel = usuario?.nivel_acesso?.nome;
   if (nivel === NIVEIS.COMPRAS) return 'Compras';
-  if (nivel === NIVEIS.ADMIN_EXEC) return 'Admin Execução';
   if (nivel === NIVEIS.ADMIN) return 'Administrador';
   return nivel || 'Usuário';
 };
 
-// Cabeçalho + navegação própria do módulo Compras. A navegação só tem itens do próprio módulo;
-// admins ganham um atalho de volta ao módulo de origem (nunca o perfil COMPRAS).
-const ComprasHeader = ({ usuario, badges = {}, isAdmin = false, isCompras = false, voltarPara = null, onLogout }) => {
+// Cabeçalho + navegação própria do módulo Compras (só COMPRAS e Administrador).
+// Somente o Administrador ganha o atalho de volta ao Dashboard Comercial.
+const ComprasHeader = ({ usuario, badges = {}, isAdmin = false, voltarPara = null, onLogout }) => {
   const respostas = badges.compras || 0;
 
   return (
@@ -53,7 +52,7 @@ const ComprasHeader = ({ usuario, badges = {}, isAdmin = false, isCompras = fals
       </nav>
 
       <div className="cmp-topbar-direita">
-        <NotificacoesDropdown usuarioId={usuario?.id} isAdmin={isAdmin} isCompras={isCompras} noModuloCompras />
+        <NotificacoesDropdown usuarioId={usuario?.id} isAdmin={isAdmin} noModuloCompras />
         <div className="cmp-topbar-usuario">
           <span className="execucao-user-avatar" aria-hidden="true">{iniciais(usuario?.nome_completo)}</span>
           <div className="cmp-topbar-usuario-info">

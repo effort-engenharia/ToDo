@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import SmartRedirect from './SmartRedirect';
+import { podeAcessarCompras } from '../utils/permissoes';
 
 const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null, onRedirect = null }) => {
   const { usuario, temPermissao } = useAuth();
@@ -16,23 +17,30 @@ const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null, onR
       }
 
       try {
-        // COMPRAS (pelo nome do nível): acessa só o módulo próprio de Compras
-        if (usuario.nivel_acesso?.nome === 'COMPRAS') {
-          setHasPermission(requiredRoute === 'compras');
+        // Compras: exclusivo de COMPRAS e Administrador (por nome do nível); nenhum outro nível, nem pela tabela
+        if (requiredRoute === 'compras') {
+          setHasPermission(podeAcessarCompras(usuario));
           setLoading(false);
           return;
         }
 
-        // Administradores: páginas comerciais + módulo Compras (a Execução tem rota própria p/ ADMIN_EXECUCAO)
+        // COMPRAS (pelo nome do nível): acessa só o módulo próprio de Compras
+        if (usuario.nivel_acesso?.nome === 'COMPRAS') {
+          setHasPermission(false);
+          setLoading(false);
+          return;
+        }
+
+        // Administradores: páginas comerciais (a Execução tem rota própria p/ ADMIN_EXECUCAO)
         if (usuario.nivel_acesso?.nome === 'Administrador') {
-          setHasPermission(requiredRoute === 'compras' || !requiredRoute.startsWith('execucao'));
+          setHasPermission(!requiredRoute.startsWith('execucao'));
           setLoading(false);
           return;
         }
         
-        // ADMIN_EXECUCAO tem acesso a todas as páginas de execução e ao módulo Compras
+        // ADMIN_EXECUCAO tem acesso a todas as páginas de execução (nunca a Compras)
         if (usuario.nivel_acesso?.nome === 'ADMIN_EXECUCAO') {
-          setHasPermission(requiredRoute === 'compras' || requiredRoute.startsWith('execucao'));
+          setHasPermission(requiredRoute.startsWith('execucao'));
           setLoading(false);
           return;
         }
@@ -45,9 +53,8 @@ const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null, onR
           return;
         }
 
-        // Outros níveis: permissão da tabela (Compras: tolera a rota antiga até a migration 32 ser aplicada)
-        let permission = await temPermissao(requiredRoute);
-        if (!permission && requiredRoute === 'compras') permission = await temPermissao('execucao/compras');
+        // Outros níveis: permissão da tabela
+        const permission = await temPermissao(requiredRoute);
         setHasPermission(permission);
       } catch (error) {
         console.error('Erro ao verificar permissão:', error);

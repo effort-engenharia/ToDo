@@ -178,7 +178,8 @@ export const AuthProvider = ({ children }) => {
         'execucao/agenda-civil', 'execucao/agenda-galpao', 'execucao/agenda-gestao', 'execucao/pedido-material',
         'execucao/desempenho-individual', 'execucao/desempenho-time', 'execucao/planejamento-macro',
         'execucao/pops', 'execucao/minhas-atividades'];
-      const todasPaginas = [...paginasComerciais, 'compras', ...paginasExecucao];
+      // Compras (rota `compras`) é exclusivo de COMPRAS e Administrador (tratados acima); nunca vem da tabela
+      const todasPaginas = [...paginasComerciais, ...paginasExecucao];
       const paginasPermitidas = [];
 
       // COMPRAS (detectado pelo nome do nível, sem depender da tabela): só o módulo Compras
@@ -191,9 +192,9 @@ export const AuthProvider = ({ children }) => {
         return [...paginasComerciais, 'compras'];
       }
       
-      // ADMIN_EXECUCAO: todas as páginas de execução + módulo Compras
+      // ADMIN_EXECUCAO: só páginas de execução (Compras é exclusivo de COMPRAS e Administrador)
       if (usuario?.nivel_acesso?.nome === 'ADMIN_EXECUCAO') {
-        return [...paginasExecucao, 'compras'];
+        return [...paginasExecucao];
       }
       
       // TECNICO tem acesso limitado às páginas de execução
@@ -204,10 +205,6 @@ export const AuthProvider = ({ children }) => {
       // Verificar permissão para cada página para outros níveis
       for (const pagina of todasPaginas) {
         let temAcesso = await authService.verificarPermissao(usuario.id, pagina);
-        // Tolerância enquanto a migration 32 não é aplicada: a rota antiga era execucao/compras
-        if (!temAcesso && pagina === 'compras') {
-          temAcesso = await authService.verificarPermissao(usuario.id, 'execucao/compras');
-        }
         if (temAcesso) {
           paginasPermitidas.push(pagina);
         }

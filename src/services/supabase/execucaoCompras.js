@@ -36,6 +36,7 @@ const _execucaoComprasService = {
     if (filtros.compradorId) f.comprador_id = filtros.compradorId;
     if (filtros.pedidoId) f.pedido_id = filtros.pedidoId;
     if (filtros.comQuestionamentoAberto) f.com_questionamento_aberto = true;
+    if (filtros.semCotacao) f.sem_cotacao = true; // migration 36: só pedidos sem cotação ativa
     return rpc('compras_listar_pedidos', { p_filtros: f, p_limite: limite, p_cursor: cursor }, 'listarPedidos');
   },
 
@@ -76,6 +77,18 @@ const _execucaoComprasService = {
     return rpc('compras_cancelar_questionamento', { p_id: questionamentoId, p_motivo: motivo }, 'cancelarQuestionamento');
   },
 
+  // Alterações da atendente na lista (migration 38). alteracoes: [{ acao:'quantidade'|'remover'|'corrigir'|'substituir'|'adicionar',
+  //   itemId?, quantidade?, nome?, unidade? }] (1–50); motivo ≥ 5 caracteres; revisarCotacao: { novoPrazo (ISO) } (obrigatório se o pedido
+  //   está em cotação já enviada). data = { aplicadas:[{acao,item_id,resumo}], pendentes_aceite:[{questionamento_id,acao,item_id}],
+  //   status_compra, cotacao?:{id,numero,versao_lista,revisada} }. Só COMPRAS/Administrador.
+  async alterarItens(pedidoId, alteracoes, motivo, revisarCotacao = null) {
+    try { assertNotImpersonating('alterarItens'); } catch (e) { return { success: false, message: e.message, blocked: true }; }
+    const lista = (alteracoes ?? []).map(({ itemId, ...resto }) => ({ ...resto, ...(itemId ? { item_id: itemId } : {}) }));
+    const rev = revisarCotacao?.novoPrazo ? { novo_prazo: revisarCotacao.novoPrazo } : null;
+    return rpc('compras_alterar_itens',
+      { p_pedido: pedidoId, p_alteracoes: lista, p_motivo: motivo, p_revisar_cotacao: rev }, 'alterarItens');
+  },
+
   // aguardando_compra → em_cotacao. data = { pedido_id, status_compra, comprador_id }
   async assumirPedido(pedidoId) {
     try { assertNotImpersonating('assumirPedido'); } catch (e) { return { success: false, message: e.message, blocked: true }; }
@@ -87,6 +100,12 @@ const _execucaoComprasService = {
   async alterarStatus(pedidoId, status, obs = null, dataDisponibilidade = null) {
     return rpc('compras_alterar_status',
       { p_pedido: pedidoId, p_status: status, p_obs: obs, p_data_disponibilidade: dataDisponibilidade }, 'alterarStatus');
+  },
+
+  // Alertas (migration 36, idempotente; o banco limita a 1 execução a cada 10 min).
+  // data = { aceites_alertados, cotacoes_vencendo, rate_limit_limpos }
+  async verificarAlertas() {
+    return rpc('compras_verificar_alertas', {}, 'verificarAlertas');
   },
 
   // data = { data_material_disponivel, etapa_chegada_id, etapa_criada }

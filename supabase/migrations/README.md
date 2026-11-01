@@ -3,6 +3,38 @@
 Arquivos `YYYYMMDD_NN_tema.sql`, aplicados **em ordem numérica**. Cada migration traz no topo o objetivo, as dependências e um bloco `-- ROLLBACK:`.
 Detalhes e contratos: `PLANO_MELHORIAS_EXECUCAO_COMPRAS.md` (Anexo F).
 
+## Lote 20261102 (34 a 39): **NÃO APLICADO** (escrito e revisado pelo QA)
+
+Cotação com fornecedores. Plano e contrato: `../PLANO_COTACAO_FORNECEDORES.md` (§5 a §7 e Anexo C). Aplicar na Onda B-08 do plano, depois do diagnóstico abaixo.
+
+| Ordem | Arquivo | Resumo | Depende de |
+|------:|---------|--------|------------|
+| 0 | `../manutencao/diagnostico_cotacao_B00.sql` | Só SELECT, exceto o item 4 (cria e remove uma função temporária para ver o cabeçalho de IP). Rodar antes e registrar no Anexo A do plano. | — |
+| 1 | `20261102_34_compras_fornecedores_catalogo.sql` | `compras_config` (com seed), `compras_config_segredo` (pepper), fornecedores, materiais e aliases; normalizadores; RPCs de cadastro (§7.1). Usa `pgcrypto`; `pg_trgm` é opcional. | 32 e 33 aplicadas; `pgcrypto` |
+| 2 | `20261102_35_compras_cotacoes_base.sql` | Tabelas de cotação (§5.4 a 5.7), índices, RLS, triggers de guarda (§7.3), `compras_valor_presente` e publicação Realtime. | 34 |
+| 3 | `20261102_36_compras_cotacoes_rpcs.sql` | RPCs de cotação (§7.2), `compras_precos_referencia`, `compras_material_historico`, `compras_verificar_alertas`. **Reescreve** `compras_alterar_status`, `compras_listar_pedidos` e `compras_detalhe_pedido`. | 35; base 25, 26, 28 e gate da 33 |
+| 4 | `20261102_37_compras_cotacao_publica.sql` | Link público (§7.4): `cotacao_publica_obter` e `cotacao_publica_responder`. Único `GRANT` para anon. Kill switch no topo. | 36 |
+| 5 | `20261102_38_compras_alteracoes_lista.sql` | Colunas e CHECK de alterações (§5.8), `compras_somar_horas_uteis`, `compras_alterar_itens`, questionamentos com `adicao`. | 36 |
+| 6 | `20261102_39_compras_indicadores_cotacao.sql` | `compras_indicadores_cotacao` (§12). | 36 |
+
+**Ordem de aplicação:** 34 → 35 → 36 → 37, numa janela só; depois 38 e 39 (ou as seis juntas, se o front estiver pronto).
+
+**Antes de aplicar**
+- Confirmar que as migrations **32 e 33** estão aplicadas. Elas não constam no registro de aplicação abaixo. O bloco 1 do diagnóstico mostra isso. Se a 33 faltar, aplicá-la antes e registrar.
+- Rodar o diagnóstico (bloco 3b confirma que as definições de produção batem com o diff documentado no cabeçalho da 36).
+- Confirmar que `cf-connecting-ip` chega na chamada anon (item 4 do diagnóstico). Sem ele, o limite por IP fica ignorado.
+
+**Regras de segurança do lote**
+- Toda função nova tem `REVOKE ... FROM PUBLIC, anon`. Nenhuma policy é `TO anon`.
+- Só `cotacao_publica_obter` e `cotacao_publica_responder` podem ser executadas por anon.
+- **Não reaplicar 25, 26 ou 28 depois da 36.** Isso sobrescreveria as versões reescritas.
+- Kill switch: `compras_config.link_publico_ativo = false` desliga o link público sem afetar o módulo autenticado.
+- `pg_cron` (B-09) é opcional. Se existir, agendar `compras_verificar_alertas()` a cada 15 minutos.
+
+**Depois de aplicar:** advisors de segurança e performance; regenerar `supabase/schema/` (ver `supabase/schema/README.md`); `npm run graph:update`; `npm run check:contract` e `npm run lint`; testes do §15.2 em transação com `ROLLBACK` quando forem só SQL.
+
+**Rollback:** cada arquivo tem o bloco `-- ROLLBACK:` no topo. Ordem inversa: 39, 38, 37, 36 (reaplicar as definições anteriores), 35, 34. Ver §16 do plano.
+
 ## Lote 20261101 (19 a 31): **APLICADO em 2026-11-01** (via MCP do Supabase)
 
 | Ordem | Arquivo | Resumo |

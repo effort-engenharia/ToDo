@@ -11,6 +11,11 @@ import ListaHistorico from '../../execucao/components/pedido-material/ListaHisto
 import QuestionamentosPedido from '../../execucao/components/pedido-material/QuestionamentosPedido';
 import { EVENTO_BADGES } from '../../execucao/hooks/useBadgesMenu';
 import ModalQuestionamento from './ModalQuestionamento';
+import ModalAlterarItens from './ModalAlterarItens';
+import { useCotacaoDisponivel } from '../hooks/useCotacaoDisponivel';
+import comprasCotacaoService from '../../../services/supabase/comprasCotacao';
+import { podeAlterarItens } from '../utils/alteracoesLista';
+import { irParaCotacao } from '../utils/navegacaoCompras';
 import { ModalDisponibilidade, ModalStatusCompra } from './ModalAcoesCompras';
 import {
   STATUS_ACEITA_QUESTIONAMENTO,
@@ -109,6 +114,24 @@ export default function DetalhePedidoCompras({ pedidoId, pedidoInicial = null, a
 
   const abrirQuestionar = (itemId = null) => setModal({ tipo: 'questionar', itemId });
 
+  // Alterar itens (F-12): só com o recurso de cotação no banco (migration 38) e para COMPRAS/Administrador
+  const { disponivel: cotacaoDisponivel } = useCotacaoDisponivel();
+  const [carregandoAlterar, setCarregandoAlterar] = useState(false);
+  const cotacaoAtiva = (data?.cotacoes ?? []).find((c) => c.ativa) ?? null;
+  const podeAlterar = cotacaoDisponivel && podeOperar && itens.some((i) => i.id) && podeAlterarItens(pedido?.status_compra);
+  const abrirAlterar = async () => {
+    if (cotacaoAtiva?.status === 'aberta') {
+      setCarregandoAlterar(true);
+      const r = await comprasCotacaoService.buscarDetalhe(cotacaoAtiva.id);
+      setCarregandoAlterar(false);
+      if (!r.success) { toast.error(r.message || 'Não foi possível consultar a cotação do pedido.'); return; }
+      const enviados = (r.data?.convites ?? []).filter((c) => c.status !== 'nao_enviado' || (c.envios ?? 0) > 0).length;
+      setModal({ tipo: 'alterar', cotacao: enviados > 0 ? { id: cotacaoAtiva.id, numero: cotacaoAtiva.numero, enviados } : null });
+    } else {
+      setModal({ tipo: 'alterar', cotacao: null });
+    }
+  };
+
   // Tablist com setas ←/→, Home e End (roving tabindex)
   const aoTeclarAba = (e) => {
     const i = ABAS.findIndex((a) => a.id === aba);
@@ -141,6 +164,11 @@ export default function DetalhePedidoCompras({ pedidoId, pedidoInicial = null, a
   const botoesSecundarios = (
     <>
       {seletorStatus}
+      {podeAlterar && (
+        <button type="button" className="execucao-btn execucao-btn-secondary execucao-btn-sm cmp-btn-toque" onClick={abrirAlterar} disabled={carregandoAlterar}>
+          ✏️ Alterar itens
+        </button>
+      )}
       {podeDisponibilidade && (
         <button type="button" className="execucao-btn execucao-btn-secondary execucao-btn-sm cmp-btn-toque" onClick={() => setModal({ tipo: 'disponibilidade' })}>
           📅 Disponibilidade
@@ -166,6 +194,11 @@ export default function DetalhePedidoCompras({ pedidoId, pedidoInicial = null, a
           <div className="cmp-detalhe">
             <div className="flex flex-wrap gap-2 mb-3">
               {status && <span className={`cmp-selo ${status.classe}`}>{status.emoji} {status.rotulo}</span>}
+              {cotacaoAtiva && (
+                <button type="button" className="cmp-selo bg-blue-500/15 text-blue-300 border border-blue-500/40" onClick={() => irParaCotacao(cotacaoAtiva.id)}>
+                  🧾 Cotação nº {cotacaoAtiva.numero}
+                </button>
+              )}
               {urg && <span className={`cmp-selo ${urg.classe}`}>{urg.emoji} {urg.rotulo}</span>}
               {pedido.qtd_questionamentos_abertos > 0 && (
                 <span className="cmp-selo bg-purple-500/15 text-purple-300 border border-purple-500/40">
@@ -345,6 +378,19 @@ export default function DetalhePedidoCompras({ pedidoId, pedidoInicial = null, a
           onClose={() => setModal(null)}
           onVerConversa={() => { setModal(null); setAbaEscolhida('conversa'); }}
           onEnviado={() => { setAbaEscolhida('conversa'); aposAlteracao(); }}
+        />
+      )}
+      {modal?.tipo === 'alterar' && (
+        <ModalAlterarItens
+          pedido={pedido}
+          questionamentosAbertos={abertos}
+          cotacao={modal.cotacao}
+          onClose={() => setModal(null)}
+          onAplicado={(r) => {
+            setAbaEscolhida(r?.pendentes_aceite?.length ? 'conversa' : 'itens');
+            aposAlteracao();
+            if (r?.cotacao?.revisada && r.cotacao.id) irParaCotacao(r.cotacao.id);
+          }}
         />
       )}
     </>

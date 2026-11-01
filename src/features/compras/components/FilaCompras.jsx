@@ -1,7 +1,8 @@
 import React, { useId } from 'react';
 import { formatarDataBR } from '../../execucao/utils/datas';
 import CartaoPedidoCompras from './CartaoPedidoCompras';
-import { STATUS_COMPRA, URGENCIAS, descricaoAcessivelDoPedido } from '../utils/statusCompra';
+import { STATUS_COMPRA, URGENCIAS, descricaoAcessivelDoPedido, pedidoSelecionavelParaCotacao } from '../utils/statusCompra';
+import { irParaCotacao } from '../utils/navegacaoCompras';
 
 const contar = (grupo, soAtrasados) => {
   const itens = grupo?.itens ?? [];
@@ -66,11 +67,13 @@ export default function FilaCompras({
   podeAgir,
   destaques,
   pedidoOcupado = null,
+  selecao = null, // { ids:Set, onAlternar(pedido) } quando o recurso de cotação está disponível
 }) {
   const idBase = useId();
   // Esqueleto enquanto nenhuma das colunas atuais foi carregada (1ª carga ou troca quadro ↔ lista)
   const semDados = carregando && colunas.every((c) => !grupos[c.id]);
   const visiveis = colunas.filter((c) => !colunasVisiveis || colunasVisiveis.includes(c.id));
+  const selecionavel = (p) => Boolean(selecao) && podeAgir && pedidoSelecionavelParaCotacao(p);
 
   const cartao = (p) => (
     <CartaoPedidoCompras
@@ -81,6 +84,10 @@ export default function FilaCompras({
       podeAgir={podeAgir}
       destacado={destaques?.has(p.id)}
       ocupado={pedidoOcupado === p.id}
+      selecionavel={selecionavel(p)}
+      selecionado={Boolean(selecao?.ids?.has(p.id))}
+      onSelecionar={selecao?.onAlternar}
+      mostrarCotacao={Boolean(selecao)}
     />
   );
 
@@ -163,6 +170,7 @@ export default function FilaCompras({
           <table className="execucao-table cmp-tabela">
             <thead>
               <tr>
+                {selecao && <th scope="col"><span className="sr-only">Selecionar</span></th>}
                 <th scope="col">Pedido</th>
                 <th scope="col">Cliente</th>
                 <th scope="col">Solicitante</th>
@@ -180,6 +188,23 @@ export default function FilaCompras({
                 const urg = URGENCIAS[p.urgencia];
                 return (
                   <tr key={p.id} className={destaques?.has(p.id) ? 'cmp-destaque' : ''}>
+                    {selecao && (
+                      <td>
+                        {selecionavel(p) ? (
+                          <input
+                            type="checkbox"
+                            className="cmp-checkbox"
+                            checked={selecao.ids.has(p.id)}
+                            onChange={() => selecao.onAlternar(p)}
+                            aria-label={`Selecionar pedido ${p.cliente_nome || p.descricao || 'de material'}`}
+                          />
+                        ) : p.cotacao_ativa ? (
+                          <button type="button" className="cmp-link" onClick={() => irParaCotacao(p.cotacao_ativa.id)}>
+                            🧾 nº {p.cotacao_ativa.numero}
+                          </button>
+                        ) : null}
+                      </td>
+                    )}
                     <td>
                       <button type="button" className="cmp-link" onClick={() => onAbrir(p)} aria-label={descricaoAcessivelDoPedido(p)}>
                         {p.descricao || 'Pedido de material'}

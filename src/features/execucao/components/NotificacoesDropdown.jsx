@@ -40,7 +40,9 @@ const ICONES = {
   nova_atividade: <FaClipboardList className="text-green-400" aria-hidden="true" />,
   compra_questionamento: <FaQuestionCircle className="text-purple-400" aria-hidden="true" />,
   compra_resposta: <FaCheck className="text-green-400" aria-hidden="true" />,
-  compra_status: <FaShoppingCart className="text-blue-400" aria-hidden="true" />
+  compra_status: <FaShoppingCart className="text-blue-400" aria-hidden="true" />,
+  compra_cotacao: <FaClipboardList className="text-cyan-400" aria-hidden="true" />,
+  compra_alteracao: <FaExchangeAlt className="text-amber-400" aria-hidden="true" />
 };
 
 const FUNDOS = {
@@ -57,7 +59,9 @@ const FUNDOS = {
   nova_atividade: 'bg-green-900/30',
   compra_questionamento: 'bg-purple-900/30',
   compra_resposta: 'bg-green-900/30',
-  compra_status: 'bg-blue-900/30'
+  compra_status: 'bg-blue-900/30',
+  compra_cotacao: 'bg-cyan-900/30',
+  compra_alteracao: 'bg-amber-900/30'
 };
 
 const getIcone = (tipo) => ICONES[tipo] ?? <FaBell className="text-slate-400" aria-hidden="true" />;

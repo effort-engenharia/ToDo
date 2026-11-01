@@ -26,7 +26,8 @@ const navegacaoRedePrimeiro = async ({ request }) => {
 
 // Registrada antes do precache para que a navegação nunca seja servida do cache primeiro
 registerRoute(new NavigationRoute(navegacaoRedePrimeiro, {
-  denylist: [/^\/reset-password/, /^\/test-supabase\.html/]
+  // /cotacao: página pública do fornecedor (outra entrada HTML); nunca pode cair no index.html do app
+  denylist: [/^\/reset-password/, /^\/test-supabase\.html/, /^\/cotacao/]
 }));
 
 precacheAndRoute(self.__WB_MANIFEST, { directoryIndex: null });

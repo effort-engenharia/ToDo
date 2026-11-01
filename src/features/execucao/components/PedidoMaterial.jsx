@@ -6,6 +6,7 @@ import { useAsyncData } from '../hooks/useAsyncData';
 import { useAtualizacaoTabelas } from '../hooks/useAtualizacaoTabelas';
 import { useExecucaoUI } from './ui/ExecucaoUI';
 import { Carregando, ErroCarregamento } from './ui/Estados';
+import Modal from './ui/Modal';
 import AlertaEdicaoPedido from './pedido-material/AlertaEdicaoPedido';
 import FormularioPedido from './pedido-material/FormularioPedido';
 import HistoricoPedido from './pedido-material/HistoricoPedido';
@@ -104,6 +105,7 @@ const PedidoMaterial = ({ usuario }) => {
 
   const [formulario, setFormulario] = useState(null); // { pedido, valores, dataDefinidaPeloAlerta }
   const [pedidoParaAlerta, setPedidoParaAlerta] = useState(null);
+  const [avisoCotacao, setAvisoCotacao] = useState(false);
   const [historico, setHistorico] = useState(null); // { pedido, itens }
   const [conversa, setConversa] = useState(null); // { pedidoId }
 
@@ -137,8 +139,14 @@ const PedidoMaterial = ({ usuario }) => {
     });
   };
 
-  // Pedido que já tem data limite exige confirmação e nova data antes da edição
-  const handleEditar = (pedido) => {
+  // Pedido que já tem data limite exige confirmação e nova data antes da edição.
+  // Pedido em cotação com fornecedores: edição direta bloqueada (o banco também bloqueia); a alteração é pedida à Compras.
+  const handleEditar = async (pedido) => {
+    if (pedido.id && pedido.status_compra === 'em_cotacao') {
+      const r = await execucaoComprasService.buscarDetalhe(pedido.id);
+      const emCotacao = r.success && (r.data?.cotacoes ?? []).some((c) => c.ativa && c.status === 'aberta');
+      if (emCotacao) { setAvisoCotacao(true); return; }
+    }
     if (pedido.id && pedido.data_material_disponivel) {
       setPedidoParaAlerta(pedido);
     } else {
@@ -257,6 +265,15 @@ const PedidoMaterial = ({ usuario }) => {
           questionamentosAbertos={formulario.pedido ? questionamentosAbertosLista.filter((q) => q.pedido_id === formulario.pedido.id) : []}
           onVerConversa={formulario.pedido ? () => setConversa({ pedidoId: formulario.pedido.id }) : undefined}
         />
+      )}
+
+      {avisoCotacao && (
+        <Modal tamanho="sm" titulo="Pedido em cotação" onClose={() => setAvisoCotacao(false)}>
+          <p className="text-slate-200 mb-4">Este pedido está em cotação com fornecedores. Peça a alteração à Compras.</p>
+          <div className="execucao-modal-footer !px-0 !pb-0">
+            <button type="button" className="execucao-btn execucao-btn-primary" onClick={() => setAvisoCotacao(false)}>Entendi</button>
+          </div>
+        </Modal>
       )}
 
       {pedidoParaAlerta && (

@@ -9,11 +9,13 @@ const TIPOS = {
   status: { rotulo: 'Status', classe: 'bg-purple-500/20 text-purple-400' },
   data_limite: { rotulo: 'Data Limite', classe: 'bg-amber-500/20 text-amber-400' },
   questionamento: { rotulo: 'Questionamento', classe: 'bg-orange-500/20 text-orange-400' },
-  compra_status: { rotulo: 'Status da compra', classe: 'bg-cyan-500/20 text-cyan-400' }
+  compra_status: { rotulo: 'Status da compra', classe: 'bg-cyan-500/20 text-cyan-400' },
+  alteracao_compras: { rotulo: '✏️ Alteração da Compras', classe: 'bg-amber-500/20 text-amber-300' },
+  cotacao: { rotulo: '🧾 Cotação', classe: 'bg-blue-500/20 text-blue-300' }
 };
 
 // Registros com lista de itens em dados_novos (e dados_anteriores, exceto na criação)
-const TIPOS_COM_ITENS = ['criacao', 'edicao', 'questionamento'];
+const TIPOS_COM_ITENS = ['criacao', 'edicao', 'questionamento', 'alteracao_compras'];
 
 const temDetalhesDeItens = (registro) =>
   TIPOS_COM_ITENS.includes(registro.tipo_alteracao) &&
@@ -55,8 +57,10 @@ export default function ListaHistorico({ historico, rolavel = false }) {
 
             <p className="text-sm text-slate-300 mb-2">{item.descricao}</p>
 
-            {item.tipo_alteracao === 'questionamento' && item.motivo && (
-              <p className="text-sm text-slate-300 mb-2 whitespace-pre-wrap break-words">“{item.motivo}”</p>
+            {['questionamento', 'alteracao_compras', 'cotacao'].includes(item.tipo_alteracao) && item.motivo && (
+              <p className="text-sm text-slate-300 mb-2 whitespace-pre-wrap break-words">
+                {item.tipo_alteracao === 'alteracao_compras' ? 'Motivo: ' : ''}“{item.motivo}”
+              </p>
             )}
 
             <p className="text-xs text-slate-400">

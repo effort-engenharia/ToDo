@@ -106,15 +106,33 @@ function CartaoQuestionamento({ q, podeResponder, podeCancelar, nomeSolicitante,
           <strong>{tipo.emoji} {tipo.rotulo}</strong>
           <span className="text-slate-400"> · {q.criador_nome || 'Compras'} (Compras) · <Tempo valor={q.created_at} /></span>
         </p>
-        <span className={`cmp-selo ${estado.classe}`}>{estado.emoji} {estado.rotulo}</span>
+        <span className="flex flex-wrap gap-1">
+          {q.origem === 'alteracao_compras' && (
+            <span className="cmp-selo bg-amber-500/15 text-amber-300 border border-amber-500/40">✏️ Alteração da Compras</span>
+          )}
+          <span className={`cmp-selo ${estado.classe}`}>{estado.emoji} {estado.rotulo}</span>
+        </span>
       </header>
 
       {q.item_snapshot?.nome && (
         <p className="text-sm text-slate-300 mt-2"><span className="text-slate-400">Item:</span> {rotuloItem(q.item_snapshot)}</p>
       )}
       <p className="text-sm text-slate-100 mt-2 whitespace-pre-wrap break-words">“{q.pergunta}”</p>
+      {q.motivo_alteracao && (
+        <p className="text-sm text-slate-300 mt-1 break-words"><span className="text-slate-400">Motivo:</span> {q.motivo_alteracao}</p>
+      )}
+      {aberto && q.origem === 'alteracao_compras' && q.prazo_resposta_em && (
+        <p className={`text-xs mt-1 ${new Date(q.prazo_resposta_em) < new Date() ? 'text-amber-300 font-semibold' : 'text-slate-400'}`}>
+          {new Date(q.prazo_resposta_em) < new Date() ? '⏳ Aguardando sua resposta além do prazo (' : 'Responder até '}
+          {formatarDataHora(q.prazo_resposta_em)}{new Date(q.prazo_resposta_em) < new Date() ? ')' : ''}
+        </p>
+      )}
 
-      {previa && (
+      {q.tipo === 'adicao' && sugestao ? (
+        <p className="text-sm text-slate-300 mt-2">
+          <span className="text-slate-400">➕ Adição de item:</span> <strong>{sugestao.nome}, {String(sugestao.quantidade ?? '').replace('.', ',')} {sugestao.unidade}</strong>
+        </p>
+      ) : previa && (
         <p className="text-sm text-slate-300 mt-2">
           <span className="text-slate-400">Sugestão:</span>{' '}
           {previa.de ? <>{previa.de} <span aria-label="para">→</span> </> : null}

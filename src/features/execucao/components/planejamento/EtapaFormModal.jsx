@@ -20,6 +20,7 @@ const EtapaFormModal = ({ etapa, inicial, tecnicos, salvando, onSalvar, onClose 
 
   return (
     <Modal
+      telaCheia
       titulo={titulo}
       cabecalho={
         <>

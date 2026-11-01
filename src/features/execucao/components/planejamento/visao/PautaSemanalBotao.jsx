@@ -73,11 +73,11 @@ const PautaSemanalBotao = ({ tecnicos }) => {
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="grid grid-cols-[1fr_auto] items-center gap-2 w-full sm:flex sm:w-auto">
       <label htmlFor="pauta-semana" className="sr-only">Semana da pauta</label>
       <select
         id="pauta-semana"
-        className="execucao-form-select text-sm py-1"
+        className="execucao-form-select plan-campo plan-campo-cheio sm:!w-auto"
         value={semana}
         onChange={(e) => setSemana(e.target.value)}
         disabled={gerando}
@@ -89,7 +89,8 @@ const PautaSemanalBotao = ({ tecnicos }) => {
         type="button"
         onClick={gerar}
         disabled={gerando}
-        className="execucao-btn execucao-btn-secondary flex items-center gap-1.5"
+        aria-busy={gerando}
+        className="execucao-btn execucao-btn-secondary plan-toque flex items-center gap-1.5"
         title="PDF para conduzir a reunião semanal"
       >
         <FaFilePdf className="text-red-400" aria-hidden="true" />

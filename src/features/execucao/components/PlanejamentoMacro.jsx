@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FaBolt,
   FaBuilding,
@@ -7,35 +7,40 @@ import {
   FaClock,
   FaExclamationCircle,
   FaFilter,
-  FaListAlt,
-  FaMagic,
   FaPlus,
-  FaSearch
+  FaSearch,
+  FaTimes
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
 import { execucaoPlanejamentoService } from '../../../services/supabase/execucaoPlanejamento';
 import { useAsyncData } from '../hooks/useAsyncData';
+import { CONSULTA_MOBILE, useMediaQuery } from '../hooks/useMediaQuery';
 import { useExecucaoUI } from './ui/ExecucaoUI';
 import { Carregando, ErroCarregamento } from './ui/Estados';
+import AbasPlanejamento from './planejamento/AbasPlanejamento';
 import AlertasEtapasAtrasadas from './planejamento/AlertasEtapasAtrasadas';
-import AtividadeEtapaModal from './planejamento/AtividadeEtapaModal';
-import EtapaFormModal from './planejamento/EtapaFormModal';
+import { CamposFiltroObras, FiltrosObrasGaveta } from './planejamento/FiltrosObras';
+import { FILTROS_PADRAO, contarFiltrosAtivos, idAba, idPainelAba, rotuloPeriodoObras, rotuloStatusObras } from './planejamento/filtrosObrasUtils';
 import ObraCard from './planejamento/ObraCard';
-import ObraFormModal from './planejamento/ObraFormModal';
 import ResumoEtapas from './planejamento/ResumoEtapas';
-import TemplateFormModal from './planejamento/TemplateFormModal';
 import TemplatesTab from './planejamento/TemplatesTab';
-import RevisarContratosPendentes from './planejamento/cadastro/RevisarContratosPendentes';
-import ServicoRapidoModal from './planejamento/cadastro/ServicoRapidoModal';
 import { FORM_ETAPA_VAZIO } from './planejamento/constants';
 import { calcularEstatisticasObras } from './planejamento/utils';
 import PainelCarteira from './planejamento/visao/PainelCarteira';
 import PautaSemanalBotao from './planejamento/visao/PautaSemanalBotao';
 import PendenciasReplanejamento from './planejamento/visao/PendenciasReplanejamento';
-import ReprogramarModal from './planejamento/visao/ReprogramarModal';
-import { FILTROS_VISAO, obraPassaFiltroVisao, ordenarPorSaude, rotuloFiltroVisao } from './planejamento/visao/saude';
+import { obraPassaFiltroVisao, ordenarPorSaude, rotuloFiltroVisao } from './planejamento/visao/saude';
 import { useVisaoCarteira } from './planejamento/visao/useVisaoCarteira';
 import './planejamento/visao/visao.css';
+
+// Modais só renderizam sob demanda: viram chunks próprios e saem do carregamento da página
+const AtividadeEtapaModal = lazy(() => import('./planejamento/AtividadeEtapaModal'));
+const EtapaFormModal = lazy(() => import('./planejamento/EtapaFormModal'));
+const ObraFormModal = lazy(() => import('./planejamento/ObraFormModal'));
+const TemplateFormModal = lazy(() => import('./planejamento/TemplateFormModal'));
+const RevisarContratosPendentes = lazy(() => import('./planejamento/cadastro/RevisarContratosPendentes'));
+const ServicoRapidoModal = lazy(() => import('./planejamento/cadastro/ServicoRapidoModal'));
+const ReprogramarModal = lazy(() => import('./planejamento/visao/ReprogramarModal'));
 
 const LIMITE_OBRAS_INICIAL = 60;
 
@@ -44,15 +49,6 @@ const irParaPagina = (pagina) => {
   window.history.pushState(null, '', `#/execucao/${pagina}`);
   window.dispatchEvent(new PopStateEvent('popstate'));
 };
-
-const ABA_ATIVA = {
-  sky: 'bg-sky-500/20 text-sky-400 border border-sky-500/30',
-  purple: 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-};
-
-const classeAba = (ativa, cor) => `flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-  ativa ? ABA_ATIVA[cor] : 'text-slate-400 hover:text-white hover:bg-slate-800'
-}`;
 
 const mensagemDe = (result) => result?.message || 'erro desconhecido';
 
@@ -121,6 +117,8 @@ const PlanejamentoMacro = ({ usuario }) => {
   const [modalRapido, setModalRapido] = useState(null); // { contrato, tipoServicoCodigo }
   const [modalRevisar, setModalRevisar] = useState(false);
   const [modalReprogramar, setModalReprogramar] = useState(null); // { obra, etapa }
+  const [gavetaFiltros, setGavetaFiltros] = useState(false); // gaveta de filtros (<640px)
+  const mobile = useMediaQuery(CONSULTA_MOBILE);
 
   const visao = useVisaoCarteira(tecnicos);
   const { saudePorObra, recarregar: recarregarVisao } = visao;
@@ -143,6 +141,27 @@ const PlanejamentoMacro = ({ usuario }) => {
     }
     return result;
   }, [filtroPeriodo, filtroStatus]);
+
+  // "Passos pendentes" por etapa pai (RPC leve, em lote para as obras carregadas). Falha silenciosa: se a RPC ainda
+  // não existe ou der erro, o Planejamento segue sem o selo/alerta.
+  const { data: linhasPassos } = useAsyncData(async () => {
+    const ids = (data ?? []).map((o) => o.id);
+    if (!ids.length) return { success: true, data: [] };
+    const result = await execucaoService.buscarPassosPendentesPorEtapa(ids);
+    return { success: true, data: result.success ? result.data : [] };
+  }, [data]);
+  const passosPorEtapa = useMemo(
+    () => Object.fromEntries((linhasPassos ?? []).map((l) => [l.etapa_id, l])),
+    [linhasPassos]
+  );
+  const passosPorObra = useMemo(() => {
+    const porObra = new Map();
+    (linhasPassos ?? []).forEach((l) => {
+      if (!porObra.has(l.obra_id)) porObra.set(l.obra_id, {});
+      porObra.get(l.obra_id)[l.etapa_id] = l;
+    });
+    return porObra;
+  }, [linhasPassos]);
 
   // Qualquer alteração no planejamento recarrega as obras e os indicadores (saúde, painel, pendências)
   const reload = useCallback(() => {
@@ -217,6 +236,26 @@ const PlanejamentoMacro = ({ usuario }) => {
 
   const handleAbrirCapacidade = useCallback(() => irParaPagina('capacidade'), []);
   const handleAbrirHorasExtras = useCallback(() => irParaPagina('horas-extras'), []);
+
+  // Filtros da aba Obras agrupados (gaveta no mobile, chips e contador)
+  const filtrosObras = useMemo(() => ({
+    periodo: filtroPeriodo,
+    status: filtroStatus,
+    carteira: filtroCarteira,
+    ordenacao: ordenacaoObras,
+    ocultarRapidos
+  }), [filtroPeriodo, filtroStatus, filtroCarteira, ordenacaoObras, ocultarRapidos]);
+  const totalFiltrosAtivos = contarFiltrosAtivos(filtrosObras);
+
+  const handleLimparFiltros = useCallback(() => {
+    setFiltroPeriodo(FILTROS_PADRAO.periodo);
+    setFiltroStatus(FILTROS_PADRAO.status);
+    setFiltroCarteira(FILTROS_PADRAO.carteira);
+    setOrdenacaoObras(FILTROS_PADRAO.ordenacao);
+    setOcultarRapidos(FILTROS_PADRAO.ocultarRapidos);
+    setBusca('');
+  }, []);
+  const fecharGavetaFiltros = useCallback(() => setGavetaFiltros(false), []);
 
   // Abre a obra na aba Obras (limpando filtros que a escondam) e rola até ela
   const handleAbrirObra = useCallback((obraId) => {
@@ -533,19 +572,33 @@ const PlanejamentoMacro = ({ usuario }) => {
       }
       if (result.warning) toast.info(result.warning);
 
+      // Sub-etapa NOVA é um passo da atividade da etapa pai (N1-h): não cria atividade própria e garante a do pai.
+      // Sub-etapas já existentes (com atividade própria) seguem o fluxo de antes.
+      const novaSubEtapa = !etapaOriginal && Boolean(formEtapa.etapa_pai_id);
+      let etapaParaSincronizar = null;
+      if (novaSubEtapa) {
+        const pai = obra.etapas?.find((e) => e.id === formEtapa.etapa_pai_id);
+        // Só cria a atividade do pai se ela ainda não existe (não sobrescreve dados da atividade já em uso)
+        if (pai?.responsavel_id && (await execucaoService.etapaTemAtividade(pai.id)) === false) {
+          etapaParaSincronizar = { ...pai, obra_id: obra.id };
+        }
+      } else if (formEtapa.responsavel_id) {
+        etapaParaSincronizar = { ...etapaOriginal, ...dadosParaSalvar, obra_id: obra.id, ...(result.data || {}) };
+      }
+
       // Com responsável definido, cria/atualiza a atividade (ou pedido de material) automaticamente
-      if (formEtapa.responsavel_id) {
-        const etapaSalva = { ...etapaOriginal, ...dadosParaSalvar, obra_id: obra.id, ...(result.data || {}) };
+      if (etapaParaSincronizar) {
+        const etapaSalva = etapaParaSincronizar;
         const sync = await sincronizarAtividadeDaEtapa(etapaSalva, obra, usuario?.id, {
           // Evita duplicar o pedido de material a cada edição da etapa de estoque
-          criarPedidoEstoque: etapaOriginal?.tipo !== 'estoque'
+          criarPedidoEstoque: novaSubEtapa ? false : etapaOriginal?.tipo !== 'estoque'
         });
         if (!sync.success) {
           toast.error(`Etapa salva, mas não foi possível criar a atividade/pedido automático: ${mensagemDe(sync)}`);
         } else {
           if (sync.warning) toast.info(sync.warning);
-          // Apoios da equipe na atividade (o líder já é o responsável)
-          const atividadeId = etapaSalva.tipo !== 'estoque' ? sync.data?.id : null;
+          // Apoios da equipe na atividade (o líder já é o responsável); na sub-etapa nova a equipe da atividade é a do pai
+          const atividadeId = !novaSubEtapa && etapaSalva.tipo !== 'estoque' ? sync.data?.id : null;
           if (atividadeId) {
             const apoios = (formEtapa.equipe_ids || []).filter((id) => id !== formEtapa.responsavel_id);
             const equipe = await execucaoPlanejamentoService.atualizarEquipeAtividade(atividadeId, formEtapa.responsavel_id, apoios);
@@ -556,6 +609,9 @@ const PlanejamentoMacro = ({ usuario }) => {
 
       setModalEtapa(null);
       toast.success(etapaOriginal ? 'Etapa atualizada.' : 'Etapa criada.');
+      if (novaSubEtapa && formEtapa.responsavel_id) {
+        toast.info('A sub-etapa é um passo da atividade da etapa pai: o técnico a marca ao concluir a atividade.');
+      }
       reload();
     } catch (err) {
       console.error('Erro ao salvar etapa:', err);
@@ -615,73 +671,56 @@ const PlanejamentoMacro = ({ usuario }) => {
     if (obra) handleAbrirEtapaModal(obra, etapa);
   }, [obras, handleAbrirEtapaModal]);
 
+  const campoBusca = (
+    <div className="relative flex items-center w-full sm:flex-1 sm:min-w-[12rem] lg:flex-none lg:w-48">
+      <FaSearch className="absolute left-3 text-slate-400 pointer-events-none z-10" size={12} style={{ top: '50%', transform: 'translateY(-50%)' }} aria-hidden="true" />
+      <input
+        type="text"
+        aria-label="Buscar cliente"
+        placeholder="Buscar cliente..."
+        className="execucao-form-input plan-campo plan-campo-cheio !pl-9 !pr-3 lg:!w-48"
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+      />
+    </div>
+  );
+
   if (loading && data === null) return <Carregando />;
 
   return (
-    <div className="execucao-animate-fade-in" aria-busy={loading}>
-      <AlertasEtapasAtrasadas obras={obras} onVerEtapa={handleVerEtapaAtrasada} />
+    <div className="plan-escopo execucao-animate-fade-in" aria-busy={loading}>
+      <AlertasEtapasAtrasadas obras={obras} onVerEtapa={handleVerEtapaAtrasada} passosPorEtapa={passosPorEtapa} />
 
       {/* Abas de Navegação */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 border-b border-slate-700 pb-4">
-      <div role="tablist" aria-label="Planejamento" className="flex items-center gap-1">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={abaAtiva === 'obras'}
-          onClick={() => setAbaAtiva('obras')}
-          className={classeAba(abaAtiva === 'obras', 'sky')}
-        >
-          <FaBuilding size={14} aria-hidden="true" />
-          Obras
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={abaAtiva === 'resumo'}
-          onClick={() => setAbaAtiva('resumo')}
-          className={classeAba(abaAtiva === 'resumo', 'sky')}
-        >
-          <FaListAlt size={14} aria-hidden="true" />
-          Resumo de Etapas
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={abaAtiva === 'templates'}
-          onClick={() => setAbaAtiva('templates')}
-          className={classeAba(abaAtiva === 'templates', 'purple')}
-        >
-          <FaMagic size={14} aria-hidden="true" />
-          Templates
-          <span className="text-[10px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded">
-            {templates.length}
-          </span>
-        </button>
-      </div>
-      <PautaSemanalBotao tecnicos={tecnicos} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6 border-b border-slate-700 pb-3">
+        <AbasPlanejamento abaAtiva={abaAtiva} onChange={setAbaAtiva} totalTemplates={templates.length} />
+        <PautaSemanalBotao tecnicos={tecnicos} />
       </div>
 
-      <div className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
+      <div
+        role="tabpanel"
+        id={idPainelAba(abaAtiva)}
+        aria-labelledby={idAba(abaAtiva)}
+        className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}
+      >
         {/* Aba de Resumo de Etapas */}
         {abaAtiva === 'resumo' && (
           <>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex items-center gap-2">
-                <FaFilter className="text-slate-400" size={12} aria-hidden="true" />
-                <label htmlFor="resumo-periodo" className="text-slate-400 text-sm">Período:</label>
-                <select
-                  id="resumo-periodo"
-                  className="execucao-form-select text-sm py-1 min-w-[150px]"
-                  value={filtroPeriodo}
-                  onChange={(e) => setFiltroPeriodo(e.target.value)}
-                >
-                  <option value="semana">Esta Semana</option>
-                  <option value="mes">Este Mês</option>
-                  <option value="trimestre">Este Trimestre</option>
-                  <option value="ano">Este Ano</option>
-                  <option value="todos">Todos</option>
-                </select>
-              </div>
+            <div className="flex items-center gap-2 mb-6">
+              <FaFilter className="hidden sm:block text-slate-400 shrink-0" size={12} aria-hidden="true" />
+              <label htmlFor="resumo-periodo" className="text-slate-300 text-sm shrink-0">Período:</label>
+              <select
+                id="resumo-periodo"
+                className="execucao-form-select plan-campo flex-1 sm:flex-none sm:!w-auto sm:min-w-[150px]"
+                value={filtroPeriodo}
+                onChange={(e) => setFiltroPeriodo(e.target.value)}
+              >
+                <option value="semana">Esta Semana</option>
+                <option value="mes">Este Mês</option>
+                <option value="trimestre">Este Trimestre</option>
+                <option value="ano">Este Ano</option>
+                <option value="todos">Todos</option>
+              </select>
             </div>
 
             {error ? (
@@ -712,89 +751,54 @@ const PlanejamentoMacro = ({ usuario }) => {
         {/* Aba de Obras */}
         {abaAtiva === 'obras' && (
           <>
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <FaFilter className="text-slate-400" size={12} aria-hidden="true" />
-                  <select
-                    aria-label="Período"
-                    style={{ width: 'auto' }}
-                    className="execucao-form-select text-sm py-1 min-w-[140px]"
-                    value={filtroPeriodo}
-                    onChange={(e) => setFiltroPeriodo(e.target.value)}
-                  >
-                    <option value="semana">Semana</option>
-                    <option value="mes">Mês</option>
-                    <option value="trimestre">Trimestre</option>
-                    <option value="ano">Ano</option>
-                    <option value="todos">Todas</option>
-                  </select>
+            <div className="flex flex-col gap-3 mb-6 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+              {/* ≥640px: filtros em linha/grade; <640px: tudo isso vai para a gaveta */}
+              {!mobile && (
+                <div role="group" aria-label="Filtros de obras" className="grid grid-cols-2 gap-3 lg:flex lg:flex-wrap lg:items-center">
+                  <FaFilter className="hidden lg:block text-slate-400" size={12} aria-hidden="true" />
+                  <CamposFiltroObras
+                    filtros={filtrosObras}
+                    onPeriodo={setFiltroPeriodo}
+                    onStatus={setFiltroStatus}
+                    onCarteira={handleFiltrarCarteira}
+                    onOrdenacao={setOrdenacaoObras}
+                  />
                 </div>
-
-                <select
-                  aria-label="Status"
-                  style={{ width: 'auto' }}
-                    className="execucao-form-select text-sm py-1"
-                  value={filtroStatus}
-                  onChange={(e) => setFiltroStatus(e.target.value)}
-                >
-                  <option value="todos">Todos os Status</option>
-                  <option value="planejada">Planejadas</option>
-                  <option value="em_andamento">Em Andamento</option>
-                  <option value="concluida">Concluídas</option>
-                  <option value="pausada">Pausadas</option>
-                </select>
-
-                <select
-                  aria-label="Filtrar por situação"
-                  style={{ width: 'auto' }}
-                    className="execucao-form-select text-sm py-1"
-                  value={filtroCarteira}
-                  onChange={(e) => handleFiltrarCarteira(e.target.value)}
-                >
-                  {FILTROS_VISAO.map((f) => <option key={f.id} value={f.id}>{f.rotulo}</option>)}
-                </select>
-
-                <select
-                  aria-label="Ordenar obras"
-                  style={{ width: 'auto' }}
-                    className="execucao-form-select text-sm py-1"
-                  value={ordenacaoObras}
-                  onChange={(e) => setOrdenacaoObras(e.target.value)}
-                >
-                  <option value="data">Ordenar: por início</option>
-                  <option value="saude">Ordenar: piores primeiro</option>
-                </select>
-              </div>
+              )}
 
               {/* Busca e Ações */}
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4"
-                    checked={ocultarRapidos}
-                    onChange={(e) => setOcultarRapidos(e.target.checked)}
-                  />
-                  Ocultar serviços rápidos
-                </label>
-
-                <div className="relative flex items-center">
-                  <FaSearch className="absolute left-3 text-slate-400 pointer-events-none z-10" size={12} style={{ top: '50%', transform: 'translateY(-50%)' }} aria-hidden="true" />
-                  <input
-                    type="text"
-                    aria-label="Buscar cliente"
-                    placeholder="Buscar cliente..."
-                    className="execucao-form-input text-sm !py-2 !pl-9 !pr-3 w-48"
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                  />
-                </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                {mobile ? (
+                  <div className="flex gap-2">
+                    <div className="flex-1 min-w-0">{campoBusca}</div>
+                    <button
+                      type="button"
+                      onClick={() => setGavetaFiltros(true)}
+                      className="execucao-btn execucao-btn-secondary plan-toque shrink-0"
+                      aria-haspopup="dialog"
+                      aria-label={totalFiltrosAtivos > 0 ? `Filtros, ${totalFiltrosAtivos} ${totalFiltrosAtivos === 1 ? 'ativo' : 'ativos'}` : 'Filtros'}
+                    >
+                      <FaFilter size={12} aria-hidden="true" /> Filtros{totalFiltrosAtivos > 0 && ` (${totalFiltrosAtivos})`}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <label className="plan-check text-xs !text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={ocultarRapidos}
+                        onChange={(e) => setOcultarRapidos(e.target.checked)}
+                      />
+                      Ocultar serviços rápidos
+                    </label>
+                    {campoBusca}
+                  </>
+                )}
 
                 <button
                   type="button"
                   onClick={handleNovaObra}
-                  className="execucao-btn execucao-btn-primary"
+                  className="execucao-btn execucao-btn-primary plan-toque w-full sm:w-auto"
                   aria-label={totalPendentes > 0
                     ? `Nova Obra (${totalPendentes} ${totalPendentes === 1 ? 'contrato aguardando' : 'contratos aguardando'})`
                     : 'Nova Obra'}
@@ -807,25 +811,58 @@ const PlanejamentoMacro = ({ usuario }) => {
                   )}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => handleServicoRapido()}
-                  className="execucao-btn execucao-btn-secondary"
-                >
-                  <FaBolt aria-hidden="true" /> Serviço rápido
-                </button>
-
-                {totalPendentes > 0 && (
+                <div className="grid grid-cols-2 gap-2 sm:contents">
                   <button
                     type="button"
-                    onClick={() => setModalRevisar(true)}
-                    className="execucao-btn execucao-btn-secondary"
+                    onClick={() => handleServicoRapido()}
+                    className={`execucao-btn execucao-btn-secondary plan-toque ${totalPendentes > 0 ? '' : 'col-span-2'} sm:w-auto`}
                   >
-                    <FaClipboardList aria-hidden="true" /> Revisar pendentes
+                    <FaBolt aria-hidden="true" /> Serviço rápido
                   </button>
-                )}
+
+                  {totalPendentes > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setModalRevisar(true)}
+                      className="execucao-btn execucao-btn-secondary plan-toque sm:w-auto"
+                    >
+                      <FaClipboardList aria-hidden="true" /> Revisar pendentes
+                      <span className="sm:hidden">({totalPendentes})</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
+
+            {/* Chips dos filtros ativos (<640px: os controles ficam na gaveta) */}
+            {mobile && totalFiltrosAtivos > 0 && (
+              <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Filtros ativos">
+                {filtroPeriodo !== FILTROS_PADRAO.periodo && (
+                  <span className="visao-filtro-ativo">
+                    Período: {rotuloPeriodoObras(filtroPeriodo)}
+                    <button type="button" className="visao-link" aria-label="Remover filtro de período" onClick={() => setFiltroPeriodo(FILTROS_PADRAO.periodo)}><FaTimes aria-hidden="true" /></button>
+                  </span>
+                )}
+                {filtroStatus !== FILTROS_PADRAO.status && (
+                  <span className="visao-filtro-ativo">
+                    Status: {rotuloStatusObras(filtroStatus)}
+                    <button type="button" className="visao-link" aria-label="Remover filtro de status" onClick={() => setFiltroStatus(FILTROS_PADRAO.status)}><FaTimes aria-hidden="true" /></button>
+                  </span>
+                )}
+                {ordenacaoObras !== FILTROS_PADRAO.ordenacao && (
+                  <span className="visao-filtro-ativo">
+                    Piores primeiro
+                    <button type="button" className="visao-link" aria-label="Remover ordenação" onClick={() => setOrdenacaoObras(FILTROS_PADRAO.ordenacao)}><FaTimes aria-hidden="true" /></button>
+                  </span>
+                )}
+                {ocultarRapidos && (
+                  <span className="visao-filtro-ativo">
+                    Sem serviços rápidos
+                    <button type="button" className="visao-link" aria-label="Mostrar serviços rápidos" onClick={() => setOcultarRapidos(false)}><FaTimes aria-hidden="true" /></button>
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Painel da carteira: cada número filtra a lista abaixo */}
             <PainelCarteira
@@ -839,7 +876,7 @@ const PlanejamentoMacro = ({ usuario }) => {
               onAbrirHorasExtras={handleAbrirHorasExtras}
               onRecarregar={recarregarVisao}
               fallback={(
-            <div className="execucao-grid execucao-grid-4 mb-6">
+            <div className="execucao-grid execucao-grid-4 plan-grid-stats mb-6">
               <div className="execucao-stat-card">
                 <div className="execucao-stat-icon blue">
                   <FaBuilding aria-hidden="true" />
@@ -902,12 +939,17 @@ const PlanejamentoMacro = ({ usuario }) => {
             {error ? (
               <ErroCarregamento mensagem={error} onTentarNovamente={reload} />
             ) : obrasFiltradas.length === 0 ? (
-              <div className="execucao-card text-center py-12">
-                <FaBuilding className="mx-auto text-slate-600 mb-4" size={48} aria-hidden="true" />
-                <h3 className="text-lg font-medium text-slate-400 mb-2">Nenhuma obra encontrada</h3>
-                <p className="text-slate-500 mb-4">
+              <div className="execucao-card text-center py-8 sm:py-12">
+                <FaBuilding className="mx-auto text-slate-500 mb-4 text-[40px] sm:text-5xl" aria-hidden="true" />
+                <h3 className="text-lg font-medium text-slate-300 mb-2">Nenhuma obra encontrada</h3>
+                <p className="text-slate-400 mb-4">
                   {filtroCarteira !== 'todos' ? 'Nenhuma obra corresponde ao filtro escolhido.' : 'Clique em "Nova Obra" para cadastrar um cronograma'}
                 </p>
+                {(totalFiltrosAtivos > 0 || busca) && (
+                  <button type="button" className="execucao-btn execucao-btn-secondary plan-toque w-full sm:w-auto" onClick={handleLimparFiltros}>
+                    Limpar filtros
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -926,13 +968,14 @@ const PlanejamentoMacro = ({ usuario }) => {
                     onAdicionarAtividade={handleAbrirAtividadeModal}
                     onAdicionarSubEtapa={handleAbrirSubEtapaModal}
                     onReprogramar={handleReprogramar}
+                    passosPorEtapa={passosPorObra.get(obra.id)}
                   />
                 ))}
                 {obrasFiltradas.length > obrasVisiveis.length && (
                   <div className="text-center">
                     <button
                       type="button"
-                      className="execucao-btn execucao-btn-secondary"
+                      className="execucao-btn execucao-btn-secondary plan-toque w-full sm:w-auto"
                       onClick={() => setLimiteObras((n) => n + LIMITE_OBRAS_INICIAL)}
                     >
                       Mostrar mais ({obrasFiltradas.length - obrasVisiveis.length} restantes)
@@ -945,6 +988,21 @@ const PlanejamentoMacro = ({ usuario }) => {
         )}
       </div>
 
+      {mobile && gavetaFiltros && (
+        <FiltrosObrasGaveta
+          filtros={filtrosObras}
+          totalObras={obrasFiltradas.length}
+          onPeriodo={setFiltroPeriodo}
+          onStatus={setFiltroStatus}
+          onCarteira={handleFiltrarCarteira}
+          onOrdenacao={setOrdenacaoObras}
+          onOcultarRapidos={setOcultarRapidos}
+          onLimpar={handleLimparFiltros}
+          onClose={fecharGavetaFiltros}
+        />
+      )}
+
+      <Suspense fallback={null}>
       {modalReprogramar && (
         <ReprogramarModal
           obra={modalReprogramar.obra}
@@ -1021,6 +1079,7 @@ const PlanejamentoMacro = ({ usuario }) => {
           onClose={fecharModalAtividade}
         />
       )}
+      </Suspense>
     </div>
   );
 };

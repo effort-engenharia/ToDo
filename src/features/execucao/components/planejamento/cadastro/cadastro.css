@@ -122,6 +122,64 @@
   .cad-contrato-escolhido-topo { flex-direction: column; }
 }
 
+/* ---------- Responsividade (F13): toque, listas e tabelas empilhadas ---------- */
+@media (hover: none), (pointer: coarse) {
+  .cad-link { min-height: 44px; padding: 0.5rem 0.25rem; }
+  .cad-contrato-opcao { min-height: 44px; }
+  .cad-previa-remover { min-width: 44px; min-height: 44px; }
+  .cad-equipe-remover, .cad-equipe-estrela { min-width: 44px; min-height: 44px; }
+}
+.cad-tag { font-size: 0.75rem; }
+.cad-previa-tabela th, .cad-revisar-tabela th { color: var(--text-secondary, #cbd5e1); }
+.cad-contrato-detalhe, .cad-contrato-aviso, .cad-equipe-dica, .cad-opcao small { color: #cbd5e1; }
+.cad-equipe-dica { font-size: 0.75rem; }
+.cad-opcao small { font-size: 0.75rem; }
+
+@media (max-width: 639px) {
+  .cad-contrato-lista { max-height: 40dvh; }
+  .cad-rapido-etapas { max-height: none; }
+
+  /* Prévia das etapas: cada linha vira um cartão (colunas rotuladas pelo CSS; sem rolagem lateral) */
+  .cad-previa-tabela-wrap { overflow-x: visible; }
+  .cad-previa-tabela, .cad-previa-tabela tbody { display: block; min-width: 0; }
+  .cad-previa-tabela thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .cad-previa-tabela tbody { display: flex; flex-direction: column; gap: 0.5rem; }
+  .cad-previa-tabela tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem;
+    padding: 0.5rem; border: 1px solid var(--border-color, #334155); border-radius: 0.5rem;
+  }
+  .cad-previa-tabela td { display: block; min-width: 0; padding: 0; border: 0; }
+  .cad-previa-tabela td:nth-child(1), .cad-previa-tabela td:nth-child(2), .cad-previa-tabela td:nth-child(3),
+  .cad-previa-tabela td:nth-child(7), .cad-previa-tabela td:nth-child(n + 8) { grid-column: 1 / -1; }
+  .cad-previa-tabela td:nth-child(1) { font-weight: 600; color: var(--text-secondary, #cbd5e1); }
+  .cad-previa-tabela td:nth-child(2)::before { content: 'Etapa'; }
+  .cad-previa-tabela td:nth-child(3)::before { content: 'Tipo'; }
+  .cad-previa-tabela td:nth-child(4)::before { content: 'Início'; }
+  .cad-previa-tabela td:nth-child(5)::before { content: 'Fim'; }
+  .cad-previa-tabela td:nth-child(6)::before { content: 'Dias úteis'; }
+  .cad-previa-tabela td:nth-child(7)::before { content: 'Responsável / equipe'; }
+  .cad-previa-tabela td:nth-child(n + 2):nth-child(-n + 7)::before {
+    display: block; margin-bottom: 0.125rem; font-size: 0.75rem; color: var(--text-secondary, #cbd5e1);
+  }
+  .cad-previa-tabela td:nth-child(6) { text-align: left; }
+
+  /* Revisar pendentes: cartões com as ações em 2 colunas de 44px */
+  .cad-revisar-tabela-wrap { max-height: none; overflow: visible; border: 0; }
+  .cad-revisar-tabela, .cad-revisar-tabela tbody { display: block; min-width: 0; }
+  .cad-revisar-tabela thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .cad-revisar-tabela tbody { display: flex; flex-direction: column; gap: 0.5rem; }
+  .cad-revisar-tabela tr {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.25rem 0.5rem; align-items: center;
+    padding: 0.5rem; border: 1px solid var(--border-color, #334155); border-radius: 0.5rem;
+  }
+  .cad-revisar-tabela td { display: block; padding: 0; border: 0; min-width: 0; overflow-wrap: anywhere; }
+  .cad-revisar-tabela td:nth-child(1) { grid-row: 1 / span 3; }
+  .cad-revisar-tabela td:nth-child(5) { grid-column: 1 / -1; }
+  .cad-revisar-tabela td:nth-child(5) > span { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+  .cad-revisar-tabela td:nth-child(5) .cad-link { justify-content: center; border: 1px solid var(--border-light, #475569); border-radius: 0.5rem; text-decoration: none; min-height: 44px; }
+  .cad-revisar-tabela td[colspan] { grid-column: 1 / -1; grid-row: auto; }
+}
+
 /* Sub-etapa na prévia: recuada e com datas travadas (seguem a etapa pai) */
 .cad-previa-sub td { background: rgba(148, 163, 184, 0.05); }
 .cad-previa-sub input[type='date']:disabled { opacity: 0.55; cursor: not-allowed; }

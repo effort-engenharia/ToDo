@@ -20,6 +20,7 @@ const AtividadeEtapaModal = ({ etapa, tecnicos, salvando, onSalvar, onClose }) =
 
   return (
     <Modal
+      telaCheia
       titulo="Criar Atividade na Agenda"
       cabecalho={
         <>

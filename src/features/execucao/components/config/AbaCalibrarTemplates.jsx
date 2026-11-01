@@ -53,8 +53,8 @@ const AbaCalibrarTemplates = () => {
         <h3 className="execucao-card-title">Calibrar horas dos templates com o realizado</h3>
       </div>
       <p className="cfg-note">
-        A média usa as horas realizadas das etapas concluídas. Como o realizado assume o previsto, só há desvio quando alguém ajustou as horas:
-        confira a coluna “Com ajuste” antes de confiar na média.
+        A média usa as horas realizadas das etapas concluídas. O realizado é medido pelos intervalos em andamento (sem “Iniciar”, assume o previsto) e
+        conclusões antigas não são comparáveis com as novas: confira a coluna “Com ajuste” antes de confiar na média.
       </p>
       <label className="cfg-check mb-4">
         <input type="checkbox" checked={somenteDiferentes} onChange={(e) => setSomenteDiferentes(e.target.checked)} />

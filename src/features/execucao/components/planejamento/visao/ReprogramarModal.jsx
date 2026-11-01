@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { execucaoPlanejamentoService as servico } from '../../../../../services/supabase/execucaoPlanejamento';
 import { useAsyncData } from '../../../hooks/useAsyncData';
+import { CONSULTA_MOBILE, useMediaQuery } from '../../../hooks/useMediaQuery';
 import { formatarDataBR, parseDataLocal } from '../../../utils/datas';
 import Modal from '../../ui/Modal';
 import { useExecucaoUI } from '../../ui/ExecucaoUI';
@@ -25,6 +26,7 @@ const opcoesDePartida = (obra) => {
 // "Empurrar etapas seguintes em N dias úteis": sempre com prévia e confirmação (item 2.5)
 const ReprogramarModal = ({ obra, etapa = null, onClose, onAplicado }) => {
   const { toast } = useExecucaoUI();
+  const estreito = useMediaQuery(CONSULTA_MOBILE);
   const opcoes = useMemo(() => opcoesDePartida(obra), [obra]);
 
   // Com uma etapa de origem, começa na etapa seguinte; sem ela, na primeira ainda aberta
@@ -97,7 +99,7 @@ const ReprogramarModal = ({ obra, etapa = null, onClose, onAplicado }) => {
   };
 
   return (
-    <Modal titulo={`Reprogramar etapas – ${obra.nome_cliente}`} onClose={onClose} tamanho="lg">
+    <Modal telaCheia titulo={`Reprogramar etapas – ${obra.nome_cliente}`} onClose={onClose} tamanho="lg">
       {opcoes.length === 0 ? (
         <p className="text-slate-300 text-sm">Esta obra não tem etapas em aberto para reprogramar.</p>
       ) : (
@@ -142,10 +144,35 @@ const ReprogramarModal = ({ obra, etapa = null, onClose, onAplicado }) => {
               <p className="text-sm text-slate-400">Nenhuma etapa em aberto a partir desta posição.</p>
             ) : (
               <>
-                <div className="overflow-x-auto">
+                {estreito ? (
+                  <ul className="flex flex-col gap-2" aria-label="Prévia das etapas afetadas">
+                    {linhas.map((l) => {
+                      const original = etapasPorId.get(l.etapa_id);
+                      const pai = original?.etapa_pai_id ? etapasPorId.get(original.etapa_pai_id) : null;
+                      return (
+                        <li key={l.etapa_id} className="rounded-lg border border-slate-700 bg-slate-800/60 p-3 text-sm">
+                          <div className="font-medium text-white plan-quebra">
+                            {pai ? '↳ ' : ''}{l.nome}
+                            {pai && <span className="text-xs text-slate-300"> (sub-etapa de {pai.nome})</span>}
+                          </div>
+                          <div className="mt-1 text-slate-200">
+                            {intervalo(l.data_inicio_antes, l.data_fim_antes)} → <span className="text-sky-300">{intervalo(l.data_inicio_depois, l.data_fim_depois)}</span>
+                          </div>
+                          <div className="text-xs text-slate-300">{l.atividades_afetadas} atividade(s) na agenda</div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                <div
+                  className="plan-rolagem"
+                  role="region"
+                  aria-label="Prévia das etapas afetadas, role na horizontal para ver todas as colunas"
+                  tabIndex={0}
+                >
                   <table className="visao-tabela">
                     <thead>
-                      <tr><th>Etapa</th><th>Antes</th><th>Depois</th><th>Atividades</th></tr>
+                      <tr><th scope="col">Etapa</th><th scope="col">Antes</th><th scope="col">Depois</th><th scope="col">Atividades</th></tr>
                     </thead>
                     <tbody>
                       {linhas.map((l) => {
@@ -155,7 +182,7 @@ const ReprogramarModal = ({ obra, etapa = null, onClose, onAplicado }) => {
                           <tr key={l.etapa_id}>
                             <td>
                               {pai ? '↳ ' : ''}{l.nome}
-                              {pai && <span className="text-xs text-slate-400"> (sub-etapa de {pai.nome})</span>}
+                              {pai && <span className="text-xs text-slate-300"> (sub-etapa de {pai.nome})</span>}
                             </td>
                             <td>{intervalo(l.data_inicio_antes, l.data_fim_antes)}</td>
                             <td className="text-sky-300">{intervalo(l.data_inicio_depois, l.data_fim_depois)}</td>
@@ -166,6 +193,7 @@ const ReprogramarModal = ({ obra, etapa = null, onClose, onAplicado }) => {
                     </tbody>
                   </table>
                 </div>
+                )}
 
                 <div className="mt-3 text-sm space-y-1">
                   <div>

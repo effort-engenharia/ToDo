@@ -108,7 +108,7 @@ const PendenciasReplanejamento = ({ pendencias, onReprogramar, onAlterado }) => 
               <div className="font-medium text-white">
                 {a.etapa?.obra?.nome_cliente ?? 'Obra'} <span className="text-slate-400">·</span> {a.titulo}
               </div>
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-slate-300">
                 {a.tecnico?.nome_completo ?? 'Sem técnico'} · programada para {formatarDataBR(a.data_programada)}
                 {a.pausada_em ? ` · pausada em ${formatarDataHora(a.pausada_em)}` : ''}
               </div>
@@ -118,7 +118,7 @@ const PendenciasReplanejamento = ({ pendencias, onReprogramar, onAlterado }) => 
               {a.etapa?.obra_id && (
                 <button
                   type="button"
-                  className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+                  className="execucao-btn execucao-btn-secondary execucao-btn-sm plan-toque"
                   onClick={() => onReprogramar(a.etapa.obra_id, a.etapa.id)}
                   title="Empurrar as etapas seguintes (com prévia)"
                 >
@@ -127,7 +127,7 @@ const PendenciasReplanejamento = ({ pendencias, onReprogramar, onAlterado }) => 
               )}
               <button
                 type="button"
-                className="execucao-btn execucao-btn-secondary execucao-btn-sm"
+                className="execucao-btn execucao-btn-secondary execucao-btn-sm plan-toque"
                 onClick={() => setReagendando(a)}
                 disabled={Boolean(processando)}
               >
@@ -135,7 +135,7 @@ const PendenciasReplanejamento = ({ pendencias, onReprogramar, onAlterado }) => 
               </button>
               <button
                 type="button"
-                className="execucao-btn execucao-btn-primary execucao-btn-sm"
+                className="execucao-btn execucao-btn-primary execucao-btn-sm plan-toque"
                 onClick={() => resolver(a)}
                 disabled={Boolean(processando)}
               >

@@ -14,12 +14,15 @@ import { useExecucaoUI } from '../ui/ExecucaoUI';
 import { Carregando, ErroCarregamento } from '../ui/Estados';
 import IconeTemplate from './IconeTemplate';
 import ModalLargo from './ModalLargo';
+import CampoQuantidade from './CampoQuantidade';
 import {
   UNIDADES,
+  atualizarCampoItem,
   converterParaNovoFormato,
   itemPreenchido,
   listasComKey,
   listasSemKey,
+  marcarItensInvalidos,
   novaLista,
   novoItem,
   totalItensTemplate
@@ -60,6 +63,25 @@ export default function TemplatesMateriais({ templates, loading, error, usuario,
     if (salvando) return;
     if (!formTemplate.nome.trim()) {
       toast.error('Digite um nome para o template.');
+      return;
+    }
+
+    // Itens preenchidos com quantidade vazia/≤0 bloqueiam o salvamento (erro no item + foco)
+    let primeiraKey = null;
+    let listaComErro = null;
+    const listasMarcadas = formTemplate.listas.map((lista) => {
+      const { itens, primeiraKey: key } = marcarItensInvalidos(lista.itens);
+      if (key && !primeiraKey) {
+        primeiraKey = key;
+        listaComErro = lista._key;
+      }
+      return { ...lista, itens };
+    });
+    if (primeiraKey) {
+      setFormTemplate((prev) => ({ ...prev, listas: listasMarcadas }));
+      setListaExpandida(listaComErro);
+      toast.error('Informe a quantidade (maior que zero) dos itens destacados.');
+      requestAnimationFrame(() => document.getElementById(`qtd-${primeiraKey}`)?.focus());
       return;
     }
 
@@ -180,7 +202,7 @@ export default function TemplatesMateriais({ templates, loading, error, usuario,
   const handleAtualizarItemDaLista = (key, itemKey, campo, valor) => {
     atualizarListas((listas) => listas.map((l) => (
       l._key === key
-        ? { ...l, itens: l.itens.map((i) => (i._key === itemKey ? { ...i, [campo]: valor } : i)) }
+        ? { ...l, itens: l.itens.map((i) => (i._key === itemKey ? atualizarCampoItem(i, campo, valor) : i)) }
         : l
     )));
   };
@@ -411,8 +433,9 @@ export default function TemplatesMateriais({ templates, loading, error, usuario,
                               {lista.itens.map((item, itemIndex) => (
                                 <div
                                   key={item._key}
-                                  className="flex items-center gap-2 p-2 bg-slate-900/50 rounded border border-slate-700/50"
+                                  className="p-2 bg-slate-900/50 rounded border border-slate-700/50"
                                 >
+                                  <div className="flex items-center gap-2">
                                   <span className="text-[10px] text-slate-500 w-5">{itemIndex + 1}.</span>
                                   <input
                                     type="text"
@@ -422,14 +445,16 @@ export default function TemplatesMateriais({ templates, loading, error, usuario,
                                     placeholder="Nome do item"
                                     aria-label={`Nome do item ${itemIndex + 1}`}
                                   />
-                                  <input
-                                    type="number"
-                                    className="w-16 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-center"
-                                    value={item.quantidade || 1}
-                                    onChange={(e) => handleAtualizarItemDaLista(lista._key, item._key, 'quantidade', parseFloat(e.target.value) || 1)}
-                                    min="0.1"
-                                    step="0.1"
-                                    aria-label={`Quantidade do item ${itemIndex + 1}`}
+                                  <CampoQuantidade
+                                    className="w-28 flex-shrink-0"
+                                    inputClassName="bg-slate-700 border border-slate-600 rounded px-1 py-1 text-xs"
+                                    id={`qtd-${item._key}`}
+                                    ariaLabel={`Quantidade do item ${itemIndex + 1}`}
+                                    value={item.quantidade ?? null}
+                                    unidade={item.unidade || 'un'}
+                                    invalido={Boolean(item._erro)}
+                                    descricaoId={item._erro ? `erro-${item._key}` : undefined}
+                                    onChange={(q) => handleAtualizarItemDaLista(lista._key, item._key, 'quantidade', q)}
                                   />
                                   <select
                                     className="bg-slate-700 border border-slate-600 rounded px-1.5 py-1 text-xs"
@@ -450,6 +475,15 @@ export default function TemplatesMateriais({ templates, loading, error, usuario,
                                   >
                                     <FaTrash size={10} aria-hidden="true" />
                                   </button>
+                                  </div>
+                                  {item._erro && (
+                                    <p id={`erro-${item._key}`} className="text-xs text-red-400 mt-1 pl-7" role="alert">
+                                      {item._erro}
+                                    </p>
+                                  )}
+                                  {item._aviso && !item._erro && (
+                                    <p className="text-xs text-amber-400/90 mt-1 pl-7" role="status">{item._aviso}</p>
+                                  )}
                                 </div>
                               ))}
                               {lista.itens.length === 0 && (

@@ -173,6 +173,7 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
 
   return (
     <Modal
+      telaCheia
       titulo={titulo}
       cabecalho={
         <>
@@ -300,7 +301,7 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
               </button>
             </div>
 
-            <div className="space-y-2 max-h-[26rem] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="space-y-2 sm:max-h-[26rem] sm:overflow-y-auto sm:pr-2 custom-scrollbar">
               {form.itens.map((item) => {
                 const rotulo = rotulos.get(item._chave);
                 const ehSub = Boolean(item._pai);
@@ -308,10 +309,10 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
                 return (
                   <div
                     key={item._chave}
-                    className={`p-2 rounded-lg border ${ehSub ? 'ml-8 bg-slate-800/30 border-slate-700/70 border-l-2 border-l-purple-500/60' : 'bg-slate-800/50 border-slate-700'}`}
+                    className={`p-2 rounded-lg border ${ehSub ? 'ml-4 sm:ml-8 bg-slate-800/30 border-slate-700/70 border-l-2 border-l-purple-500/60' : 'bg-slate-800/50 border-slate-700'}`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500 w-8 shrink-0">{rotulo}.</span>
+                      <span className="text-xs text-slate-300 w-8 shrink-0">{rotulo}.</span>
                       <input
                         type="text"
                         className="flex-1 min-w-0 bg-transparent border-none text-sm text-white focus:outline-none"
@@ -325,7 +326,7 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
                         <button
                           type="button"
                           onClick={() => adicionarSubItem(item._chave)}
-                          className="text-[10px] flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-slate-200 hover:bg-slate-600 transition-all shrink-0"
+                          className="plan-toque text-xs flex items-center gap-1 px-2 py-1 rounded bg-slate-700 text-slate-200 hover:bg-slate-600 transition-all shrink-0"
                           title="Adicionar sub-etapa (parte da etapa, em horas)"
                           aria-label={`Adicionar sub-etapa à etapa ${rotulo}`}
                         >
@@ -335,16 +336,16 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
                       <button
                         type="button"
                         onClick={() => removerItem(item._chave)}
-                        className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-all"
+                        className="plan-toque shrink-0 p-1 text-red-300 hover:text-red-200 hover:bg-red-500/10 rounded transition-all"
                         title={ehSub ? 'Remover sub-etapa' : 'Remover etapa'}
                         aria-label={`Remover ${ehSub ? 'sub-etapa' : 'etapa'} ${rotulo}`}
                       >
                         <FaTrash size={10} aria-hidden="true" />
                       </button>
                     </div>
-                    <div className={`grid grid-cols-2 gap-2 mt-2 pl-8 ${ehSub ? 'md:grid-cols-4' : 'md:grid-cols-5'}`}>
+                    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 pl-0 sm:pl-8 ${ehSub ? 'md:grid-cols-4' : 'md:grid-cols-5'}`}>
                       {!ehSub && (
-                        <label className="text-[10px] text-slate-400">
+                        <label className="text-xs text-slate-300">
                           Duração (dias úteis)
                           <input
                             type="number"
@@ -355,7 +356,7 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
                           />
                         </label>
                       )}
-                      <label className="text-[10px] text-slate-400">
+                      <label className="text-xs text-slate-300">
                         Tipo (define a agenda)
                         <select
                           className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
@@ -365,7 +366,7 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
                           {TIPOS_ETAPA.map((t) => <option key={t.valor} value={t.valor}>{t.rotulo}</option>)}
                         </select>
                       </label>
-                      <label className="text-[10px] text-slate-400">
+                      <label className="text-xs text-slate-300">
                         {temSubs ? 'Horas (soma das sub-etapas)' : 'Horas previstas'}
                         {temSubs ? (
                           <div className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 h-[26px] flex items-center">
@@ -381,7 +382,7 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
                           />
                         )}
                       </label>
-                      <label className="text-[10px] text-slate-400">
+                      <label className="text-xs text-slate-300">
                         Nº de técnicos
                         <input
                           type="number"
@@ -391,7 +392,7 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
                           min="1"
                         />
                       </label>
-                      <label className={`text-[10px] text-slate-400 ${ehSub ? '' : 'col-span-2 md:col-span-1'}`}>
+                      <label className={`text-xs text-slate-300 ${ehSub ? '' : 'sm:col-span-2 md:col-span-1'}`}>
                         POP
                         <select
                           className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white"
@@ -404,10 +405,10 @@ const TemplateFormModal = ({ template, salvando, onSalvar, onClose }) => {
                       </label>
                     </div>
                     {ehSub && (
-                      <p className="text-[10px] text-slate-500 mt-1 pl-8">Dentro da etapa pai: sem duração em dias, o tempo é controlado pelas horas.</p>
+                      <p className="text-xs text-slate-300 mt-1 sm:pl-8">Dentro da etapa pai: sem duração em dias, o tempo é controlado pelas horas.</p>
                     )}
                     {item.tipo === 'estoque' && (
-                      <p className="text-[10px] text-blue-300 mt-1 pl-8">📦 Etapa de material: gera o pedido de material automaticamente.</p>
+                      <p className="text-xs text-blue-300 mt-1 sm:pl-8">📦 Etapa de material: gera o pedido de material automaticamente.</p>
                     )}
                   </div>
                 );

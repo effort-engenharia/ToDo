@@ -98,6 +98,7 @@ const RevisarContratosPendentes = ({ usuarioId, onClose, onAlterado, onPlanejar,
 
   return (
     <Modal
+      telaCheia
       titulo="Revisar contratos pendentes"
       cabecalho={
         <>
@@ -109,13 +110,13 @@ const RevisarContratosPendentes = ({ usuarioId, onClose, onAlterado, onPlanejar,
       onClose={onClose}
     >
       <div className="space-y-4">
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-300">
           Marque os contratos que não precisam ser planejados (já concluídos antes do sistema, cancelados...) e trate todos de uma vez.
           Para os que estão em execução hoje, use &quot;Cadastrar obra&quot; e ative &quot;Obra já em andamento&quot;.
         </p>
 
         <div className="flex flex-wrap items-center gap-4">
-          <div className="relative flex-1 min-w-[14rem]">
+          <div className="relative w-full min-w-0 sm:flex-1 sm:min-w-[14rem]">
             <label htmlFor={`${idBase}-busca`} className="sr-only">Buscar cliente</label>
             <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={12} aria-hidden="true" />
             <input
@@ -127,10 +128,9 @@ const RevisarContratosPendentes = ({ usuarioId, onClose, onAlterado, onPlanejar,
               onChange={(e) => setBusca(e.target.value)}
             />
           </div>
-          <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+          <label className="plan-check text-xs">
             <input
               type="checkbox"
-              className="w-4 h-4"
               checked={mostrarTratados}
               onChange={(e) => setMostrarTratados(e.target.checked)}
             />

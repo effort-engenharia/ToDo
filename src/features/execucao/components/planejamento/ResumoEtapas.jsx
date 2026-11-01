@@ -13,6 +13,7 @@ import {
   FaUsers
 } from 'react-icons/fa';
 import { addDias, dataLocalISO, parseDataLocal } from '../../utils/datas';
+import { CONSULTA_ABAIXO_MD, useMediaQuery } from '../../hooks/useMediaQuery';
 import { useExecucaoUI } from '../ui/ExecucaoUI';
 import { exportarEtapasExcel, exportarEtapasPDF } from './exportacao';
 import ResumoVisaoAno from './ResumoVisaoAno';
@@ -32,8 +33,26 @@ const MODOS = [
 
 const SEM_SAUDE = new Map();
 
-const NAV_BOTOES = 'execucao-btn execucao-btn-secondary execucao-btn-sm';
-const NAV_CONTAINER = 'flex items-center justify-between mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700';
+const NAV_BOTOES = 'execucao-btn execucao-btn-secondary execucao-btn-sm plan-toque';
+const NAV_CONTAINER = 'grid grid-cols-[44px_1fr_44px] items-center gap-2 sm:flex sm:justify-between mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-700';
+
+// Navegação de período: setas de 44px com "Hoje" em segunda linha no mobile; rótulos completos a partir de 640px
+const NavegacaoPeriodo = ({ anterior, hoje, proximo, children }) => (
+  <div className={NAV_CONTAINER}>
+    <button type="button" onClick={anterior.onClick} className={NAV_BOTOES} aria-label={anterior.aria}>
+      <FaChevronLeft aria-hidden="true" /> <span className="hidden sm:inline">{anterior.rotulo}</span>
+    </button>
+    <div className="text-center min-w-0">{children}</div>
+    <div className="contents sm:flex sm:items-center sm:gap-2">
+      <button type="button" onClick={hoje.onClick} className={`${NAV_BOTOES} col-span-3 order-last sm:order-none sm:col-auto`} aria-label={hoje.aria}>
+        {hoje.rotulo}
+      </button>
+      <button type="button" onClick={proximo.onClick} className={NAV_BOTOES} aria-label={proximo.aria}>
+        <span className="hidden sm:inline">{proximo.rotulo}</span> <FaChevronRight aria-hidden="true" />
+      </button>
+    </div>
+  </div>
+);
 
 const comDadosDaObra = (etapa, obra) => ({
   ...etapa,
@@ -74,6 +93,7 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade, saudePorObra = SEM
   const [mesOffset, setMesOffset] = useState(0);
   const [anoOffset, setAnoOffset] = useState(0);
   const [exportando, setExportando] = useState(null); // 'excel' | 'pdf' | null
+  const compacto = useMediaQuery(CONSULTA_ABAIXO_MD); // <768px: seletor de visão vira <select>
 
   // Todas as etapas de todas as obras em uma lista única, filtradas e ordenadas
   const todasEtapas = useMemo(() => {
@@ -218,25 +238,26 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade, saudePorObra = SEM
     <div className="execucao-animate-fade-in">
       {/* Header do Resumo */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <FaCalendarWeek className="text-sky-400" aria-hidden="true" />
-            Resumo de Etapas - {periodoLabel}
+        <div className="min-w-0">
+          <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+            <FaCalendarWeek className="text-sky-300 shrink-0" aria-hidden="true" />
+            <span className="plan-quebra">Resumo de Etapas - {periodoLabel}</span>
           </h2>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-slate-300 text-sm mt-1">
             {stats.totalEtapas} etapas em {stats.totalClientes} clientes
           </p>
         </div>
 
         {/* Modo de Visualização + Filtros */}
-        <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex w-full lg:w-auto flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
           {/* Botões de Exportação */}
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => exportar('excel')}
               disabled={Boolean(exportando)}
-              className="execucao-btn execucao-btn-secondary execucao-btn-sm flex items-center gap-1.5"
+              aria-busy={exportando === 'excel'}
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm plan-toque flex items-center gap-1.5"
               title="Exportar para Excel"
             >
               <FaFileExcel className="text-green-400" size={14} aria-hidden="true" />
@@ -246,7 +267,8 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade, saudePorObra = SEM
               type="button"
               onClick={() => exportar('pdf')}
               disabled={Boolean(exportando)}
-              className="execucao-btn execucao-btn-secondary execucao-btn-sm flex items-center gap-1.5"
+              aria-busy={exportando === 'pdf'}
+              className="execucao-btn execucao-btn-secondary execucao-btn-sm plan-toque flex items-center gap-1.5"
               title="Exportar para PDF"
             >
               <FaFilePdf className="text-red-400" size={14} aria-hidden="true" />
@@ -254,32 +276,47 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade, saudePorObra = SEM
             </button>
           </div>
 
-          {/* Toggle Visualizações */}
-          <div className="flex items-center bg-slate-800 rounded-lg p-1">
-            {MODOS.map(({ id, rotulo, icone, titulo }) => (
-              <button
-                type="button"
-                key={id}
-                onClick={() => setModoVisualizacao(id)}
-                aria-pressed={modoVisualizacao === id}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                  modoVisualizacao === id
-                    ? 'bg-sky-500 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-                title={titulo ?? undefined}
+          {/* Visualização: <select> abaixo de 768px; grupo de botões a partir daí */}
+          {compacto ? (
+            <div className="w-full">
+              <label htmlFor="resumo-visualizacao" className="sr-only">Visualização</label>
+              <select
+                id="resumo-visualizacao"
+                className="execucao-form-select plan-campo plan-campo-cheio"
+                value={modoVisualizacao}
+                onChange={(e) => setModoVisualizacao(e.target.value)}
               >
-                {icone}
-                {rotulo}
-              </button>
-            ))}
-          </div>
+                {MODOS.map(({ id, rotulo }) => <option key={id} value={id}>{rotulo}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div role="group" aria-label="Visualização" className="flex items-center bg-slate-800 rounded-lg p-1">
+              {MODOS.map(({ id, rotulo, icone, titulo }) => (
+                <button
+                  type="button"
+                  key={id}
+                  onClick={() => setModoVisualizacao(id)}
+                  aria-pressed={modoVisualizacao === id}
+                  className={`plan-toque flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                    modoVisualizacao === id
+                      ? 'bg-sky-700 text-white'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                  title={titulo ?? undefined}
+                >
+                  {icone}
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+          )}
 
-          <div className="flex items-center gap-2">
-            <label htmlFor="resumo-filtro-equipe" className="text-slate-400 text-sm">Equipe:</label>
+          <div className="grid grid-cols-2 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+            <label htmlFor="resumo-filtro-equipe" className="text-slate-300 text-sm">Equipe:</label>
             <select
               id="resumo-filtro-equipe"
-              className="execucao-form-select text-sm py-1"
+              className="execucao-form-select plan-campo"
               value={filtroTipo}
               onChange={(e) => setFiltroTipo(e.target.value)}
             >
@@ -293,11 +330,11 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade, saudePorObra = SEM
           </div>
 
           {modoVisualizacao === 'tabela' && (
-            <div className="flex items-center gap-2">
-              <label htmlFor="resumo-ordenacao" className="text-slate-400 text-sm">Ordenar:</label>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
+              <label htmlFor="resumo-ordenacao" className="text-slate-300 text-sm">Ordenar:</label>
               <select
                 id="resumo-ordenacao"
-                className="execucao-form-select text-sm py-1"
+                className="execucao-form-select plan-campo"
                 value={ordenacao}
                 onChange={(e) => setOrdenacao(e.target.value)}
               >
@@ -307,105 +344,73 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade, saudePorObra = SEM
               </select>
             </div>
           )}
+          </div>
         </div>
       </div>
 
       {/* Navegação da Agenda SEMANAL */}
       {modoVisualizacao === 'agenda' && (
-        <div className={NAV_CONTAINER}>
-          <button type="button" onClick={() => setSemanaOffset(prev => prev - 1)} className={NAV_BOTOES}>
-            <FaChevronLeft aria-hidden="true" /> Anterior
-          </button>
-
-          <div className="text-center">
-            <div className="text-lg font-bold text-white capitalize">{agendaData.mesAno}</div>
-            <div className="text-sm text-slate-400">
-              {formatarDataCurta(agendaData.inicioSemana)} - {formatarDataCurta(agendaData.fimSemana)}
-            </div>
+        <NavegacaoPeriodo
+          anterior={{ rotulo: 'Anterior', aria: 'Semana anterior', onClick: () => setSemanaOffset(prev => prev - 1) }}
+          hoje={{ rotulo: 'Hoje', aria: 'Ir para a semana atual', onClick: () => setSemanaOffset(0) }}
+          proximo={{ rotulo: 'Próxima', aria: 'Próxima semana', onClick: () => setSemanaOffset(prev => prev + 1) }}
+        >
+          <div className="text-lg font-bold text-white capitalize">{agendaData.mesAno}</div>
+          <div className="text-sm text-slate-300">
+            {formatarDataCurta(agendaData.inicioSemana)} - {formatarDataCurta(agendaData.fimSemana)}
           </div>
-
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setSemanaOffset(0)} className={NAV_BOTOES}>
-              Hoje
-            </button>
-            <button type="button" onClick={() => setSemanaOffset(prev => prev + 1)} className={NAV_BOTOES}>
-              Próxima <FaChevronRight aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+        </NavegacaoPeriodo>
       )}
 
       {/* Navegação MENSAL */}
       {modoVisualizacao === 'mensal' && (
-        <div className={NAV_CONTAINER}>
-          <button type="button" onClick={() => setMesOffset(prev => prev - 1)} className={NAV_BOTOES}>
-            <FaChevronLeft aria-hidden="true" /> Mês Anterior
-          </button>
-
-          <div className="text-center">
-            <div className="text-lg font-bold text-white capitalize">{mensalData.mesAno}</div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setMesOffset(0)} className={NAV_BOTOES}>
-              Mês Atual
-            </button>
-            <button type="button" onClick={() => setMesOffset(prev => prev + 1)} className={NAV_BOTOES}>
-              Próximo Mês <FaChevronRight aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+        <NavegacaoPeriodo
+          anterior={{ rotulo: 'Mês Anterior', aria: 'Mês anterior', onClick: () => setMesOffset(prev => prev - 1) }}
+          hoje={{ rotulo: 'Mês Atual', aria: 'Ir para o mês atual', onClick: () => setMesOffset(0) }}
+          proximo={{ rotulo: 'Próximo Mês', aria: 'Próximo mês', onClick: () => setMesOffset(prev => prev + 1) }}
+        >
+          <div className="text-lg font-bold text-white capitalize">{mensalData.mesAno}</div>
+        </NavegacaoPeriodo>
       )}
 
       {/* Navegação ANUAL */}
       {modoVisualizacao === 'anual' && (
-        <div className={NAV_CONTAINER}>
-          <button type="button" onClick={() => setAnoOffset(prev => prev - 1)} className={NAV_BOTOES}>
-            <FaChevronLeft aria-hidden="true" /> Ano Anterior
-          </button>
-
-          <div className="text-center">
-            <div className="text-lg font-bold text-white">{anualData.ano}</div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setAnoOffset(0)} className={NAV_BOTOES}>
-              Ano Atual
-            </button>
-            <button type="button" onClick={() => setAnoOffset(prev => prev + 1)} className={NAV_BOTOES}>
-              Próximo Ano <FaChevronRight aria-hidden="true" />
-            </button>
-          </div>
-        </div>
+        <NavegacaoPeriodo
+          anterior={{ rotulo: 'Ano Anterior', aria: 'Ano anterior', onClick: () => setAnoOffset(prev => prev - 1) }}
+          hoje={{ rotulo: 'Ano Atual', aria: 'Ir para o ano atual', onClick: () => setAnoOffset(0) }}
+          proximo={{ rotulo: 'Próximo Ano', aria: 'Próximo ano', onClick: () => setAnoOffset(prev => prev + 1) }}
+        >
+          <div className="text-lg font-bold text-white">{anualData.ano}</div>
+        </NavegacaoPeriodo>
       )}
 
       {/* Cards de Estatísticas Compactos */}
-      <div className="flex flex-wrap gap-4 mb-6">
-        <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
-          <FaUsers className="text-sky-400" aria-hidden="true" />
-          <span className="text-slate-400 text-sm">Clientes:</span>
+      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:gap-4 mb-6">
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
+          <FaUsers className="text-sky-300" aria-hidden="true" />
+          <span className="text-slate-300 text-sm">Clientes:</span>
           <span className="text-white font-bold">{stats.totalClientes}</span>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
-          <FaTasks className="text-yellow-400" aria-hidden="true" />
-          <span className="text-slate-400 text-sm">Etapas:</span>
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-slate-800/50 rounded-lg border border-slate-700">
+          <FaTasks className="text-yellow-300" aria-hidden="true" />
+          <span className="text-slate-300 text-sm">Etapas:</span>
           <span className="text-white font-bold">{stats.totalEtapas}</span>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 rounded-lg border border-yellow-500/30">
-          <span>⚡</span>
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-yellow-500/10 rounded-lg border border-yellow-500/30">
+          <span role="img" aria-label="Elétrica">⚡</span>
           <span className="text-yellow-300 font-medium">{stats.porTipo.eletrica || 0}</span>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-orange-500/10 rounded-lg border border-orange-500/30">
-          <span>🏗️</span>
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-orange-500/10 rounded-lg border border-orange-500/30">
+          <span role="img" aria-label="Civil">🏗️</span>
           <span className="text-orange-300 font-medium">{stats.porTipo.civil || 0}</span>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-purple-500/10 rounded-lg border border-purple-500/30">
-          <span>🏭</span>
+        <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-purple-500/10 rounded-lg border border-purple-500/30">
+          <span role="img" aria-label="Galpão">🏭</span>
           <span className="text-purple-300 font-medium">{stats.porTipo.galpao || 0}</span>
         </div>
         {stats.atrasadas > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 rounded-lg border border-red-500/30 animate-pulse">
-            <FaExclamationCircle className="text-red-400" aria-hidden="true" />
+          <div className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-red-500/10 rounded-lg border border-red-500/30 animate-pulse motion-reduce:animate-none">
+            <FaExclamationCircle className="text-red-300" aria-hidden="true" />
             <span className="text-red-300 font-medium">{stats.atrasadas} atrasadas</span>
           </div>
         )}
@@ -420,10 +425,10 @@ const ResumoEtapas = ({ obras, filtroPeriodo, onAddAtividade, saudePorObra = SEM
           onAbrirObra={onAbrirObra}
         />
       ) : todasEtapas.length === 0 ? (
-        <div className="execucao-card text-center py-12">
-          <FaCalendarAlt className="mx-auto text-slate-600 mb-4" size={48} aria-hidden="true" />
-          <h3 className="text-lg font-medium text-slate-400 mb-2">Nenhuma etapa no período</h3>
-          <p className="text-slate-500">Não há etapas programadas para {periodoLabel.toLowerCase()}</p>
+        <div className="execucao-card text-center py-8 sm:py-12">
+          <FaCalendarAlt className="mx-auto text-slate-500 mb-4 text-[40px] sm:text-5xl" aria-hidden="true" />
+          <h3 className="text-lg font-medium text-slate-300 mb-2">Nenhuma etapa no período</h3>
+          <p className="text-slate-400">Não há etapas programadas para {periodoLabel.toLowerCase()}</p>
         </div>
       ) : modoVisualizacao === 'agenda' ? (
         <ResumoVisaoSemana dias={agendaData.dias} onAddAtividade={onAddAtividade} />

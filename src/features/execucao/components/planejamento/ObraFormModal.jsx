@@ -199,6 +199,7 @@ const ObraFormModal = ({
 
   return (
     <Modal
+      telaCheia
       titulo={editando ? 'Editar Obra' : 'Nova Obra'}
       cabecalho={
         <>
@@ -261,7 +262,7 @@ const ObraFormModal = ({
               <p className="text-xs text-slate-400">
                 Ao escolher um template, a prévia das etapas aparece abaixo para ajustar antes de salvar.
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 gap-2">
                 {templatesAtivos.map((template) => {
                   const selecionado = form.template_id === template.id;
                   return (
@@ -271,10 +272,10 @@ const ObraFormModal = ({
                       aria-pressed={selecionado}
                       title={template.nome}
                       onClick={() => handleSelecionarTemplate(template.id)}
-                      className={`flex flex-col items-center gap-1 p-3 rounded-lg border transition-all ${
+                      className={`plan-toque flex flex-col items-center gap-1 p-3 rounded-lg border transition-all ${
                         selecionado
                           ? 'bg-opacity-20 border-opacity-50'
-                          : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                          : 'bg-slate-800/50 border-slate-700 text-slate-300 hover:border-slate-600'
                       }`}
                       style={selecionado ? {
                         backgroundColor: `${template.cor}20`,
@@ -284,7 +285,7 @@ const ObraFormModal = ({
                     >
                       <IconeTemplate icone={template.icone} size={16} />
                       <span className="text-xs font-medium text-center leading-tight">{template.nome || 'Template'}</span>
-                      <span className="text-[10px] opacity-60">
+                      <span className="text-xs opacity-80">
                         {template.itens?.filter((i) => i.pai_ordem == null).length || 0} etapas
                         {template.itens?.some((i) => i.pai_ordem != null) ? ` · ${template.itens.filter((i) => i.pai_ordem != null).length} sub` : ''}
                       </span>

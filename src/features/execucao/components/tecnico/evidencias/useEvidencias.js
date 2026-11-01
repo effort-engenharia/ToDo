@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { EVIDENCIAS_CONFIG as CFG, novoUuid } from './config.js';
+import { EVIDENCIAS_CONFIG as CFG, mensagemLimiteTamanho, mimeDoArquivo, motivoSemGravacao, novoUuid } from './config.js';
+import { ehErroDeChunk, importarGravador, oferecerAtualizacao } from './importarGravador.js';
 import {
   adicionarEvidencia,
   armazenamentoLocalDisponivel,
@@ -23,6 +24,7 @@ export function useEvidencias(atividadeId, usuarioId) {
   const [armazenamentoOk, setArmazenamentoOk] = useState(true);
   const [gravandoAudio, setGravandoAudio] = useState(null); // { segundos }
   const [gravandoVideo, setGravandoVideo] = useState(false);
+  const [falhaAudio, setFalhaAudio] = useState(false); // gravação no app falhou: oferecer o gravador do aparelho
   const [urls, setUrls] = useState({});
   const urlsRef = useRef(new Map());
   const audioRef = useRef(null);
@@ -139,7 +141,7 @@ export function useEvidencias(atividadeId, usuarioId) {
     if (!arquivo) return;
     setErro('');
     if (arquivo.size > CFG.video.maxBytes) {
-      setErro(`Vídeo muito grande (${(arquivo.size / 1048576).toFixed(0)} MB). O limite é ${Math.round(CFG.video.maxBytes / 1048576)} MB: grave um vídeo mais curto (até ${CFG.video.limiteSegundos} s) ou reduza a qualidade da câmera.`);
+      setErro(mensagemLimiteTamanho('video', arquivo.size));
       return;
     }
     const chave = iniciarTrabalho('video', 'Lendo vídeo…');
@@ -151,7 +153,7 @@ export function useEvidencias(atividadeId, usuarioId) {
         tipo: 'video',
         blob: arquivo,
         miniatura,
-        mime: (arquivo.type || 'video/mp4').split(';')[0],
+        mime: mimeDoArquivo(arquivo, 'video'),
         tamanhoOriginal: arquivo.size,
         duracaoSeg: duracao,
         comprimido: false,
@@ -166,13 +168,51 @@ export function useEvidencias(atividadeId, usuarioId) {
     }
   }, [guardar, iniciarTrabalho, encerrarTrabalho]);
 
+  // Contingência: áudio do gravador nativo do aparelho (sem recompressão). Acima do limite é rejeitado.
+  const capturarAudioArquivo = useCallback(async (arquivo) => {
+    if (!arquivo) return;
+    setErro('');
+    setFalhaAudio(false);
+    if (arquivo.size > CFG.audio.maxBytes) {
+      setErro(mensagemLimiteTamanho('audio', arquivo.size));
+      return;
+    }
+    const chave = iniciarTrabalho('audio', 'Lendo áudio…');
+    try {
+      const [midia, localizacao] = await Promise.all([import('./midia.js'), obterLocalizacao()]);
+      const duracao = await midia.lerDuracaoAudioArquivo(arquivo);
+      const data = instanteDaCaptura(arquivo);
+      await guardar({
+        tipo: 'audio',
+        blob: arquivo,
+        miniatura: null,
+        mime: mimeDoArquivo(arquivo, 'audio'),
+        tamanhoOriginal: arquivo.size,
+        duracaoSeg: duracao,
+        comprimido: false,
+        capturadoEm: data.toISOString(),
+        localizacao,
+        conteudo: { origem: 'gravador_nativo', sem_recompressao: true }
+      });
+    } catch (e) {
+      setErro(mensagemDe(e, 'Não foi possível adicionar o áudio.'));
+    } finally {
+      encerrarTrabalho(chave);
+    }
+  }, [guardar, iniciarTrabalho, encerrarTrabalho]);
+
   const iniciarAudio = useCallback(async () => {
     setErro('');
+    setFalhaAudio(false);
     if (audioRef.current) return;
+    const motivo = motivoSemGravacao('audio');
+    if (motivo) { setErro(motivo); setFalhaAudio(true); return; }
     aquecerLocalizacao();
-    const g = await import('./gravador.js');
+
+    let g = null;
     let stream = null;
     try {
+      g = await importarGravador();
       stream = await g.abrirMidia('audio');
       const inicioMs = Date.now();
       const ctrl = g.gravar(stream, { tipo: 'audio', onTick: (segundos) => setGravandoAudio({ segundos }) });
@@ -181,9 +221,15 @@ export function useEvidencias(atividadeId, usuarioId) {
       const resultado = await ctrl.concluido;
       if (resultado && ativoRef.current) await guardarGravacao('audio', { ...resultado, inicioMs });
     } catch (e) {
-      setErro(g.mensagemErroMidia(e, 'audio'));
+      if (ehErroDeChunk(e)) {
+        setErro(e.message);
+        oferecerAtualizacao();
+      } else {
+        setErro(g ? g.mensagemErroMidia(e, 'audio') : mensagemDe(e, 'Não foi possível iniciar a gravação.'));
+        if (g?.deveUsarFallbackNativo(e)) setFalhaAudio(true);
+      }
     } finally {
-      g.pararStream(stream);
+      g?.pararStream(stream);
       audioRef.current = null;
       setGravandoAudio(null);
     }
@@ -208,7 +254,7 @@ export function useEvidencias(atividadeId, usuarioId) {
     itens, urls, trabalhos, erro, setErro, armazenamentoOk, bloqueado,
     gravandoAudio, gravandoVideo, setGravandoVideo,
     ocupado, limiteAtingido,
-    capturarFoto, capturarVideoArquivo, guardarGravacao, iniciarAudio, pararAudio,
+    capturarFoto, capturarVideoArquivo, capturarAudioArquivo, falhaAudio, guardarGravacao, iniciarAudio, pararAudio,
     remover, reenviar, liberar
   };
 }

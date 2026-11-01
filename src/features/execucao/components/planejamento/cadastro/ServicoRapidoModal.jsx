@@ -242,6 +242,7 @@ const ServicoRapidoModal = ({
 
   return (
     <Modal
+      telaCheia
       titulo="Serviço rápido"
       cabecalho={
         <>

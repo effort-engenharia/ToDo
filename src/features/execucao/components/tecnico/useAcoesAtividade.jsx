@@ -40,6 +40,8 @@ export function useAcoesAtividade({ usuarioId, onAtualizado }) {
       if (!resultado?.success) return { ok: false, mensagem: mensagemDeErro(resultado) };
       if (resultado.queued) toast.info('Salvo no aparelho. Será enviado quando a conexão voltar.');
       else toast.success(mensagemOk);
+      // Avisos não bloqueantes (ex.: conclusão sem localização, passo que não pôde ser registrado)
+      (resultado.avisos ?? []).forEach((aviso) => toast.info(aviso));
       onAtualizadoRef.current?.(atividade, novoStatus);
       return { ok: true };
     } catch (err) {

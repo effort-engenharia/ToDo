@@ -1,5 +1,7 @@
 # Snapshot do schema Supabase (para o graphify)
 
+> ✅ **Atualizado em 2026-11-01**, depois de aplicadas as migrations `20261101_19` a `_31` (módulo Execução e Compras). `logic.sql` traz as assinaturas das funções com o corpo resumido (corpos completos em `supabase/migrations/`) para não inflar o grafo; `tables.sql` segue o formato descrito abaixo (CHECKs como comentário).
+
 Os arquivos `.sql` desta pasta **não são migrations** e não devem ser executados. São um retrato do schema `public` do projeto Supabase `cadrulmppoxhsfjizcfy`, gerado via **MCP do Supabase**, para que o graphify mapeie o banco no mesmo grafo do código.
 
 | Arquivo | Conteúdo |

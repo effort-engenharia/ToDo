@@ -1,5 +1,5 @@
 import { supabase } from './config.js';
-import { wrapServiceWithImpersonationGuard } from '../../utils/impersonationGuard.js';
+import { wrapServiceWithImpersonationGuard, assertNotImpersonating } from '../../utils/impersonationGuard.js';
 import { dataLocalISO } from '../../features/execucao/utils/datas.js';
 
 const SEM_ID = '00000000-0000-0000-0000-000000000000';
@@ -17,6 +17,8 @@ const SELECT_COM_OBRA = `
   ${SELECT_BASE},
   etapa:execucao_obras_etapas(id, obra_id, obra:execucao_obras(id, nome_cliente, contato_cliente, endereco, cidade))
 `;
+
+const TIPO_REPLANEJAMENTO = 'replanejamento';
 
 // Notificações do usuário: técnico vê só as endereçadas a ele; admin vê as gerais (sem destinatário) e as suas
 const filtroDestinatario = (usuarioId, isAdmin) =>
@@ -214,17 +216,40 @@ const _execucaoTecnicoService = {
     }
   },
 
+  // Passo (sub-etapa) da atividade marcado/desmarcado pelo técnico (migration 20261101_19). Idempotente por idCliente.
+  // data: { sub_etapa_id, status, progresso, pai_id, pai_status, pai_progresso, passos_total, passos_feitos, repetido }
+  async marcarPasso(atividadeId, subEtapaId, concluido, { idCliente = null, ocorridoEm = null } = {}) {
+    try {
+      assertNotImpersonating('marcarPasso');
+      const { data, error } = await supabase.rpc('execucao_marcar_passo', {
+        p_atividade: atividadeId,
+        p_sub_etapa: subEtapaId,
+        p_concluido: !!concluido,
+        p_id_cliente: idCliente,
+        p_ocorrido_em: ocorridoEm
+      });
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao marcar passo:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
   // ---------- Notificações do usuário logado ----------
   async buscarNotificacoesUsuario(usuarioId, { isAdmin = false, limite = 20 } = {}) {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('execucao_notificacoes')
         .select(`
           *,
           atividade:execucao_atividades(id, titulo, status),
           usuario_origem:usuarios!usuario_origem_id(id, nome_completo)
         `)
-        .or(filtroDestinatario(usuarioId, isAdmin))
+        .or(filtroDestinatario(usuarioId, isAdmin));
+      // Técnico não vê aviso de replanejamento (R13); o filtro entra antes do limit
+      if (!isAdmin) query = query.neq('tipo', TIPO_REPLANEJAMENTO);
+      const { data, error } = await query
         .order('lida', { ascending: true })
         .order('created_at', { ascending: false })
         .limit(limite);
@@ -238,11 +263,13 @@ const _execucaoTecnicoService = {
 
   async contarNotificacoesUsuario(usuarioId, { isAdmin = false } = {}) {
     try {
-      const { count, error } = await supabase
+      let query = supabase
         .from('execucao_notificacoes')
         .select('id', { count: 'exact', head: true })
         .eq('lida', false)
         .or(filtroDestinatario(usuarioId, isAdmin));
+      if (!isAdmin) query = query.neq('tipo', TIPO_REPLANEJAMENTO);
+      const { count, error } = await query;
       if (error) throw error;
       return { success: true, count: count || 0 };
     } catch (error) {

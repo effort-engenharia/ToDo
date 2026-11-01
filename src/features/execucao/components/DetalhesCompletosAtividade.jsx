@@ -9,6 +9,8 @@ import { useAsyncData } from '../hooks/useAsyncData';
 import { formatarHoras } from '../utils/formatos';
 import EvidenciasLista from './tecnico/evidencias/EvidenciasLista';
 import { contatoDaAtividade } from './tecnico/contatos';
+import ConclusaoAtividade from './ConclusaoAtividade';
+import { rotuloOrigemHoras } from '../utils/conclusao';
 import { textoMaterial } from './tecnico/utilsDia';
 
 const FUSO = 'America/Sao_Paulo';
@@ -32,8 +34,16 @@ const ACOES = {
   retomada: { icone: FaPlay, cor: 'text-green-400', rotulo: 'Retomada' },
   conclusao: { icone: FaCheckCircle, cor: 'text-green-400', rotulo: 'Concluída' },
   transferencia: { icone: FaExchangeAlt, cor: 'text-cyan-400', rotulo: 'Transferida' },
-  cancelamento: { icone: FaHistory, cor: 'text-red-400', rotulo: 'Cancelada' }
+  cancelamento: { icone: FaHistory, cor: 'text-red-400', rotulo: 'Cancelada' },
+  passo: { icone: FaCheckCircle, cor: 'text-sky-400', rotulo: 'Passo atualizado' },
+  reabertura: { icone: FaPlay, cor: 'text-blue-400', rotulo: 'Reaberta' },
+  horas_ajustadas: { icone: FaClock, cor: 'text-amber-400', rotulo: 'Horas ajustadas' }
 };
+
+// Ações cuja descrição do histórico agrega informação (passo marcado, conclusão com passos em aberto...)
+const ACOES_COM_DESCRICAO = new Set(['passo', 'reabertura', 'horas_ajustadas']);
+const mostrarDescricao = (h) =>
+  Boolean(h.descricao) && (ACOES_COM_DESCRICAO.has(h.tipo_acao) || (h.tipo_acao === 'conclusao' && /passo/i.test(h.descricao)));
 
 const ROTULO_STATUS = { pendente: 'Pendente', em_andamento: 'Em andamento', pausada: 'Pausada', concluida: 'Concluída', cancelada: 'Cancelada', transferida: 'Transferida' };
 
@@ -75,7 +85,7 @@ const DetalhesCompletosAtividade = ({ atividade }) => {
   const { data, loading, error, reload } = useAsyncData(() => carregarExtras(atividade), [atividade.id, atividade.status]);
 
   const contexto = data?.contexto ?? null;
-  const passos = Array.isArray(contexto?.sub_etapas) ? contexto.sub_etapas : [];
+  const passos = Array.isArray(contexto?.sub_etapas) ? contexto.sub_etapas.filter((p) => p.status !== 'cancelada') : [];
   const contato = contatoDaAtividade({ ...atividade, contexto });
   const mat = atividade.status === 'concluida' || atividade.status === 'cancelada' ? null : textoMaterial(data?.material);
   const equipe = [...(data?.equipe ?? [])].sort((a, b) => (a.papel === 'lider' ? -1 : 0) - (b.papel === 'lider' ? -1 : 0));
@@ -101,7 +111,7 @@ const DetalhesCompletosAtividade = ({ atividade }) => {
               </p>
               {atividade.status === 'concluida' && atividade.horas_realizadas != null && (
                 <p className="text-sm text-slate-300">
-                  {formatarHoras(atividade.horas_realizadas)} realizadas{atividade.horas_ajustadas ? ' (ajustadas pelo técnico)' : ''}
+                  {formatarHoras(atividade.horas_realizadas)} realizadas{rotuloOrigemHoras(atividade)}
                 </p>
               )}
             </Bloco>
@@ -133,6 +143,8 @@ const DetalhesCompletosAtividade = ({ atividade }) => {
         </div>
       )}
 
+      <ConclusaoAtividade atividade={atividade} />
+
       {(contato.contato || contato.mapa) && (
         <Bloco titulo="Contato do cliente" icone={FaPhoneAlt}>
           <div className="flex flex-wrap items-center gap-3">
@@ -145,12 +157,13 @@ const DetalhesCompletosAtividade = ({ atividade }) => {
       )}
 
       {passos.length > 0 && (
-        <Bloco titulo={`Passos (${passos.length})`}>
+        <Bloco titulo={`Passos (${passos.filter((p) => p.status === 'concluida').length}/${passos.length})`}>
           <ol className="space-y-1">
             {passos.map((p, i) => {
-              const feito = atividade.status === 'concluida' || p.status === 'concluida';
+              // Status real do passo: a atividade concluída não conclui os passos (N1-g)
+              const feito = p.status === 'concluida';
               return (
-                <li key={`${p.nome}-${i}`} className="flex items-center gap-2 text-sm text-slate-200">
+                <li key={p.id || `${p.nome}-${i}`} className="flex items-center gap-2 text-sm text-slate-200">
                   {feito ? <FaCheckCircle className="text-green-400 shrink-0" aria-label="Concluído" /> : <FaRegCircle className="text-slate-500 shrink-0" aria-hidden="true" />}
                   <span className={feito ? 'line-through text-slate-400' : ''}>{p.nome}</span>
                   {Number(p.horas) > 0 && <span className="text-xs text-slate-400 ml-auto">{formatarHoras(p.horas)}</span>}
@@ -187,6 +200,7 @@ const DetalhesCompletosAtividade = ({ atividade }) => {
                     </div>
                     {motivo && <div className="text-slate-300"><strong className="text-orange-300">Motivo:</strong> {motivo}</div>}
                     {h.tipo_acao === 'transferencia' && h.descricao && <div className="text-slate-400">{h.descricao}</div>}
+                    {mostrarDescricao(h) && <div className="text-slate-400">{h.descricao}</div>}
                   </div>
                 </li>
               );

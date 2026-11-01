@@ -13,6 +13,17 @@ const aplicarItem = (atividade, item) => {
       ...(p.status === 'concluida' && p.horasRealizadas != null ? { horas_realizadas: p.horasRealizadas } : {})
     };
   }
+  // Passo marcado no aparelho: o cartão mostra o passo já no estado novo enquanto a ação espera na fila
+  if (item.tipo === 'passo' && Array.isArray(atividade.contexto?.sub_etapas)) {
+    return {
+      ...atividade,
+      contexto: {
+        ...atividade.contexto,
+        sub_etapas: atividade.contexto.sub_etapas.map((s) =>
+          (s.id === p.subEtapaId ? { ...s, status: p.concluido ? 'concluida' : 'pendente' } : s))
+      }
+    };
+  }
   if (item.tipo === 'falta_material' && p.pausar) return { ...atividade, status: 'pausada' };
   return atividade;
 };

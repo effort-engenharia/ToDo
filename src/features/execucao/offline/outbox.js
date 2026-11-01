@@ -4,7 +4,7 @@ import { idbAll, idbDelete, idbPut, idbUpdate, LOJAS } from './idb';
 // o servidor ignora repetições, então reenviar (inclusive após timeout) nunca duplica.
 //
 // item = {
-//   id, tipo: 'status' | 'falta_material', atividadeId, usuarioId, ocorridoEm, criadoEm,
+//   id, tipo: 'status' | 'passo' | 'falta_material', atividadeId, usuarioId, ocorridoEm, criadoEm,
 //   payload,            // dados da ação (ver acoesAtividade.js)
 //   estado: 'pendente' | 'erro',
 //   tentativas, proximaTentativaEm, ultimoErro
@@ -83,5 +83,5 @@ export const resumoOutbox = async (usuarioId) => {
   };
 };
 
-const rotuloAcao = { status: 'status da atividade', falta_material: 'falta de material' };
+const rotuloAcao = { status: 'status da atividade', passo: 'passo da atividade', falta_material: 'falta de material' };
 export const rotuloDoItem = (item) => rotuloAcao[item.tipo] || 'ação';

@@ -177,7 +177,7 @@ export const AuthProvider = ({ children }) => {
       const paginasExecucao = ['execucao', 'execucao/atividades-dia', 'execucao/agenda-eletrica', 
         'execucao/agenda-civil', 'execucao/agenda-galpao', 'execucao/agenda-gestao', 'execucao/pedido-material',
         'execucao/desempenho-individual', 'execucao/desempenho-time', 'execucao/planejamento-macro',
-        'execucao/pops', 'execucao/minhas-atividades'];
+        'execucao/pops', 'execucao/minhas-atividades', 'execucao/compras'];
       const todasPaginas = [...paginasComerciais, ...paginasExecucao];
       const paginasPermitidas = [];
       
@@ -194,6 +194,11 @@ export const AuthProvider = ({ children }) => {
       // TECNICO tem acesso limitado às páginas de execução
       if (usuario?.nivel_acesso?.nome === 'TECNICO') {
         return ['execucao', 'execucao/minhas-atividades', 'execucao/pops'];
+      }
+
+      // COMPRAS: só o Dashboard de Compras (e POPs) dentro do módulo Execução
+      if (usuario?.nivel_acesso?.nome === 'COMPRAS') {
+        return ['execucao', 'execucao/compras', 'execucao/pops'];
       }
       
       // Verificar permissão para cada página para outros níveis

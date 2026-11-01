@@ -49,8 +49,8 @@ function Visualizador({ itens, indice, onMudar, onFechar }) {
       )}
       <div className="evid-visualizador-conteudo" onClick={(e) => e.stopPropagation()}>
         {evidencia.tipo === 'foto' && <img key={evidencia.id} src={evidencia.url} alt="Evidência" />}
-        {evidencia.tipo === 'video' && <video key={evidencia.id} src={evidencia.url} controls autoPlay playsInline />}
-        {evidencia.tipo === 'audio' && <audio key={evidencia.id} src={evidencia.url} controls autoPlay className="evid-visualizador-audio" />}
+        {evidencia.tipo === 'video' && <video key={evidencia.id} src={evidencia.url} controls autoPlay muted playsInline />}
+        {evidencia.tipo === 'audio' && <audio key={evidencia.id} src={evidencia.url} controls preload="metadata" className="evid-visualizador-audio" />}
         <div className="evid-visualizador-legenda">
           <span>{indice + 1} / {itens.length} · {formatarQuando(evidencia.capturado_em || evidencia.created_at)}</span>
           {evidencia.autor?.nome_completo && <span> · {evidencia.autor.nome_completo}</span>}

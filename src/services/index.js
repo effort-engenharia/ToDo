@@ -7,9 +7,12 @@ import { metasService } from './supabase/metas.js';
 import { arsenalService } from './supabase/arsenal.js';
 import { administradorasService } from './supabase/administradoras.js';
 import { authService, adminService } from './supabase/auth.js';
-import { execucaoService } from './supabase/execucao.js';
 import { configuracoesService } from './supabase/configuracoes.js';
 import { premiacaoService } from './supabase/premiacao.js';
+
+// NOTA (performance): execucaoService e execucaoComprasService NÃO são reexportados aqui de propósito.
+// Este barrel entra no chunk principal (dashboard comercial); o módulo Execução importa seus serviços direto de
+// ./supabase/execucao*.js e os carrega sob demanda (React.lazy). Reexportá-los aqui os traria para o bundle inicial.
 
 // Re-exportar tudo para manter compatibilidade com importações existentes
 export { supabase };
@@ -19,7 +22,6 @@ export { arsenalService };
 export { administradorasService };
 export { authService };
 export { adminService };
-export { execucaoService };
 export { configuracoesService };
 export { premiacaoService };
 
@@ -32,7 +34,6 @@ export const supabaseService = {
   administradoras: administradorasService,
   auth: authService,
   admin: adminService,
-  execucao: execucaoService,
   configuracoes: configuracoesService,
   premiacao: premiacaoService
 };

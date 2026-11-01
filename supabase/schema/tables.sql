@@ -1,4 +1,5 @@
 -- Snapshot do schema public (Supabase cadrulmppoxhsfjizcfy) gerado via MCP do Supabase para indexação pelo graphify.
+-- Regenerado em 2026-11-01, depois de aplicadas as migrations 20261101_19 a _31 (módulo Execução e Compras).
 -- NÃO é migration: não executar. Regenerar quando o schema mudar.
 
 CREATE TABLE public.access_levels (
@@ -130,6 +131,14 @@ CREATE TABLE public.configuracoes_sistema (
   CONSTRAINT configuracoes_sistema_pkey PRIMARY KEY (chave)
 );
 
+CREATE TABLE public.execucao_acoes_cliente (
+  id uuid NOT NULL,
+  usuario_id uuid,
+  tipo text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT execucao_acoes_cliente_pkey PRIMARY KEY (id)
+);
+
 -- Atividades de execução (elétrica, civil, galpão)
 CREATE TABLE public.execucao_atividades (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -149,11 +158,31 @@ CREATE TABLE public.execucao_atividades (
   updated_at timestamp with time zone DEFAULT now(),
   created_by uuid,
   etapa_id uuid,
+  data_fim date,
+  horas_previstas numeric,
+  horas_realizadas numeric,
+  horas_ajustadas boolean NOT NULL DEFAULT false,
+  solicita_replanejamento boolean NOT NULL DEFAULT false,
+  replanejamento_resolvido_em timestamp with time zone,
+  inicio_real_em timestamp with time zone,
+  fim_real_em timestamp with time zone,
+  observacao_conclusao text,
+  conclusao_latitude numeric,
+  conclusao_longitude numeric,
+  conclusao_precisao_m numeric,
+  conclusao_geo_status text,
+  conclusao_registrada_em timestamp with time zone,
+  conclusao_origem_horario text,
+  horas_origem text,
   CONSTRAINT execucao_atividades_pkey PRIMARY KEY (id),
   CONSTRAINT execucao_atividades_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.usuarios(id),
   CONSTRAINT execucao_atividades_etapa_id_fkey FOREIGN KEY (etapa_id) REFERENCES public.execucao_obras_etapas(id) ON DELETE SET NULL,
   CONSTRAINT execucao_atividades_tecnico_responsavel_id_fkey FOREIGN KEY (tecnico_responsavel_id) REFERENCES public.usuarios(id)
 );
+-- CONSTRAINT execucao_atividades_conclusao_geo_status_check CHECK (((conclusao_geo_status IS NULL) OR (conclusao_geo_status = ANY (ARRAY['ok'::text, 'negada'::text, 'indisponivel'::text, 'tempo_esgotado'::text, 'nao_suportado'::text]))))
+-- CONSTRAINT execucao_atividades_conclusao_origem_horario_check CHECK (((conclusao_origem_horario IS NULL) OR (conclusao_origem_horario = ANY (ARRAY['servidor'::text, 'dispositivo'::text]))))
+-- CONSTRAINT execucao_atividades_data_fim_check CHECK (((data_fim IS NULL) OR (data_fim >= data_programada)))
+-- CONSTRAINT execucao_atividades_horas_origem_check CHECK (((horas_origem IS NULL) OR (horas_origem = ANY (ARRAY['previstas'::text, 'intervalos'::text, 'ajuste_admin'::text, 'ajuste_tecnico'::text]))))
 -- CONSTRAINT execucao_atividades_prioridade_check CHECK (((prioridade)::text = ANY ((ARRAY['baixa'::character varying, 'normal'::character varying, 'alta'::character varying, 'urgente'::character varying])::text[])))
 -- CONSTRAINT execucao_atividades_status_check CHECK (((status)::text = ANY (ARRAY['pendente'::text, 'em_andamento'::text, 'concluida'::text, 'transferida'::text, 'cancelada'::text, 'pausada'::text])))
 -- CONSTRAINT execucao_atividades_tipo_execucao_check CHECK (((tipo_execucao)::text = ANY ((ARRAY['eletrica'::character varying, 'civil'::character varying, 'galpao'::character varying, 'gestao'::character varying, 'estoque'::character varying])::text[])))
@@ -170,6 +199,42 @@ CREATE TABLE public.execucao_atividades_comentarios (
   CONSTRAINT execucao_atividades_comentarios_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
 );
 
+CREATE TABLE public.execucao_atividades_equipe (
+  atividade_id uuid NOT NULL,
+  usuario_id uuid NOT NULL,
+  papel text NOT NULL DEFAULT 'apoio'::text,
+  horas_previstas numeric,
+  CONSTRAINT execucao_atividades_equipe_pkey PRIMARY KEY (atividade_id, usuario_id),
+  CONSTRAINT execucao_atividades_equipe_atividade_id_fkey FOREIGN KEY (atividade_id) REFERENCES public.execucao_atividades(id) ON DELETE CASCADE,
+  CONSTRAINT execucao_atividades_equipe_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+-- CONSTRAINT execucao_atividades_equipe_papel_check CHECK ((papel = ANY (ARRAY['lider'::text, 'apoio'::text])))
+
+CREATE TABLE public.execucao_atividades_evidencias (
+  id uuid NOT NULL,
+  atividade_id uuid NOT NULL,
+  tipo text NOT NULL,
+  caminho_storage text,
+  caminho_miniatura text,
+  mime_type text,
+  tamanho_original_bytes bigint,
+  tamanho_bytes bigint,
+  duracao_segundos integer,
+  comprimido boolean NOT NULL DEFAULT false,
+  conteudo jsonb,
+  capturado_em timestamp with time zone,
+  latitude numeric,
+  longitude numeric,
+  precisao_metros numeric,
+  criado_por uuid,
+  excluido_em timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT execucao_atividades_evidencias_pkey PRIMARY KEY (id),
+  CONSTRAINT execucao_atividades_evidencias_atividade_id_fkey FOREIGN KEY (atividade_id) REFERENCES public.execucao_atividades(id) ON DELETE CASCADE,
+  CONSTRAINT execucao_atividades_evidencias_criado_por_fkey FOREIGN KEY (criado_por) REFERENCES public.usuarios(id)
+);
+-- CONSTRAINT execucao_atividades_evidencias_tipo_check CHECK ((tipo = ANY (ARRAY['foto'::text, 'video'::text, 'audio'::text, 'checklist'::text, 'observacao'::text])))
+
 -- Histórico de todas as ações realizadas nas atividades
 CREATE TABLE public.execucao_atividades_historico (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -180,11 +245,86 @@ CREATE TABLE public.execucao_atividades_historico (
   valor_anterior text,
   valor_novo text,
   created_at timestamp with time zone DEFAULT now(),
+  motivo_codigo text,
   CONSTRAINT execucao_atividades_historico_pkey PRIMARY KEY (id),
   CONSTRAINT execucao_atividades_historico_atividade_id_fkey FOREIGN KEY (atividade_id) REFERENCES public.execucao_atividades(id) ON DELETE CASCADE,
   CONSTRAINT execucao_atividades_historico_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
 );
--- CONSTRAINT execucao_atividades_historico_tipo_acao_check CHECK (((tipo_acao)::text = ANY (ARRAY['criacao'::text, 'comentario'::text, 'status_alterado'::text, 'transferencia'::text, 'conclusao'::text, 'edicao'::text, 'cancelamento'::text, 'pausa'::text, 'retomada'::text])))
+-- CONSTRAINT execucao_atividades_historico_tipo_acao_check CHECK (((tipo_acao)::text = ANY (ARRAY['criacao'::text, 'comentario'::text, 'status_alterado'::text, 'transferencia'::text, 'conclusao'::text, 'edicao'::text, 'cancelamento'::text, 'pausa'::text, 'retomada'::text, 'passo'::text, 'reabertura'::text, 'horas_ajustadas'::text]))) NOT VALID
+
+CREATE TABLE public.execucao_auditoria (
+  id bigint NOT NULL,
+  tabela text NOT NULL,
+  registro_id text NOT NULL,
+  operacao text NOT NULL,
+  antes jsonb,
+  depois jsonb,
+  campos_alterados text[],
+  usuario_id uuid,
+  transacao bigint NOT NULL DEFAULT txid_current(),
+  contexto text,
+  desfeito_em timestamp with time zone,
+  desfeito_por uuid,
+  desfeito_transacao bigint,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT execucao_auditoria_pkey PRIMARY KEY (id)
+);
+-- CONSTRAINT execucao_auditoria_operacao_check CHECK ((operacao = ANY (ARRAY['INSERT'::text, 'UPDATE'::text, 'DELETE'::text])))
+
+CREATE TABLE public.execucao_ausencias (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  usuario_id uuid NOT NULL,
+  data_inicio date NOT NULL,
+  data_fim date NOT NULL,
+  tipo text NOT NULL,
+  horas_por_dia numeric,
+  observacao text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT execucao_ausencias_pkey PRIMARY KEY (id),
+  CONSTRAINT execucao_ausencias_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+-- CONSTRAINT execucao_ausencias_check CHECK ((data_fim >= data_inicio))
+-- CONSTRAINT execucao_ausencias_tipo_check CHECK ((tipo = ANY (ARRAY['ferias'::text, 'atestado'::text, 'treinamento'::text, 'folga'::text, 'outro'::text])))
+
+CREATE TABLE public.execucao_cidades (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nome text NOT NULL,
+  uf character NOT NULL DEFAULT 'SP'::bpchar,
+  ativa boolean NOT NULL DEFAULT true,
+  nome_norm text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT execucao_cidades_nome_norm_uf_key UNIQUE (nome_norm, uf),
+  CONSTRAINT execucao_cidades_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE public.execucao_contratos_ignorados (
+  apontamento_id uuid NOT NULL,
+  motivo text NOT NULL,
+  ignorado_por uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT execucao_contratos_ignorados_pkey PRIMARY KEY (apontamento_id),
+  CONSTRAINT execucao_contratos_ignorados_apontamento_id_fkey FOREIGN KEY (apontamento_id) REFERENCES public.apontamentos_comerciais(id) ON DELETE CASCADE,
+  CONSTRAINT execucao_contratos_ignorados_ignorado_por_fkey FOREIGN KEY (ignorado_por) REFERENCES public.usuarios(id)
+);
+
+CREATE TABLE public.execucao_feriados (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  data date NOT NULL,
+  descricao text NOT NULL,
+  abrangencia text NOT NULL,
+  uf character,
+  cidade_id uuid,
+  recorrente boolean NOT NULL DEFAULT true,
+  movel text,
+  considerar_feriado boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT execucao_feriados_pkey PRIMARY KEY (id),
+  CONSTRAINT execucao_feriados_cidade_id_fkey FOREIGN KEY (cidade_id) REFERENCES public.execucao_cidades(id) ON DELETE CASCADE
+);
+-- CONSTRAINT execucao_feriados_abrangencia_check CHECK ((abrangencia = ANY (ARRAY['nacional'::text, 'estadual'::text, 'municipal'::text])))
+-- CONSTRAINT execucao_feriados_check CHECK (((abrangencia = 'municipal'::text) = (cidade_id IS NOT NULL)))
+-- CONSTRAINT execucao_feriados_check1 CHECK (((abrangencia <> 'estadual'::text) OR (uf IS NOT NULL)))
+-- CONSTRAINT execucao_feriados_movel_check CHECK ((movel = ANY (ARRAY['carnaval'::text, 'sexta_santa'::text, 'corpus_christi'::text])))
 
 CREATE TABLE public.execucao_historico_pedidos (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -205,6 +345,63 @@ CREATE TABLE public.execucao_historico_pedidos (
   CONSTRAINT execucao_historico_pedidos_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
 );
 
+CREATE TABLE public.execucao_horas_extras (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  usuario_id uuid NOT NULL,
+  atividade_id uuid,
+  data date NOT NULL,
+  horas numeric NOT NULL,
+  tipo text NOT NULL,
+  justificativa text NOT NULL,
+  registrado_por uuid NOT NULL,
+  status text NOT NULL DEFAULT 'pendente'::text,
+  justificativa_decisao text,
+  decidido_por uuid,
+  decidido_em timestamp with time zone,
+  autoaprovado boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT execucao_horas_extras_pkey PRIMARY KEY (id),
+  CONSTRAINT execucao_horas_extras_atividade_id_fkey FOREIGN KEY (atividade_id) REFERENCES public.execucao_atividades(id) ON DELETE SET NULL,
+  CONSTRAINT execucao_horas_extras_decidido_por_fkey FOREIGN KEY (decidido_por) REFERENCES public.usuarios(id),
+  CONSTRAINT execucao_horas_extras_registrado_por_fkey FOREIGN KEY (registrado_por) REFERENCES public.usuarios(id),
+  CONSTRAINT execucao_horas_extras_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+-- CONSTRAINT execucao_horas_extras_check CHECK (((status = 'pendente'::text) OR ((decidido_por IS NOT NULL) AND (length(btrim(COALESCE(justificativa_decisao, ''::text))) >= 5))))
+-- CONSTRAINT execucao_horas_extras_horas_check CHECK ((horas > (0)::numeric))
+-- CONSTRAINT execucao_horas_extras_justificativa_check CHECK ((length(btrim(justificativa)) >= 5))
+-- CONSTRAINT execucao_horas_extras_status_check CHECK ((status = ANY (ARRAY['pendente'::text, 'aprovada'::text, 'cancelada'::text])))
+-- CONSTRAINT execucao_horas_extras_tipo_check CHECK ((tipo = ANY (ARRAY['extra_planejada'::text, 'extra_realizada'::text, 'emergencia'::text])))
+
+CREATE TABLE public.execucao_jornadas_colaborador (
+  usuario_id uuid NOT NULL,
+  vigente_desde date NOT NULL,
+  modelo_nome text NOT NULL,
+  ajuste_minutos_dia integer NOT NULL DEFAULT 0,
+  CONSTRAINT execucao_jornadas_colaborador_pkey PRIMARY KEY (usuario_id, vigente_desde),
+  CONSTRAINT execucao_jornadas_colaborador_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id)
+);
+
+CREATE TABLE public.execucao_jornadas_modelo (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  nome text NOT NULL,
+  vigente_desde date NOT NULL,
+  periodos jsonb NOT NULL,
+  descontos jsonb NOT NULL DEFAULT '[]'::jsonb,
+  horas_extra_max_dia numeric NOT NULL DEFAULT 2,
+  cidade_base_id uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT execucao_jornadas_modelo_nome_vigente_desde_key UNIQUE (nome, vigente_desde),
+  CONSTRAINT execucao_jornadas_modelo_pkey PRIMARY KEY (id),
+  CONSTRAINT execucao_jornadas_modelo_cidade_base_id_fkey FOREIGN KEY (cidade_base_id) REFERENCES public.execucao_cidades(id)
+);
+
+CREATE TABLE public.execucao_lixeira_storage (
+  bucket text NOT NULL,
+  caminho text NOT NULL,
+  excluido_em timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT execucao_lixeira_storage_pkey PRIMARY KEY (bucket, caminho)
+);
+
 -- Notificações para administradores sobre mudanças de status das atividades
 CREATE TABLE public.execucao_notificacoes (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -217,12 +414,15 @@ CREATE TABLE public.execucao_notificacoes (
   lida_em timestamp with time zone,
   lida_por uuid,
   created_at timestamp with time zone DEFAULT now(),
+  destinatario_id uuid,
+  referencia jsonb,
   CONSTRAINT execucao_notificacoes_pkey PRIMARY KEY (id),
   CONSTRAINT execucao_notificacoes_atividade_id_fkey FOREIGN KEY (atividade_id) REFERENCES public.execucao_atividades(id) ON DELETE CASCADE,
+  CONSTRAINT execucao_notificacoes_destinatario_id_fkey FOREIGN KEY (destinatario_id) REFERENCES public.usuarios(id),
   CONSTRAINT execucao_notificacoes_lida_por_fkey FOREIGN KEY (lida_por) REFERENCES public.usuarios(id),
   CONSTRAINT execucao_notificacoes_usuario_origem_id_fkey FOREIGN KEY (usuario_origem_id) REFERENCES public.usuarios(id)
 );
--- CONSTRAINT execucao_notificacoes_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['pausa'::character varying, 'conclusao'::character varying, 'pendente'::character varying, 'atraso'::character varying, 'retomada'::character varying, 'urgente'::character varying])::text[])))
+-- CONSTRAINT execucao_notificacoes_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['pausa'::character varying, 'conclusao'::character varying, 'pendente'::character varying, 'atraso'::character varying, 'retomada'::character varying, 'urgente'::character varying, 'material'::character varying, 'hora_extra'::character varying, 'replanejamento'::character varying, 'transferencia'::character varying, 'pendencia'::character varying, 'nova_atividade'::character varying, 'compra_questionamento'::character varying, 'compra_resposta'::character varying, 'compra_status'::character varying])::text[])))
 
 -- Obras/Projetos com cronogramas de execução
 CREATE TABLE public.execucao_obras (
@@ -249,10 +449,15 @@ CREATE TABLE public.execucao_obras (
   updated_at timestamp with time zone DEFAULT now(),
   contato_cliente character varying,
   template_id uuid,
+  cidade_id uuid,
+  tipo_servico_codigo text,
+  rapido boolean NOT NULL DEFAULT false,
   CONSTRAINT execucao_obras_pkey PRIMARY KEY (id),
   CONSTRAINT execucao_obras_apontamento_id_fkey FOREIGN KEY (apontamento_id) REFERENCES public.apontamentos_comerciais(id) ON DELETE SET NULL,
+  CONSTRAINT execucao_obras_cidade_id_fkey FOREIGN KEY (cidade_id) REFERENCES public.execucao_cidades(id),
   CONSTRAINT execucao_obras_responsavel_id_fkey FOREIGN KEY (responsavel_id) REFERENCES public.usuarios(id),
-  CONSTRAINT execucao_obras_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.execucao_templates_etapas(id) ON DELETE SET NULL
+  CONSTRAINT execucao_obras_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.execucao_templates_etapas(id) ON DELETE SET NULL,
+  CONSTRAINT execucao_obras_tipo_servico_codigo_fkey FOREIGN KEY (tipo_servico_codigo) REFERENCES public.execucao_tipos_servico(codigo)
 );
 -- CONSTRAINT execucao_obras_prioridade_check CHECK (((prioridade)::text = ANY ((ARRAY['baixa'::character varying, 'media'::character varying, 'alta'::character varying, 'urgente'::character varying])::text[])))
 -- CONSTRAINT execucao_obras_progresso_geral_check CHECK (((progresso_geral >= 0) AND (progresso_geral <= 100)))
@@ -290,9 +495,16 @@ CREATE TABLE public.execucao_obras_etapas (
   cor character varying,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  horas_previstas numeric,
+  qtd_tecnicos integer NOT NULL DEFAULT 1,
+  equipe_ids uuid[] NOT NULL DEFAULT '{}'::uuid[],
+  data_inicio_real date,
+  data_fim_real date,
+  pop_id uuid,
   CONSTRAINT execucao_obras_etapas_pkey PRIMARY KEY (id),
   CONSTRAINT execucao_obras_etapas_etapa_pai_id_fkey FOREIGN KEY (etapa_pai_id) REFERENCES public.execucao_obras_etapas(id) ON DELETE SET NULL,
   CONSTRAINT execucao_obras_etapas_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.execucao_obras(id) ON DELETE CASCADE,
+  CONSTRAINT execucao_obras_etapas_pop_id_fkey FOREIGN KEY (pop_id) REFERENCES public.execucao_pops(id) ON DELETE SET NULL,
   CONSTRAINT execucao_obras_etapas_responsavel_id_fkey FOREIGN KEY (responsavel_id) REFERENCES public.usuarios(id)
 );
 -- CONSTRAINT execucao_obras_etapas_progresso_check CHECK (((progresso >= 0) AND (progresso <= 100)))
@@ -321,15 +533,50 @@ CREATE TABLE public.execucao_pedidos_material (
   cliente_nome character varying,
   endereco_obra text,
   etapa_chegada_criada boolean DEFAULT false,
+  status_compra text NOT NULL DEFAULT 'aguardando_compra'::text,
+  comprador_id uuid,
+  status_compra_em timestamp with time zone,
+  comprado_em timestamp with time zone,
+  status_compra_anterior text,
+  fila_compras_em timestamp with time zone,
+  etapa_chegada_id uuid,
   CONSTRAINT execucao_pedidos_material_pkey PRIMARY KEY (id),
   CONSTRAINT execucao_pedidos_material_aprovado_por_fkey FOREIGN KEY (aprovado_por) REFERENCES public.usuarios(id),
   CONSTRAINT execucao_pedidos_material_atividade_id_fkey FOREIGN KEY (atividade_id) REFERENCES public.execucao_atividades(id),
+  CONSTRAINT execucao_pedidos_material_comprador_id_fkey FOREIGN KEY (comprador_id) REFERENCES public.usuarios(id),
+  CONSTRAINT execucao_pedidos_material_etapa_chegada_id_fkey FOREIGN KEY (etapa_chegada_id) REFERENCES public.execucao_obras_etapas(id) ON DELETE SET NULL,
   CONSTRAINT execucao_pedidos_material_etapa_id_fkey FOREIGN KEY (etapa_id) REFERENCES public.execucao_obras_etapas(id) ON DELETE SET NULL,
   CONSTRAINT execucao_pedidos_material_obra_id_fkey FOREIGN KEY (obra_id) REFERENCES public.execucao_obras(id) ON DELETE CASCADE,
   CONSTRAINT execucao_pedidos_material_solicitante_id_fkey FOREIGN KEY (solicitante_id) REFERENCES public.usuarios(id)
 );
 -- CONSTRAINT execucao_pedidos_material_status_check CHECK (((status)::text = ANY ((ARRAY['pendente'::character varying, 'aprovado'::character varying, 'recusado'::character varying, 'entregue'::character varying, 'cancelado'::character varying, 'concluido'::character varying, 'solicitado'::character varying])::text[])))
+-- CONSTRAINT execucao_pedidos_material_status_compra_anterior_check CHECK (((status_compra_anterior IS NULL) OR (status_compra_anterior = ANY (ARRAY['aguardando_compra'::text, 'em_cotacao'::text]))))
+-- CONSTRAINT execucao_pedidos_material_status_compra_check CHECK ((status_compra = ANY (ARRAY['aguardando_compra'::text, 'em_cotacao'::text, 'aguardando_solicitante'::text, 'comprado'::text, 'entregue_parcial'::text, 'entregue'::text, 'cancelado'::text])))
 -- CONSTRAINT execucao_pedidos_material_urgencia_check CHECK (((urgencia)::text = ANY ((ARRAY['baixa'::character varying, 'normal'::character varying, 'alta'::character varying, 'urgente'::character varying])::text[])))
+
+CREATE TABLE public.execucao_pedidos_questionamentos (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  pedido_id uuid NOT NULL,
+  item_id text,
+  item_snapshot jsonb,
+  tipo text NOT NULL,
+  pergunta text NOT NULL,
+  sugestao jsonb,
+  status text NOT NULL DEFAULT 'aberto'::text,
+  resposta_observacao text,
+  criado_por uuid,
+  respondido_por uuid,
+  respondido_em timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT execucao_pedidos_questionamentos_pkey PRIMARY KEY (id),
+  CONSTRAINT execucao_pedidos_questionamentos_criado_por_fkey FOREIGN KEY (criado_por) REFERENCES public.usuarios(id),
+  CONSTRAINT execucao_pedidos_questionamentos_pedido_id_fkey FOREIGN KEY (pedido_id) REFERENCES public.execucao_pedidos_material(id) ON DELETE CASCADE,
+  CONSTRAINT execucao_pedidos_questionamentos_respondido_por_fkey FOREIGN KEY (respondido_por) REFERENCES public.usuarios(id)
+);
+-- CONSTRAINT execucao_pedidos_questionamentos_pergunta_check CHECK ((length(btrim(pergunta)) >= 3))
+-- CONSTRAINT execucao_pedidos_questionamentos_status_check CHECK ((status = ANY (ARRAY['aberto'::text, 'aprovado'::text, 'reprovado'::text, 'cancelado'::text])))
+-- CONSTRAINT execucao_pedidos_questionamentos_tipo_check CHECK ((tipo = ANY (ARRAY['substituicao'::text, 'quantidade'::text, 'duvida'::text])))
 
 -- Planejamento macro de projetos de execução
 CREATE TABLE public.execucao_planejamento_macro (
@@ -368,11 +615,11 @@ CREATE TABLE public.execucao_pops (
   updated_at timestamp with time zone DEFAULT now(),
   tipo_execucao character varying,
   conteudo text,
-  tags text[] NOT NULL DEFAULT '{}',
+  tags text[] NOT NULL DEFAULT '{}'::text[],
   CONSTRAINT execucao_pops_pkey PRIMARY KEY (id),
   CONSTRAINT execucao_pops_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.usuarios(id)
 );
--- CONSTRAINT execucao_pops_tipo_execucao_check CHECK (tipo_execucao IS NULL OR tipo_execucao IN ('eletrica', 'civil', 'galpao', 'gestao', 'estoque'))
+-- CONSTRAINT execucao_pops_tipo_execucao_check CHECK (((tipo_execucao IS NULL) OR ((tipo_execucao)::text = ANY ((ARRAY['eletrica'::character varying, 'civil'::character varying, 'galpao'::character varying, 'gestao'::character varying, 'estoque'::character varying])::text[]))))
 
 -- Arquivos (fotos, vídeos, documentos) anexados aos POPs
 CREATE TABLE public.execucao_pops_arquivos (
@@ -404,8 +651,10 @@ CREATE TABLE public.execucao_templates_etapas (
   created_by uuid,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  tipo_servico_codigo text,
   CONSTRAINT execucao_templates_etapas_pkey PRIMARY KEY (id),
-  CONSTRAINT execucao_templates_etapas_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.usuarios(id)
+  CONSTRAINT execucao_templates_etapas_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.usuarios(id),
+  CONSTRAINT execucao_templates_etapas_tipo_servico_codigo_fkey FOREIGN KEY (tipo_servico_codigo) REFERENCES public.execucao_tipos_servico(codigo)
 );
 -- CONSTRAINT execucao_templates_etapas_tipo_obra_check CHECK (((tipo_obra)::text = ANY ((ARRAY['eletrica'::character varying, 'civil'::character varying, 'galpao'::character varying, 'misto'::character varying, 'spda'::character varying, 'manutencao'::character varying])::text[])))
 
@@ -419,7 +668,12 @@ CREATE TABLE public.execucao_templates_etapas_itens (
   duracao_dias integer DEFAULT 3,
   ordem integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT now(),
+  horas_previstas numeric,
+  qtd_tecnicos integer NOT NULL DEFAULT 1,
+  pop_id uuid,
+  pai_ordem integer,
   CONSTRAINT execucao_templates_etapas_itens_pkey PRIMARY KEY (id),
+  CONSTRAINT execucao_templates_etapas_itens_pop_id_fkey FOREIGN KEY (pop_id) REFERENCES public.execucao_pops(id) ON DELETE SET NULL,
   CONSTRAINT execucao_templates_etapas_itens_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.execucao_templates_etapas(id) ON DELETE CASCADE
 );
 -- CONSTRAINT execucao_templates_etapas_itens_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['eletrica'::character varying, 'civil'::character varying, 'galpao'::character varying, 'geral'::character varying, 'administrativo'::character varying, 'gestao'::character varying, 'estoque'::character varying])::text[])))
@@ -440,6 +694,23 @@ CREATE TABLE public.execucao_templates_materiais (
   CONSTRAINT execucao_templates_materiais_pkey PRIMARY KEY (id),
   CONSTRAINT execucao_templates_materiais_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.usuarios(id)
 );
+
+CREATE TABLE public.execucao_tipos_servico (
+  codigo text NOT NULL,
+  nome text NOT NULL,
+  modalidade text NOT NULL,
+  equipe_responsavel text NOT NULL DEFAULT 'execucao'::text,
+  tipo_obra text NOT NULL DEFAULT 'eletrica'::text,
+  template_padrao_id uuid,
+  termos_comercial text[] NOT NULL DEFAULT '{}'::text[],
+  evidencias_minimas integer NOT NULL DEFAULT 0,
+  ativo boolean NOT NULL DEFAULT true,
+  CONSTRAINT execucao_tipos_servico_pkey PRIMARY KEY (codigo),
+  CONSTRAINT execucao_tipos_servico_template_padrao_id_fkey FOREIGN KEY (template_padrao_id) REFERENCES public.execucao_templates_etapas(id) ON DELETE SET NULL
+);
+-- CONSTRAINT execucao_tipos_servico_equipe_responsavel_check CHECK ((equipe_responsavel = ANY (ARRAY['execucao'::text, 'orcamentos'::text])))
+-- CONSTRAINT execucao_tipos_servico_modalidade_check CHECK ((modalidade = ANY (ARRAY['servico'::text, 'obra'::text])))
+-- CONSTRAINT execucao_tipos_servico_tipo_obra_check CHECK ((tipo_obra = ANY (ARRAY['eletrica'::text, 'civil'::text, 'galpao'::text, 'misto'::text])))
 
 CREATE TABLE public.historico_alteracoes_apontamentos (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

@@ -27,6 +27,17 @@ const BUCKET_OBRAS = 'obras-arquivos';
 const BUCKET_POPS = 'pops-arquivos';
 const URL_ASSINADA_SEGUNDOS = 3600;
 
+// Obras com etapas (e o responsável de cada etapa). O alerta "passos pendentes" não usa embed de atividades:
+// vem da RPC leve execucao_passos_pendentes_por_etapa (buscarPassosPendentesPorEtapa).
+const SELECT_OBRAS_COM_ETAPAS = `
+  *,
+  responsavel:usuarios!responsavel_id(id, nome_completo, email),
+  etapas:execucao_obras_etapas(
+    *,
+    responsavel:usuarios!execucao_obras_etapas_responsavel_id_fkey(id, nome_completo)
+  )
+`;
+
 // Métodos do serviço de execução. Um Proxy no final adiciona bloqueio
 // automático de operações de escrita quando o admin está impersonando.
 const _execucaoService = {
@@ -287,7 +298,7 @@ const _execucaoService = {
   // extras (opcionais): { motivoCodigo, ocorridoEm, idCliente, solicitaReplanejamento, horasRealizadas }
   async alterarStatusAtividade(id, novoStatus, _usuarioId, motivo = null, extras = {}) {
     try {
-      const { data, error } = await supabase.rpc('alterar_status_atividade', {
+      const params = {
         p_id: id,
         p_status: novoStatus,
         p_motivo: motivo,
@@ -296,13 +307,59 @@ const _execucaoService = {
         p_id_cliente: extras.idCliente ?? null,
         p_solicita_replanejamento: extras.solicitaReplanejamento ?? null,
         p_horas_realizadas: extras.horasRealizadas ?? null
-      });
+      };
+      // Conclusão do técnico (migration 20261101_20): os parâmetros novos só vão quando informados, para que a
+      // chamada continue válida em qualquer ordem de deploy (função antiga de 8 parâmetros × nova de 13).
+      const conclusao = {
+        p_observacao: extras.observacao,
+        p_latitude: extras.latitude,
+        p_longitude: extras.longitude,
+        p_precisao_m: extras.precisaoM,
+        p_geo_status: extras.geoStatus
+      };
+      for (const [chave, valor] of Object.entries(conclusao)) {
+        if (valor !== undefined && valor !== null && valor !== '') params[chave] = valor;
+      }
+      const { data, error } = await supabase.rpc('alterar_status_atividade', params);
 
       if (error) throw error;
       return { success: true, data };
     } catch (error) {
       console.error('Erro ao alterar status:', error);
       return { success: false, message: error.message };
+    }
+  },
+
+  // Contadores de "passos pendentes" por etapa pai (RPC leve, migration 20261101_30; só admin).
+  // obraIds: array de ids (ou null/undefined = todas as obras abertas). data: linhas
+  // { obra_id, etapa_id, passos_total, passos_concluidos, passos_abertos, atividades_total, atividades_concluidas,
+  //   atividades_abertas, passos_pendentes }; `passos_pendentes` > 0 é o número do alerta.
+  async buscarPassosPendentesPorEtapa(obraIds = null) {
+    try {
+      const { data, error } = await supabase.rpc('execucao_passos_pendentes_por_etapa', {
+        p_obras: obraIds?.length ? obraIds : null
+      });
+      if (error) throw error;
+      return { success: true, data: data ?? [] };
+    } catch (error) {
+      console.error('Erro ao buscar passos pendentes:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
+  // true se a etapa tem ao menos uma atividade não cancelada (null se não deu para consultar)
+  async etapaTemAtividade(etapaId) {
+    try {
+      const { count, error } = await supabase
+        .from('execucao_atividades')
+        .select('id', { count: 'exact', head: true })
+        .eq('etapa_id', etapaId)
+        .neq('status', 'cancelada');
+      if (error) throw error;
+      return (count ?? 0) > 0;
+    } catch (error) {
+      console.error('Erro ao verificar atividade da etapa:', error);
+      return null;
     }
   },
 
@@ -482,6 +539,11 @@ const _execucaoService = {
 
         if (filtros.status) query = query.eq('status', filtros.status);
         if (filtros.solicitante_id) query = query.eq('solicitante_id', filtros.solicitante_id);
+        // Período do pedido (created_at): criadoDe inclusivo, criadoAte exclusivo (instantes ISO)
+        if (filtros.criadoDe) query = query.gte('created_at', filtros.criadoDe);
+        if (filtros.criadoAte) query = query.lt('created_at', filtros.criadoAte);
+        // Listas de obra ainda não entregues (independem do período)
+        if (filtros.apenasObraPendentes) query = query.not('obra_id', 'is', null).neq('status', 'entregue');
         return query;
       });
 
@@ -904,14 +966,7 @@ const _execucaoService = {
       const data = await fetchAll(() => {
         let query = supabase
           .from('execucao_obras')
-          .select(`
-            *,
-            responsavel:usuarios!responsavel_id(id, nome_completo, email),
-            etapas:execucao_obras_etapas(
-              *,
-              responsavel:usuarios!execucao_obras_etapas_responsavel_id_fkey(id, nome_completo)
-            )
-          `)
+          .select(SELECT_OBRAS_COM_ETAPAS)
           .order('data_inicio_prevista', { ascending: true })
           .order('id', { ascending: true });
 
@@ -930,6 +985,21 @@ const _execucaoService = {
     }
   },
 
+  // Só nome do cliente e status das obras (sugestões de cliente do Pedido de Material): sem etapas nem embeds,
+  // evita o payload de buscarObras() (obras × etapas × usuários) para uma lista de nomes.
+  async buscarClientesDeObras() {
+    try {
+      const data = await fetchAll(() => supabase
+        .from('execucao_obras')
+        .select('id, nome_cliente, status')
+        .order('id', { ascending: true }));
+      return { success: true, data };
+    } catch (error) {
+      console.error('Erro ao buscar clientes das obras:', error);
+      return { success: false, message: error.message };
+    }
+  },
+
   // Buscar obras por período (para filtros de visualização)
   async buscarObrasPorPeriodo(periodo) {
     try {
@@ -942,14 +1012,7 @@ const _execucaoService = {
       // Interseção: a obra começa até o fim do período e termina a partir do início
       const data = await fetchAll(() => supabase
         .from('execucao_obras')
-        .select(`
-          *,
-          responsavel:usuarios!responsavel_id(id, nome_completo, email),
-          etapas:execucao_obras_etapas(
-            *,
-            responsavel:usuarios!execucao_obras_etapas_responsavel_id_fkey(id, nome_completo)
-          )
-        `)
+        .select(SELECT_OBRAS_COM_ETAPAS)
         .lte('data_inicio_prevista', fim)
         .gte('data_fim_prevista', inicio)
         .order('data_inicio_prevista', { ascending: true })

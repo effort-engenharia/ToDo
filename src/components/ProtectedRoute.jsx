@@ -47,6 +47,14 @@ const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null, onR
           return;
         }
 
+        // COMPRAS acessa só o Dashboard de Compras (e POPs) dentro do módulo Execução
+        if (usuario.nivel_acesso?.nome === 'COMPRAS') {
+          const paginasCompras = ['execucao', 'execucao/compras', 'execucao/pops'];
+          setHasPermission(paginasCompras.includes(requiredRoute));
+          setLoading(false);
+          return;
+        }
+
         // Verificar permissão específica para outros níveis
         const permission = await temPermissao(requiredRoute);
         setHasPermission(permission);

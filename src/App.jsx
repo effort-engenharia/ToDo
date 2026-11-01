@@ -1,8 +1,4 @@
 import React, { lazy, Suspense, useState, useEffect } from 'react';
-import Dashboard from './features/dashboard/components/Dashboard';
-import DashboardV2 from './features/dashboard-v2/DashboardV2';
-import ApontamentosComercial from './components/ApontamentosComercial';
-import ArsenalDeGuerra from './components/ArsenalDeGuerra';
 import AuthGuard from './components/AuthGuard';
 import AdminPanel from './components/AdminPanel';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -12,6 +8,12 @@ import ImpersonationBar from './components/ImpersonationBar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LayoutProvider, useLayout } from './contexts/LayoutContext';
 import { useGoogleSheetsData } from './hooks/useGoogleSheetsData';
+
+// Cada módulo vira um chunk próprio: técnico/Compras (Execução) não baixam o Dashboard Comercial (echarts etc.) e vice-versa
+const Dashboard = lazy(() => import('./features/dashboard/components/Dashboard'));
+const DashboardV2 = lazy(() => import('./features/dashboard-v2/DashboardV2'));
+const ApontamentosComercial = lazy(() => import('./components/ApontamentosComercial'));
+const ArsenalDeGuerra = lazy(() => import('./components/ArsenalDeGuerra'));
 
 // O módulo Execução só é baixado por quem tem acesso a ele
 const ExecucaoDashboard = lazy(() => import('./features/execucao/components/ExecucaoDashboard'));
@@ -66,7 +68,7 @@ function AppContent() {
         const ordemPreferencia = ['dashboard', 'apontamentos', 'arsenal', 'execucao'];
         let paginaInicial = paginasPermitidas[0]; // fallback para primeira permitida
         
-        // Verificar se usuário é do módulo execução (ADMIN_EXECUCAO ou TECNICO)
+        // Verificar se usuário é do módulo execução (ADMIN_EXECUCAO, TECNICO ou COMPRAS)
         const isExecucaoUser = paginasPermitidas.some(p => p.startsWith('execucao'));
         
         if (isExecucaoUser) {
@@ -119,13 +121,15 @@ function AppContent() {
             <SmartRedirect onRedirect={setCurrentPage} />
           }
         >
-          <ApontamentosComercial 
-            onVoltar={() => {
-              refreshData(); // Atualizar dados quando voltar
-              setCurrentPage('dashboard');
-            }} 
-            onDataUpdate={refreshData} // Função para atualizar dados
-          />
+          <Suspense fallback={<TelaCarregando />}>
+            <ApontamentosComercial 
+              onVoltar={() => {
+                refreshData(); // Atualizar dados quando voltar
+                setCurrentPage('dashboard');
+              }} 
+              onDataUpdate={refreshData} // Função para atualizar dados
+            />
+          </Suspense>
         </ProtectedRoute>
         <AdminPanel 
           isOpen={showAdminPanel} 
@@ -145,7 +149,9 @@ function AppContent() {
             <SmartRedirect onRedirect={setCurrentPage} />
           }
         >
-          <ArsenalDeGuerra onVoltar={() => setCurrentPage('dashboard')} />
+          <Suspense fallback={<TelaCarregando />}>
+            <ArsenalDeGuerra onVoltar={() => setCurrentPage('dashboard')} />
+          </Suspense>
         </ProtectedRoute>
         <AdminPanel 
           isOpen={showAdminPanel} 
@@ -204,10 +210,13 @@ function AppContent() {
  */
 function DashboardSelector({ setCurrentPage }) {
   const { layout, LAYOUT_MODERNO } = useLayout();
-  if (layout === LAYOUT_MODERNO) {
-    return <DashboardV2 setCurrentPage={setCurrentPage} />;
-  }
-  return <Dashboard setCurrentPage={setCurrentPage} />;
+  return (
+    <Suspense fallback={<TelaCarregando />}>
+      {layout === LAYOUT_MODERNO
+        ? <DashboardV2 setCurrentPage={setCurrentPage} />
+        : <Dashboard setCurrentPage={setCurrentPage} />}
+    </Suspense>
+  );
 }
 
 function App() {

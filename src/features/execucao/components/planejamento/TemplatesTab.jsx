@@ -38,14 +38,14 @@ const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) 
       </div>
       <div className="flex items-center gap-1">
         {!template.ativo && (
-          <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded">
+          <span className="text-xs bg-red-500/20 text-red-300 px-2 py-0.5 rounded">
             Inativo
           </span>
         )}
         <button
           type="button"
           onClick={() => onEditar(template)}
-          className="p-1.5 rounded text-slate-400 hover:text-sky-400 hover:bg-sky-500/10 transition-all"
+          className="plan-toque rounded text-slate-300 hover:text-sky-300 hover:bg-sky-500/10 transition-all"
           title="Editar template"
           aria-label={`Editar template ${template.nome}`}
         >
@@ -54,7 +54,7 @@ const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) 
         <button
           type="button"
           onClick={() => onDuplicar(template)}
-          className="p-1.5 rounded text-slate-400 hover:text-purple-400 hover:bg-purple-500/10 transition-all"
+          className="plan-toque rounded text-slate-300 hover:text-purple-300 hover:bg-purple-500/10 transition-all"
           title="Duplicar template"
           aria-label={`Duplicar template ${template.nome}`}
         >
@@ -63,7 +63,7 @@ const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) 
         <button
           type="button"
           onClick={() => onExcluir(template.id)}
-          className="p-1.5 rounded text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+          className="plan-toque rounded text-slate-300 hover:text-red-300 hover:bg-red-500/10 transition-all"
           title="Excluir template"
           aria-label={`Excluir template ${template.nome}`}
         >
@@ -72,33 +72,33 @@ const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) 
       </div>
     </div>
 
-    <h4 className="font-semibold text-white mb-1">{template.nome}</h4>
+    <h4 className="font-semibold text-white mb-1 plan-quebra">{template.nome}</h4>
     {template.descricao && (
-      <p className="text-xs text-slate-400 mb-3">{template.descricao}</p>
+      <p className="text-xs text-slate-300 mb-3">{template.descricao}</p>
     )}
 
-    <div className="flex items-center gap-2 mb-3">
-      <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
+    <div className="flex flex-wrap items-center gap-2 mb-3">
+      <span className="text-xs bg-slate-700 text-slate-200 px-2 py-0.5 rounded">
         {ROTULO_TIPO_OBRA_TEMPLATE[template.tipo_obra] || template.tipo_obra || 'Geral'}
       </span>
-      <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded">
+      <span className="text-xs bg-slate-700 text-slate-200 px-2 py-0.5 rounded">
         {template.itens?.filter((i) => i.pai_ordem == null).length || 0} etapas
         {template.itens?.some((i) => i.pai_ordem != null) ? ` · ${template.itens.filter((i) => i.pai_ordem != null).length} sub-etapas` : ''}
       </span>
     </div>
 
-    {/* Lista de etapas do template */}
-    <div className="space-y-1 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+    {/* Lista de etapas do template (sem rolagem aninhada no mobile: no máximo 5 itens) */}
+    <div className="space-y-1 sm:max-h-40 sm:overflow-y-auto pr-2 custom-scrollbar">
       {rotularItens(template.itens ?? []).slice(0, 5).map(({ etapa, rotulo, sub }, idx) => (
         <div
           key={etapa.id ?? idx}
-          className={`flex items-center justify-between text-xs p-1.5 bg-slate-900/50 rounded ${sub ? 'ml-4' : ''}`}
+          className={`flex items-center justify-between gap-2 text-xs p-1.5 bg-slate-900/50 rounded ${sub ? 'ml-4' : ''}`}
         >
-          <span className="text-slate-300 truncate">
+          <span className="text-slate-200 truncate">
             {rotulo}. {etapa.nome}
-            <span className="text-slate-500"> · {ROTULO_TIPO_ETAPA[etapa.tipo] || etapa.tipo}</span>
+            <span className="text-slate-300"> · {ROTULO_TIPO_ETAPA[etapa.tipo] || etapa.tipo}</span>
           </span>
-          <span className="text-slate-500 shrink-0 ml-2">
+          <span className="text-slate-300 shrink-0 ml-2">
             {[
               sub ? null : `${etapa.duracao_dias}d`,
               etapa.horas_previstas ? formatarHoras(etapa.horas_previstas) : null,
@@ -108,7 +108,7 @@ const TemplateCard = React.memo(({ template, onEditar, onDuplicar, onExcluir }) 
         </div>
       ))}
       {template.itens?.length > 5 && (
-        <div className="text-center text-[10px] text-slate-500 py-1">
+        <div className="text-center text-xs text-slate-300 py-1">
           +{template.itens.length - 5} mais etapas...
         </div>
       )}
@@ -120,20 +120,20 @@ TemplateCard.displayName = 'TemplateCard';
 const TemplatesTab = ({ templates, onNovo, onEditar, onDuplicar, onExcluir }) => (
   <div className="space-y-6">
     {/* Header */}
-    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+    <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4">
       <div>
         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-          <FaMagic className="text-purple-400" aria-hidden="true" />
+          <FaMagic className="text-purple-300" aria-hidden="true" />
           Templates de Etapas
         </h3>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-slate-300">
           Gerencie modelos de etapas pré-definidos para usar ao criar novas obras
         </p>
       </div>
       <button
         type="button"
         onClick={onNovo}
-        className="execucao-btn-primary flex items-center gap-2"
+        className="execucao-btn execucao-btn-primary plan-toque w-full sm:w-auto sm:self-start lg:self-auto flex items-center gap-2"
       >
         <FaPlus size={12} aria-hidden="true" />
         Novo Template
@@ -154,8 +154,8 @@ const TemplatesTab = ({ templates, onNovo, onEditar, onDuplicar, onExcluir }) =>
     </div>
 
     {templates.length === 0 && (
-      <div className="text-center py-12 text-slate-400">
-        <FaMagic size={48} className="mx-auto mb-4 opacity-30" aria-hidden="true" />
+      <div className="text-center py-8 sm:py-12 text-slate-300">
+        <FaMagic className="mx-auto mb-4 opacity-40 text-[40px] sm:text-5xl" aria-hidden="true" />
         <p>Nenhum template cadastrado</p>
         <p className="text-sm mt-1">Clique em "Novo Template" para criar o primeiro</p>
       </div>

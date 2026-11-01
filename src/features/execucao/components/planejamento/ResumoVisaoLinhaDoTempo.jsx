@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { FaChevronDown, FaChevronRight } from 'react-icons/fa';
+import { CONSULTA_ACIMA_LG, CONSULTA_MOBILE, useMediaQuery } from '../../hooks/useMediaQuery';
 import { dataLocalISO, formatarDataBR, parseDataLocal } from '../../utils/datas';
 import { ROTULO_TIPO_OBRA_TEMPLATE } from './constants';
 import { inicioDeHoje } from './utils';
@@ -7,7 +8,8 @@ import { COR_SEM_SAUDE, SAUDE, ordenarPorSaude, resumoMotivos } from './visao/sa
 import './visao/visao.css';
 
 const MS_DIA = 1000 * 60 * 60 * 24;
-const LARGURA_ROTULO = 270;
+// Largura do rótulo por faixa: 148px (<640) · 220px (640–1023) · 270px (≥1024)
+const LARGURA_ROTULO = { estreito: 148, medio: 220, largo: 270 };
 const PX_POR_DIA = { semana: 22, mes: 5 };
 const MARGEM_DIAS = 7;
 const LARGURA_MINIMA_TRILHA = 900; // evita uma linha do tempo minúscula quando há poucas obras
@@ -46,6 +48,9 @@ const ResumoVisaoLinhaDoTempo = ({ obras, filtroTipo, saudePorObra, onAbrirObra 
 
   const hoje = useMemo(() => inicioDeHoje(), []);
   const pxDia = PX_POR_DIA[zoom];
+  const estreito = useMediaQuery(CONSULTA_MOBILE);
+  const largo = useMediaQuery(CONSULTA_ACIMA_LG);
+  const larguraRotulo = estreito ? LARGURA_ROTULO.estreito : (largo ? LARGURA_ROTULO.largo : LARGURA_ROTULO.medio);
 
   const linhas = useMemo(() => {
     const comDatas = obras.filter((o) => o.status !== 'cancelada' && parseDataLocal(o.data_inicio_prevista) && parseDataLocal(o.data_fim_prevista));
@@ -120,9 +125,9 @@ const ResumoVisaoLinhaDoTempo = ({ obras, filtroTipo, saudePorObra, onAbrirObra 
 
   if (!escala) {
     return (
-      <div className="execucao-card text-center py-12">
-        <h3 className="text-lg font-medium text-slate-400 mb-2">Nenhuma obra com datas no período</h3>
-        <p className="text-slate-500">Ajuste o período ou a equipe para ver a linha do tempo.</p>
+      <div className="execucao-card text-center py-8 sm:py-12">
+        <h3 className="text-lg font-medium text-slate-300 mb-2">Nenhuma obra com datas no período</h3>
+        <p className="text-slate-400">Ajuste o período ou a equipe para ver a linha do tempo.</p>
       </div>
     );
   }
@@ -146,32 +151,37 @@ const ResumoVisaoLinhaDoTempo = ({ obras, filtroTipo, saudePorObra, onAbrirObra 
               type="button"
               aria-pressed={zoom === id}
               onClick={() => setZoom(id)}
-              className={`px-3 py-1 rounded-md text-sm ${zoom === id ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-white'}`}
+              className={`plan-toque px-3 py-1 rounded-md text-sm ${zoom === id ? 'bg-sky-700 text-white' : 'text-slate-300 hover:text-white'}`}
             >
               {id === 'semana' ? 'Semanas' : 'Meses'}
             </button>
           ))}
         </div>
-        <label className="text-sm text-slate-400 flex items-center gap-2">
+        <label className="text-sm text-slate-300 flex items-center gap-2">
           Agrupar por
-          <select className="execucao-form-select text-sm py-1" value={agrupar} onChange={(e) => setAgrupar(e.target.value)}>
+          <select className="execucao-form-select plan-campo" value={agrupar} onChange={(e) => setAgrupar(e.target.value)}>
             {AGRUPAMENTOS.map((a) => <option key={a.id} value={a.id}>{a.rotulo}</option>)}
           </select>
         </label>
-        <label className="text-sm text-slate-400 flex items-center gap-2">
+        <label className="text-sm text-slate-300 flex items-center gap-2">
           Ordenar
-          <select className="execucao-form-select text-sm py-1" value={ordenar} onChange={(e) => setOrdenar(e.target.value)}>
+          <select className="execucao-form-select plan-campo" value={ordenar} onChange={(e) => setOrdenar(e.target.value)}>
             <option value="data">Por início</option>
             <option value="saude">Piores primeiro</option>
           </select>
         </label>
-        <span className="text-xs text-slate-400">{linhas.length} obra(s)</span>
+        <span className="text-xs text-slate-300">{linhas.length} obra(s)</span>
       </div>
 
-      <div className="visao-timeline-rolagem">
-        <div className="visao-timeline-corpo" style={{ width: LARGURA_ROTULO + escala.largura }}>
+      <div
+        className="visao-timeline-rolagem plan-rolagem"
+        role="region"
+        aria-label="Linha do tempo das obras, role na horizontal para ver todas as datas"
+        tabIndex={0}
+      >
+        <div className="visao-timeline-corpo" style={{ width: larguraRotulo + escala.largura }}>
           <div className="visao-timeline-cabecalho">
-            <div className="visao-timeline-rotulo visao-timeline-rotulo-cab" style={{ width: LARGURA_ROTULO }}>Obra</div>
+            <div className="visao-timeline-rotulo visao-timeline-rotulo-cab" style={{ width: larguraRotulo }}>Obra</div>
             <div className="visao-timeline-trilha" style={{ width: escala.largura }}>
               {escala.meses.map((m) => (
                 <div key={m.chave} className="visao-timeline-mes" style={{ left: m.left, width: m.largura }}>{m.rotulo}</div>
@@ -185,7 +195,7 @@ const ResumoVisaoLinhaDoTempo = ({ obras, filtroTipo, saudePorObra, onAbrirObra 
           <div className="visao-timeline-linhas">
             <div
               className="visao-timeline-hoje"
-              style={{ left: LARGURA_ROTULO + escala.hojeX }}
+              style={{ left: larguraRotulo + escala.hojeX }}
               aria-hidden="true"
             >
               <span>HOJE</span>
@@ -198,7 +208,7 @@ const ResumoVisaoLinhaDoTempo = ({ obras, filtroTipo, saudePorObra, onAbrirObra 
               return (
                 <React.Fragment key={grupo.chave || 'todas'}>
                   {agrupar !== 'nenhum' && (
-                    <div className="visao-timeline-grupo">{grupo.chave} <span className="text-slate-500">({grupo.obras.length})</span></div>
+                    <div className="visao-timeline-grupo">{grupo.chave} <span className="text-slate-400">({grupo.obras.length})</span></div>
                   )}
                   {visiveis.map((obra) => {
                     const saude = saudePorObra.get(obra.id);
@@ -216,7 +226,7 @@ const ResumoVisaoLinhaDoTempo = ({ obras, filtroTipo, saudePorObra, onAbrirObra 
                     return (
                       <React.Fragment key={obra.id}>
                         <div className="visao-timeline-linha">
-                          <div className="visao-timeline-rotulo" style={{ width: LARGURA_ROTULO }}>
+                          <div className="visao-timeline-rotulo" style={{ width: larguraRotulo }}>
                             <button
                               type="button"
                               className="visao-icone"
@@ -265,7 +275,7 @@ const ResumoVisaoLinhaDoTempo = ({ obras, filtroTipo, saudePorObra, onAbrirObra 
                           const pos = posicao(etapa.data_inicio, etapa.data_fim);
                           return (
                             <div className="visao-timeline-linha visao-timeline-linha-etapa" key={etapa.id}>
-                              <div className="visao-timeline-rotulo visao-timeline-rotulo-etapa" style={{ width: LARGURA_ROTULO }} title={etapa.nome}>
+                              <div className="visao-timeline-rotulo visao-timeline-rotulo-etapa" style={{ width: larguraRotulo }} title={etapa.nome}>
                                 ↳ {etapa.nome}
                               </div>
                               <div className="visao-timeline-trilha" style={{ width: escala.largura }}>
@@ -294,7 +304,7 @@ const ResumoVisaoLinhaDoTempo = ({ obras, filtroTipo, saudePorObra, onAbrirObra 
 
       {linhas.length > limite && (
         <div className="text-center mt-3">
-          <button type="button" className="execucao-btn execucao-btn-secondary execucao-btn-sm" onClick={() => setLimite((n) => n + LIMITE_INICIAL)}>
+          <button type="button" className="execucao-btn execucao-btn-secondary execucao-btn-sm plan-toque w-full sm:w-auto" onClick={() => setLimite((n) => n + LIMITE_INICIAL)}>
             Mostrar mais ({linhas.length - limite} restantes)
           </button>
         </div>

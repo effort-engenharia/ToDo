@@ -17,6 +17,7 @@ import {
   FaFilter,
   FaTags
 } from 'react-icons/fa';
+import TextoFormatado from '../../../components/ui/TextoFormatado';
 import { execucaoService } from '../../../services/supabase/execucao';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useExecucaoUI } from './ui/ExecucaoUI';
@@ -382,9 +383,7 @@ const POPs = ({ usuario, isAdmin = true }) => {
                 {pop.titulo}
               </h3>
 
-              <p className="text-sm text-slate-400 mb-3 line-clamp-2">
-                {pop.descricao}
-              </p>
+              <TextoFormatado compacto texto={pop.descricao} className="text-sm text-slate-400 mb-3" />
 
               {pop.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-3">
@@ -474,15 +473,15 @@ const POPs = ({ usuario, isAdmin = true }) => {
             {popVisualizado.descricao && (
               <div>
                 <span className="text-sm text-slate-400">Descrição</span>
-                <p className="text-slate-200">{popVisualizado.descricao}</p>
+                <TextoFormatado texto={popVisualizado.descricao} className="text-slate-200" />
               </div>
             )}
 
             {popVisualizado.conteudo && (
               <div>
                 <span className="text-sm text-slate-400">Procedimento</span>
-                <div className="mt-2 p-4 bg-slate-800 rounded-lg text-slate-200 whitespace-pre-wrap">
-                  {popVisualizado.conteudo}
+                <div className="mt-2 p-4 bg-slate-800 rounded-lg">
+                  <TextoFormatado texto={popVisualizado.conteudo} className="text-slate-200" />
                 </div>
               </div>
             )}

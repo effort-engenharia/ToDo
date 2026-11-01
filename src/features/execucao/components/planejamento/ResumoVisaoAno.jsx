@@ -11,7 +11,7 @@ const TIPOS_RESUMO_ANUAL = [
 // Visão anual: um cartão por mês com contagem por equipe e clientes
 const ResumoVisaoAno = ({ meses, ano }) => (
   <div className="execucao-card p-4">
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 min-[420px]:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
       {meses.map((mes) => {
         const clientes = [...new Set(mes.etapas.map(e => e.cliente))];
 
@@ -25,14 +25,14 @@ const ResumoVisaoAno = ({ meses, ano }) => (
             }`}
           >
             {/* Nome do mês */}
-            <div className={`text-sm font-bold mb-2 ${mes.isAtual ? 'text-sky-400' : 'text-white'}`}>
-              {mes.nomeLongo.toUpperCase()}
+            <div className={`text-sm font-bold mb-2 ${mes.isAtual ? 'text-sky-300' : 'text-white'}`}>
+              {mes.nomeLongo.toUpperCase()}{mes.isAtual ? ' · atual' : ''}
             </div>
 
             {/* Contagem de etapas */}
             <div className="text-2xl font-bold text-white mb-2">
               {mes.etapas.length}
-              <span className="text-xs font-normal text-slate-400 ml-1">etapas</span>
+              <span className="text-xs font-normal text-slate-300 ml-1">etapas</span>
             </div>
 
             {/* Breakdown por tipo */}
@@ -40,7 +40,7 @@ const ResumoVisaoAno = ({ meses, ano }) => (
               {TIPOS_RESUMO_ANUAL.map(({ tipo, emoji, classe }) => {
                 const quantidade = mes.etapas.filter(e => e.tipo === tipo).length;
                 return quantidade > 0 && (
-                  <span key={tipo} className={`text-[10px] px-1.5 py-0.5 rounded ${classe}`}>
+                  <span key={tipo} className={`text-xs px-1.5 py-0.5 rounded ${classe}`}>
                     {emoji} {quantidade}
                   </span>
                 );
@@ -50,15 +50,15 @@ const ResumoVisaoAno = ({ meses, ano }) => (
             {/* Lista de clientes únicos */}
             {mes.etapas.length > 0 && (
               <div className="mt-2 pt-2 border-t border-slate-700">
-                <div className="text-[10px] text-slate-500 mb-1">Clientes:</div>
+                <div className="text-xs text-slate-300 mb-1">Clientes:</div>
                 <div className="flex flex-wrap gap-1">
                   {clientes.slice(0, 3).map((cliente) => (
-                    <span key={cliente} className="text-[9px] px-1 py-0.5 rounded bg-slate-700 text-slate-300 truncate max-w-[80px]">
+                    <span key={cliente} className="text-xs px-1 py-0.5 rounded bg-slate-700 text-slate-100 truncate max-w-[110px]">
                       {cliente}
                     </span>
                   ))}
                   {clientes.length > 3 && (
-                    <span className="text-[9px] text-slate-500">
+                    <span className="text-xs text-slate-300">
                       +{clientes.length - 3}
                     </span>
                   )}
@@ -72,12 +72,12 @@ const ResumoVisaoAno = ({ meses, ano }) => (
 
     {/* Resumo anual */}
     <div className="mt-4 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
-      <div className="flex flex-wrap gap-4 items-center">
-        <div className="text-slate-400 text-sm">Total {ano}:</div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 items-center">
+        <div className="text-slate-300 text-sm">Total {ano}:</div>
         <div className="text-white font-bold">
           {meses.reduce((acc, m) => acc + m.etapas.length, 0)} etapas
         </div>
-        <div className="text-slate-400">em</div>
+        <div className="text-slate-300">em</div>
         <div className="text-white font-bold">
           {new Set(meses.flatMap(m => m.etapas.map(e => e.cliente))).size} clientes
         </div>

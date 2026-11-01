@@ -11,13 +11,17 @@ import {
   FaBoxOpen,
   FaRegClock,
   FaCalendarAlt,
-  FaExchangeAlt
+  FaExchangeAlt,
+  FaQuestionCircle,
+  FaShoppingCart
 } from 'react-icons/fa';
 import { execucaoService } from '../../../services/supabase/execucao';
 import { execucaoTecnicoService } from '../../../services/supabase/execucaoTecnico';
 import { destinoDaNotificacao, irParaDestino } from './tecnico/navegacaoNotificacao';
+import { destinoComprasDaNotificacao, irParaPedido } from './compras/navegacaoCompras';
 import '../styles/execucao.css';
 import { useAtualizacaoAoVivo } from '../hooks/useAtualizacaoAoVivo';
+import { EVENTO_BADGES } from '../hooks/useBadgesMenu';
 
 const INTERVALO_MS = 30000;
 
@@ -33,7 +37,10 @@ const ICONES = {
   replanejamento: <FaCalendarAlt className="text-purple-400" aria-hidden="true" />,
   transferencia: <FaExchangeAlt className="text-cyan-400" aria-hidden="true" />,
   pendencia: <FaClipboardList className="text-yellow-400" aria-hidden="true" />,
-  nova_atividade: <FaClipboardList className="text-green-400" aria-hidden="true" />
+  nova_atividade: <FaClipboardList className="text-green-400" aria-hidden="true" />,
+  compra_questionamento: <FaQuestionCircle className="text-purple-400" aria-hidden="true" />,
+  compra_resposta: <FaCheck className="text-green-400" aria-hidden="true" />,
+  compra_status: <FaShoppingCart className="text-blue-400" aria-hidden="true" />
 };
 
 const FUNDOS = {
@@ -47,7 +54,10 @@ const FUNDOS = {
   replanejamento: 'bg-purple-900/30',
   transferencia: 'bg-cyan-900/30',
   pendencia: 'bg-yellow-900/30',
-  nova_atividade: 'bg-green-900/30'
+  nova_atividade: 'bg-green-900/30',
+  compra_questionamento: 'bg-purple-900/30',
+  compra_resposta: 'bg-green-900/30',
+  compra_status: 'bg-blue-900/30'
 };
 
 const getIcone = (tipo) => ICONES[tipo] ?? <FaBell className="text-slate-400" aria-hidden="true" />;
@@ -69,7 +79,7 @@ const formatarTempoRelativo = (dataStr) => {
   return data.toLocaleDateString('pt-BR');
 };
 
-const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
+const NotificacoesDropdown = ({ usuarioId, isAdmin = false, isCompras = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [notificacoes, setNotificacoes] = useState([]);
   const [contadorNaoLidas, setContadorNaoLidas] = useState(0);
@@ -184,6 +194,7 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
       setErro(null);
       setNotificacoes((prev) => prev.map((n) => (n.id === notificacaoId ? { ...n, lida: true } : n)));
       setContadorNaoLidas((prev) => Math.max(0, prev - 1));
+      window.dispatchEvent(new CustomEvent(EVENTO_BADGES));
     } catch (error) {
       console.error('Erro ao marcar notificação como lida:', error);
       setErro('Não foi possível marcar como lida.');
@@ -199,12 +210,16 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false }) => {
         if (result.success) {
           setNotificacoes((prev) => prev.map((n) => (n.id === notif.id ? { ...n, lida: true } : n)));
           setContadorNaoLidas((prev) => Math.max(0, prev - 1));
+          window.dispatchEvent(new CustomEvent(EVENTO_BADGES));
         }
       } catch (error) {
         console.error('Erro ao marcar notificação como lida:', error);
       }
     }
-    irParaDestino(destinoDaNotificacao(notif, isAdmin));
+    // Notificações de Compras abrem o pedido certo (Compras → drawer; admin → conversa/Compras)
+    const destinoPedido = destinoComprasDaNotificacao(notif, { isAdmin, isCompras });
+    if (destinoPedido) irParaPedido(destinoPedido);
+    else irParaDestino(destinoDaNotificacao(notif, isAdmin));
   };
 
   const handleMarcarTodasLidas = async () => {

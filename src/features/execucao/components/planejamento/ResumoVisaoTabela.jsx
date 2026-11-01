@@ -27,29 +27,35 @@ const ResumoVisaoTabela = ({ etapas, onAddAtividade }) => {
 
   return (
     <div className="execucao-card p-0 overflow-hidden">
-      <div className="overflow-x-auto">
+      <div
+        className="plan-rolagem"
+        role="region"
+        aria-label="Tabela de etapas, role na horizontal para ver todas as colunas"
+        tabIndex={0}
+      >
         <table className="w-full min-w-[900px]">
+          <caption className="sr-only">Etapas do período, agrupadas por cliente</caption>
           <thead>
             <tr className="bg-slate-800/70">
-              <th className="sticky left-0 bg-slate-800 z-10 text-left px-4 py-3 text-xs text-slate-300 uppercase font-semibold border-r border-slate-700 min-w-[200px]">
+              <th scope="col" className="sticky left-0 bg-slate-800 z-10 text-left px-4 py-3 text-xs text-slate-300 uppercase font-semibold border-r border-slate-700 min-w-[200px]">
                 Cliente
               </th>
-              <th className="text-left px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[100px]">
+              <th scope="col" className="text-left px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[100px]">
                 Equipe
               </th>
-              <th className="text-left px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[200px]">
+              <th scope="col" className="text-left px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[200px]">
                 Etapa
               </th>
-              <th className="text-left px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[130px]">
+              <th scope="col" className="text-left px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[130px]">
                 Período
               </th>
-              <th className="text-center px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[120px]">
+              <th scope="col" className="text-center px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[120px]">
                 Progresso
               </th>
-              <th className="text-center px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[100px]">
+              <th scope="col" className="text-center px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[100px]">
                 Status
               </th>
-              <th className="text-right px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[100px]">
+              <th scope="col" className="text-right px-4 py-3 text-xs text-slate-300 uppercase font-semibold min-w-[100px]">
                 Ação
               </th>
             </tr>
@@ -69,11 +75,11 @@ const ResumoVisaoTabela = ({ etapas, onAddAtividade }) => {
                       <div>
                         <div className="font-semibold text-white">{etapa.cliente}</div>
                         {etapa.cidade && (
-                          <div className="text-xs text-slate-400">{etapa.cidade}</div>
+                          <div className="text-xs text-slate-300">{etapa.cidade}</div>
                         )}
                       </div>
                     ) : (
-                      <div className="text-slate-500 text-sm italic">↳ mesmo cliente</div>
+                      <div className="text-slate-300 text-sm italic">↳ mesmo cliente</div>
                     )}
                   </td>
 
@@ -124,7 +130,7 @@ const ResumoVisaoTabela = ({ etapas, onAddAtividade }) => {
                   {/* Status */}
                   <td className="px-4 py-3 text-center">
                     {atrasada ? (
-                      <span className="execucao-badge execucao-badge-red animate-pulse">Atrasada</span>
+                      <span className="execucao-badge execucao-badge-red animate-pulse motion-reduce:animate-none">Atrasada</span>
                     ) : etapa.progresso >= 100 ? (
                       <span className="execucao-badge execucao-badge-green">Concluída</span>
                     ) : etapa.status === 'em_andamento' ? (
@@ -139,7 +145,7 @@ const ResumoVisaoTabela = ({ etapas, onAddAtividade }) => {
                     <button
                       type="button"
                       onClick={() => onAddAtividade(etapa)}
-                      className="execucao-btn execucao-btn-success execucao-btn-sm"
+                      className="execucao-btn execucao-btn-success execucao-btn-sm plan-toque"
                       title="Criar atividade na agenda"
                       aria-label={`Criar atividade na agenda para ${etapa.nome}`}
                     >

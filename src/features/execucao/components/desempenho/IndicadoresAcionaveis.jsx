@@ -155,7 +155,9 @@ const IndicadoresAcionaveis = ({ periodo }) => {
             </div>
           )}
           <p className="text-xs text-slate-400 mt-3">
-            O realizado assume o previsto ao concluir; o desvio só aparece quando houve ajuste. Calibre as horas dos templates em Configurações → Calibrar templates.
+            O realizado é medido pelos intervalos em andamento (do início ou retomada até a pausa ou conclusão), limitado pela jornada do técnico.
+            Sem “Iniciar” registrado, assume o previsto; por isso o desvio só aparece onde houve medição ou ajuste da gestão.
+            Conclusões antigas (sem origem das horas) não são comparáveis com as novas. Calibre as horas dos templates em Configurações → Calibrar templates.
           </p>
         </div>
       </div>

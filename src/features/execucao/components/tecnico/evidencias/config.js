@@ -86,8 +86,59 @@ export const extensaoDoTipo = (mime) => {
   if (m.includes('ogg')) return 'ogg';
   if (m.includes('mpeg') || m.includes('mp3')) return 'mp3';
   if (m.includes('quicktime')) return 'mov';
+  if (m.includes('3gpp')) return '3gp';
+  if (m.includes('aac')) return 'aac';
+  if (m.includes('wav')) return 'wav';
+  if (m.includes('amr')) return 'amr';
   return 'bin';
 };
 
+export const LIMITE_BUCKET_MB = 50; // plano gratuito do Supabase: 50 MB por arquivo
+
 export const suportaGravacao = () =>
-  typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia && typeof window !== 'undefined' && !!window.MediaRecorder;
+  typeof navigator !== 'undefined'
+  && typeof window !== 'undefined'
+  && window.isSecureContext !== false
+  && !!navigator.mediaDevices?.getUserMedia
+  && typeof window.MediaRecorder === 'function';
+
+// O MediaRecorder sem mimeType usa o padrão do navegador, então basta ele existir.
+export const suportaGravacaoTipo = (tipo) => (tipo === 'audio' || tipo === 'video') && suportaGravacao();
+
+// Explica por que o app não consegue gravar (null quando consegue).
+export const motivoSemGravacao = (tipo) => {
+  if (suportaGravacaoTipo(tipo)) return null;
+  const alvo = tipo === 'video' ? 'vídeo' : 'áudio';
+  const aparelho = tipo === 'video' ? 'a câmera do aparelho' : 'o gravador do aparelho';
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    return `Câmera/microfone bloqueados: a página não está em conexão segura (HTTPS). Vamos usar ${aparelho}.`;
+  }
+  return `Este navegador não grava ${alvo} pelo app. Vamos usar ${aparelho}.`;
+};
+
+const MIME_POR_EXTENSAO = {
+  mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', '3gp': 'video/3gpp',
+  m4a: 'audio/mp4', aac: 'audio/aac', mp3: 'audio/mpeg', ogg: 'audio/ogg', oga: 'audio/ogg', wav: 'audio/wav', amr: 'audio/amr'
+};
+
+// Mime real do arquivo nativo (sem `;codecs=`); se o aparelho não informar, deduz pela extensão e, por último, usa mp4.
+export const mimeDoArquivo = (arquivo, tipo) => {
+  const informado = String(arquivo?.type || '').split(';')[0].trim().toLowerCase();
+  if (informado) return informado;
+  const ext = String(arquivo?.name || '').split('.').pop().toLowerCase();
+  const porExtensao = MIME_POR_EXTENSAO[ext];
+  if (porExtensao && porExtensao.startsWith(`${tipo}/`)) return porExtensao;
+  return tipo === 'audio' ? 'audio/mp4' : 'video/mp4';
+};
+
+// Mensagem de limite de tamanho: diz o que foi enviado, o limite e o que fazer.
+export const mensagemLimiteTamanho = (tipo, bytes) => {
+  const limite = EVIDENCIAS_CONFIG[tipo]?.maxBytes ?? LIMITE_BUCKET_MB * MB;
+  const nome = tipo === 'video' ? 'Vídeo' : tipo === 'audio' ? 'Áudio' : 'Arquivo';
+  const acao = tipo === 'video'
+    ? `grave um vídeo mais curto (até ${EVIDENCIAS_CONFIG.video.limiteSegundos} s) ou reduza a qualidade da câmera nas configurações do aparelho`
+    : tipo === 'audio'
+      ? `grave um áudio mais curto (até ${formatarDuracao(EVIDENCIAS_CONFIG.audio.limiteSegundos)})`
+      : 'tente um arquivo menor';
+  return `${nome} muito grande: ${formatarBytes(bytes)} enviados e o limite é ${formatarBytes(limite)}. Para continuar, ${acao}.`;
+};

@@ -1,0 +1,182 @@
+/* Dashboard do setor de Compras, questionamentos e conversa do pedido (Anexo D). Usa as variáveis do .execucao-theme. */
+
+.cmp-pagina { max-width: 1600px; }
+
+/* ---------- Esqueleto, selos, avisos ---------- */
+@keyframes cmp-pulso { 50% { opacity: 0.5; } }
+.cmp-skeleton { background: var(--bg-tertiary); border-radius: 0.5rem; animation: cmp-pulso 1.6s ease-in-out infinite; }
+.cmp-skeleton-valor { display: inline-block; width: 3rem; height: 1.5rem; }
+@media (prefers-reduced-motion: reduce) { .cmp-skeleton { animation: none; } }
+
+.cmp-selo {
+  display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.125rem 0.5rem; border-radius: 9999px;
+  font-size: 0.75rem; font-weight: 600; line-height: 1.25rem; white-space: nowrap;
+}
+
+.cmp-aviso {
+  margin: 0.75rem 0; padding: 0.625rem 0.875rem; border-radius: 0.5rem; font-size: 0.875rem;
+  background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.4); color: #fde68a;
+}
+.cmp-aviso-erro, .cmp-erro-envio {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem;
+  margin: 0.75rem 0; padding: 0.625rem 0.875rem; border-radius: 0.5rem; font-size: 0.875rem;
+  background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5;
+}
+.cmp-erro-campo { color: #fca5a5; font-size: 0.8125rem; margin-top: 0.25rem; }
+
+.cmp-link {
+  background: none; border: 0; padding: 0; color: var(--accent-blue); font: inherit; text-align: left; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.cmp-link:hover { color: #93c5fd; }
+
+/* Foco visível (D.8) */
+.cmp-pagina :is(button, select, input, textarea, [tabindex='0']):focus-visible,
+.cmp-janela :is(button, select, input, textarea, [tabindex='0']):focus-visible,
+.cmp-quest:focus-visible { outline: 2px solid #60a5fa; outline-offset: 2px; }
+
+/* ---------- Alvos de toque ≥ 44 px ---------- */
+@media (pointer: coarse), (max-width: 767px) {
+  .cmp-btn-toque { min-height: 44px; }
+  .cmp-btn-icone { min-width: 44px; min-height: 44px; }
+  .cmp-janela .execucao-modal-close { width: 44px; height: 44px; flex: none; }
+  .cmp-janela input:not([type='checkbox']):not([type='radio']), .cmp-janela select, .cmp-janela textarea,
+  .cmp-pagina select, .cmp-pagina input[type='search'], .cmp-pagina input[type='date'] { font-size: 16px; }
+}
+.cmp-btn-icone { min-width: 36px; }
+
+/* ---------- KPIs ---------- */
+.cmp-kpi-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+@media (min-width: 768px) { .cmp-kpi-grade { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .cmp-kpi-grade { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+.cmp-kpi-mais-desktop { display: none; }
+.cmp-kpi-mais-mobile { display: block; }
+@media (min-width: 768px) {
+  .cmp-kpi-mais-desktop { display: contents; }
+  .cmp-kpi-mais-mobile { display: none; }
+}
+
+.cmp-kpi {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.125rem; width: 100%; text-align: left;
+  background: var(--bg-card); border: 1px solid var(--border-color); border-left-width: 4px; border-radius: 0.75rem;
+  padding: 0.75rem 1rem; color: var(--text-primary);
+}
+.cmp-kpi-botao { cursor: pointer; }
+.cmp-kpi-botao:hover { background: var(--bg-card-hover); }
+.cmp-kpi-ativo { box-shadow: 0 0 0 2px var(--accent-blue); }
+.cmp-kpi-rotulo { font-size: 0.8125rem; color: var(--text-secondary); }
+.cmp-kpi-valor { font-size: 1.75rem; font-weight: 700; line-height: 1.2; }
+.cmp-kpi-detalhe { font-size: 0.75rem; color: var(--text-muted); }
+.cmp-tom-azul { border-left-color: var(--accent-blue); }
+.cmp-tom-ciano { border-left-color: var(--accent-cyan); }
+.cmp-tom-verde { border-left-color: var(--accent-green); }
+.cmp-tom-vermelho { border-left-color: var(--accent-red); }
+.cmp-tom-laranja { border-left-color: var(--accent-orange); }
+.cmp-tom-amarelo { border-left-color: var(--accent-yellow); }
+.cmp-tom-roxo { border-left-color: var(--accent-purple); }
+
+/* ---------- Filtros ---------- */
+.cmp-filtros {
+  margin: 1rem 0; padding: 0.75rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.75rem;
+}
+.cmp-filtros-campos { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.75rem; }
+
+/* ---------- Quadro (kanban ≥ 1280 px) ---------- */
+.cmp-quadro {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(216px, 1fr); gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem;
+}
+.cmp-coluna { background: rgba(30, 41, 59, 0.4); border-radius: 0.75rem; padding: 0.5rem; min-width: 0; }
+.cmp-coluna-titulo { font-size: 0.875rem; font-weight: 600; color: var(--text-primary); padding: 0.25rem 0.25rem 0.5rem; }
+.cmp-coluna-contagem { color: var(--text-muted); font-weight: 500; }
+.cmp-coluna-corpo { display: flex; flex-direction: column; gap: 0.5rem; max-height: calc(100dvh - 20rem); min-height: 6rem; overflow-y: auto; }
+
+/* ---------- Cartão do pedido ---------- */
+.cmp-cartao {
+  background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.75rem;
+}
+.cmp-cartao-questionado { border-left: 4px solid #c084fc; }
+.cmp-cartao-titulo {
+  background: none; border: 0; padding: 0; text-align: left; font-weight: 600; font-size: 0.9375rem; line-height: 1.3;
+  color: var(--text-primary); cursor: pointer; min-width: 0; overflow-wrap: anywhere;
+}
+.cmp-cartao-titulo:hover { text-decoration: underline; }
+@media (pointer: coarse), (max-width: 767px) { .cmp-cartao-titulo { min-height: 44px; display: flex; align-items: center; } }
+
+.cmp-destaque { box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.6); }
+@media (prefers-reduced-motion: no-preference) { .cmp-destaque { transition: box-shadow 0.4s ease; } }
+
+/* ---------- Abas (status no mobile e seções do detalhe) ---------- */
+.cmp-abas { display: flex; gap: 0.25rem; overflow-x: auto; border-bottom: 1px solid var(--border-color); }
+.cmp-aba {
+  flex: none; min-height: 44px; padding: 0.5rem 0.875rem; background: none; border: 0; border-bottom: 2px solid transparent;
+  color: var(--text-secondary); font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.cmp-aba:hover { color: var(--text-primary); }
+.cmp-aba-ativa { color: var(--text-primary); border-bottom-color: var(--accent-blue); }
+
+/* ---------- Lista (tabela) ---------- */
+.cmp-tabela-rolagem { overflow: auto; max-height: calc(100dvh - 22rem); border: 1px solid var(--border-color); border-radius: 0.75rem; }
+.cmp-tabela { min-width: 62rem; }
+.cmp-tabela thead th { position: sticky; top: 0; background: var(--bg-secondary); z-index: 1; }
+
+/* ---------- Detalhe: itens ---------- */
+.cmp-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.625rem 0.75rem;
+  background: var(--bg-card); border: 1px solid var(--border-color); border-left-width: 4px; border-left-color: transparent; border-radius: 0.5rem;
+}
+.cmp-item-questionado { border-left-color: #c084fc; background: rgba(168, 85, 247, 0.1); }
+
+/* ---------- Conversa / questionamento ---------- */
+.cmp-quest {
+  background: var(--bg-card); border: 1px solid var(--border-color); border-left-width: 4px; border-left-color: var(--border-light);
+  border-radius: 0.75rem; padding: 0.875rem;
+}
+.cmp-quest-aberto { border-left-color: #c084fc; }
+.cmp-painel-resposta { padding: 0.75rem; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color); border-radius: 0.5rem; }
+
+.cmp-opcao {
+  display: flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0.5rem 0.75rem; cursor: pointer;
+  border: 1px solid var(--border-color); border-radius: 0.5rem; color: var(--text-primary); font-size: 0.875rem;
+}
+.cmp-opcao-ativa { border-color: var(--accent-blue); background: rgba(59, 130, 246, 0.12); }
+.cmp-sugestao { border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.75rem; }
+
+/* ---------- Drawer e modal em tela cheia (variantes do ui/Modal) ---------- */
+.cmp-janela .execucao-modal-body { min-height: 0; }
+
+.execucao-modal-overlay.cmp-overlay-drawer { padding: 0; align-items: stretch; justify-content: flex-end; }
+.execucao-modal.cmp-janela-drawer {
+  max-width: 520px; width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; border-width: 0 0 0 1px;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.cmp-janela-drawer .execucao-modal-header { flex: none; }
+.cmp-janela-drawer .execucao-modal-body { flex: 1; overflow-y: auto; }
+.cmp-janela-drawer .execucao-modal-title { min-width: 0; overflow-wrap: anywhere; font-size: 1rem; }
+@media (max-width: 767px) {
+  .execucao-modal.cmp-janela-drawer { max-width: none; border-width: 0; }
+  .cmp-janela-drawer .execucao-modal-body { padding-bottom: 0; }
+}
+
+@media (max-width: 639px) {
+  .execucao-modal-overlay.cmp-overlay-cheia { padding: 0; align-items: stretch; }
+  .execucao-modal.cmp-janela-cheia {
+    max-width: none; width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; border-width: 0;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .cmp-janela-cheia .execucao-modal-header { flex: none; }
+  .cmp-janela-cheia .execucao-modal-body { flex: 1; overflow-y: auto; }
+  .cmp-janela-cheia .execucao-modal-footer {
+    position: sticky; bottom: 0; background: var(--bg-secondary); padding-top: 0.75rem !important;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)) !important; margin-top: 1rem;
+  }
+  .cmp-janela-cheia .execucao-modal-footer .execucao-btn { flex: 1; }
+}
+
+/* Barra de ações do detalhe no mobile (D.3) */
+.cmp-barra-acao {
+  position: sticky; bottom: 0; margin: 1rem -1.5rem 0; padding: 0.75rem 1.5rem calc(0.75rem + env(safe-area-inset-bottom));
+  background: var(--bg-secondary); border-top: 1px solid var(--border-color);
+}
+.cmp-menu-mais { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.5rem; }
+.cmp-menu-mais > * { min-height: 44px; width: 100%; }

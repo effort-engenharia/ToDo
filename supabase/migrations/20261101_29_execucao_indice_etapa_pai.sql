@@ -1,0 +1,21 @@
+-- 29 (P1 · Performance): índice que faltava para as sub-etapas.
+--
+-- Contexto (revisão estática das migrations 19–27, sem banco disponível; confirmar com EXPLAIN ANALYZE depois de aplicar):
+--   * execucao_obras_etapas.etapa_pai_id é filtrada por execucao_recalcular_etapa_pai (mig. 19: agregação das sub-etapas),
+--     execucao_sincronizar_etapa_pai (EXISTS de filhos), alterar_status_atividade / execucao_conclusao (mig. 19/20:
+--     NOT EXISTS de filhos e "UPDATE ... WHERE etapa_pai_id = v_etapa") e deslocar_etapas. Cada mudança de status de atividade
+--     dispara 2–4 dessas consultas. Nenhuma migration anterior cria índice nessa coluna (só idx_etapas_obra, _datas e _tipo):
+--     sem ele, cada chamada varre execucao_obras_etapas inteira (seq scan) e segura o FOR UPDATE do pai por mais tempo.
+--   * Parcial (etapa_pai_id IS NOT NULL): só sub-etapas entram no índice (a maioria das etapas é raiz); toda consulta acima
+--     compara a coluna por igualdade, o que implica NOT NULL, então o planner consegue usá-lo.
+--
+-- Índices avaliados e NÃO criados (ver relatório P1/P2 no plano): expressão em (fim_real_em AT TIME ZONE ...)::date para
+-- execucao_indicadores e índice em execucao_atividades_historico(tipo_acao) — sem ganho mensurável abaixo de ~10 mil linhas;
+-- reavaliar com EXPLAIN ANALYZE se o p95 de execucao_indicadores passar de 300 ms.
+--
+-- Sem CONCURRENTLY: migrations rodam em transação. A tabela é pequena (milhares de linhas): o lock de escrita dura milissegundos.
+--
+-- ROLLBACK:
+--   DROP INDEX IF EXISTS public.idx_etapas_pai;
+
+CREATE INDEX IF NOT EXISTS idx_etapas_pai ON public.execucao_obras_etapas (etapa_pai_id) WHERE etapa_pai_id IS NOT NULL;

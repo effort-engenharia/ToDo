@@ -1492,6 +1492,15 @@ Riscos **ainda abertos** (não corrigíveis só em arquivo): nenhuma migration f
 
 **Snapshot.** `supabase/schema/tables.sql` (49 tabelas) e `logic.sql` (80 funções com corpo resumido, triggers, policies e índices) foram regenerados pelo procedimento do README do schema, o aviso "DEFASADO" saiu e o grafo foi atualizado (`npm run graph:update`).
 
+### F.11 Compras como módulo próprio (migration 32 · `20261101_32_compras_modulo_proprio.sql`)
+
+- **Página:** nome `Compras`, rota **`compras`** (a antiga `execucao/compras` é renomeada in-place; deixa de existir).
+- **Permissões (`permissoes`):** nível `COMPRAS` → **só** `compras`. `Administrador` e `ADMIN_EXECUCAO` → `compras` além do que já tinham. Nenhuma permissão de COMPRAS a `execucao`, `execucao/pops`, `dashboard`, `apontamentos`, `arsenal`.
+- **Detecção no front:** `usuario.nivel_acesso.nome === 'COMPRAS'` (mesma fonte do login). Página inicial desse nível: `/compras`; qualquer outra rota protegida → redirecionar para `/compras`. Admins abrem `/compras` via `verificarPermissao(usuario.id, 'compras')`; a lista fixa do front deve trocar `execucao/compras` por `compras`.
+- **Dados:** inalterados. RLS/RPCs de Compras usam `current_nivel()` (`is_compras()`/`pode_ver_compras()`), não `permissoes`.
+- **Diagnóstico (sem acesso ao MCP; por código):** `paginas`/`permissoes`/`niveis_acesso` têm RLS desligado (legíveis). O front hardcoda COMPRAS em `execucao`, `execucao/compras`, `execucao/pops`, e a página/nível ficava no módulo Execução. Causas prováveis no usuário criado: (1) `usuarios.ativo = false` (cadastro pelo fluxo padrão nasce inativo, auth.js ~L224); (2) `auth_user_id` nulo/não vinculado (então `current_nivel()` devolve NULL e RLS nega tudo). Conferir: `SELECT u.email,u.ativo,u.auth_user_id,n.nome FROM usuarios u JOIN niveis_acesso n ON n.id=u.nivel_acesso_id WHERE n.nome='COMPRAS';`
+- **Rollback:** bloco `-- ROLLBACK:` da migration.
+
 ## Anexo G: Relatório de Performance P1–P3 (Especialista de Performance, 2026-11-01)
 
 > **Método e limite.** Sem banco: nada foi medido em Postgres (sem `EXPLAIN ANALYZE`, sem advisors). Os achados de SQL vêm da leitura das definições (EXPLAIN mental) e são **hipóteses a confirmar** com as consultas da seção G.4. As métricas de front são **medidas** com `npm run build` (Vite 7), antes e depois. Premissa de escala: tabelas de milhares de linhas, não milhões.

@@ -212,3 +212,75 @@
   .cmp-topbar-usuario-info { display: none; }
   .cmp-conteudo { padding: 1rem; }
 }
+
+/* ===== Cotação com fornecedores (F-07..F-15; Anexo B) ===== */
+/* Seleção múltipla na fila (B.3.1) */
+.cmp-selecionar { display: inline-flex; align-items: center; gap: 0.375rem; min-height: 44px; min-width: 44px; padding: 0 0.25rem; cursor: pointer; font-size: 0.8125rem; color: var(--text-secondary); }
+.cmp-selecionar input, .cmp-checkbox { width: 1.125rem; height: 1.125rem; accent-color: var(--compras-brand); cursor: pointer; }
+.cmp-selecionar-texto { display: none; }
+@media (min-width: 768px) { .cmp-selecionar-texto { display: inline; } .cmp-selecionar { min-height: 32px; } }
+.cmp-cartao-selecionado { border: 2px solid var(--compras-brand); background: var(--compras-brand-soft); }
+.cmp-barra-selecao {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; margin: 0; display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 0.75rem; padding: 0.75rem 1.5rem calc(0.75rem + env(safe-area-inset-bottom));
+}
+.cmp-barra-selecao ~ * { scroll-margin-bottom: 6rem; }
+
+/* Cabeçalho de seção e blocos */
+.cmp-secao-cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; }
+.cmp-bloco { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem; }
+.cmp-bloco > h3, .cmp-bloco-titulo { font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; }
+.cmp-texto-mudo { color: var(--text-muted); font-size: 0.8125rem; }
+.cmp-lista-limpa { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.cmp-linha { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.625rem 0.75rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.5rem; }
+.cmp-linha-proximo { border-color: var(--compras-brand); }
+
+/* Stepper do assistente (B.3.2) */
+.cmp-stepper { display: flex; gap: 0.5rem; list-style: none; margin: 0 0 1rem; padding: 0; flex-wrap: wrap; }
+.cmp-stepper li { font-size: 0.8125rem; color: var(--text-muted); padding: 0.25rem 0.625rem; border-radius: 9999px; border: 1px solid var(--border-color); }
+.cmp-stepper li[aria-current='step'] { color: var(--text-primary); border-color: var(--compras-brand); background: var(--compras-brand-soft); font-weight: 600; }
+.cmp-stepper li.cmp-passo-feito { color: var(--text-secondary); }
+.cmp-stepper-curto { display: none; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem; }
+@media (max-width: 639px) { .cmp-stepper { display: none; } .cmp-stepper-curto { display: block; } }
+.cmp-janela .cmp-rodape { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; margin-top: 1rem; }
+
+/* Campos compactos dentro de cartões */
+.cmp-campo { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.cmp-campo > label, .cmp-rotulo { font-size: 0.75rem; color: var(--text-muted); }
+.cmp-grade-campos { display: grid; gap: 0.75rem; grid-template-columns: 1fr; }
+@media (min-width: 768px) { .cmp-grade-campos { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Variação vs. referência (§8.6): cor + sinal + texto */
+.cmp-var-verde { color: #86efac; }
+.cmp-var-vermelho { color: #fca5a5; }
+.cmp-var-cinza { color: var(--text-muted); }
+.cmp-var-ambar { color: #fde68a; }
+
+/* Ranking (B.5.2) */
+.cmp-ranking { display: grid; gap: 0.75rem; grid-template-columns: 1fr; margin-bottom: 1rem; }
+@media (min-width: 1024px) { .cmp-ranking { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+.cmp-rank-cartao { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.875rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.cmp-rank-melhor { border: 2px solid var(--compras-brand); }
+.cmp-rank-valor { font-size: 1.5rem; font-weight: 700; line-height: 1.2; color: var(--text-primary); }
+
+/* Matriz itens × fornecedores (B.5.3) */
+.cmp-matriz-rolagem { overflow: auto; max-height: 70dvh; border: 1px solid var(--border-color); border-radius: 0.75rem; }
+.cmp-matriz { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 0.8125rem; }
+.cmp-matriz th, .cmp-matriz td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-color); vertical-align: top; text-align: left; background: var(--bg-card); }
+.cmp-matriz thead th { position: sticky; top: 0; z-index: 2; background: var(--bg-secondary); }
+.cmp-matriz tbody th[scope='row'], .cmp-matriz thead th:first-child { position: sticky; left: 0; z-index: 1; min-width: 12rem; max-width: 16rem; }
+.cmp-matriz thead th:first-child { z-index: 3; }
+.cmp-celula { min-width: 9rem; }
+.cmp-celula-menor { box-shadow: inset 0 0 0 2px #22c55e; }
+.cmp-celula-escolhida { background: var(--compras-brand-soft) !important; }
+.cmp-celula-esmaecida { opacity: 0.55; }
+.cmp-sem-oferta { color: var(--text-muted); font-style: italic; }
+
+/* Sparkline e histórico (B.7) */
+.cmp-spark { width: 100%; height: auto; max-height: 10rem; }
+.cmp-spark-linha { fill: none; stroke: var(--accent-blue); stroke-width: 2; }
+.cmp-spark-ref { stroke: var(--text-muted); stroke-dasharray: 4 4; stroke-width: 1; }
+
+/* KPIs de cotação (F-15) */
+.cmp-kpi-cotacao { margin-top: 1rem; }
+.cmp-kpi-sub { font-size: 0.8125rem; color: var(--text-secondary); margin-top: 0.5rem; }

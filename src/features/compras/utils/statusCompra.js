@@ -70,8 +70,14 @@ export const rotuloUrgencia = (urgencia) => {
 export const TIPOS_QUESTIONAMENTO = {
   substituicao: { rotulo: 'Substituição', emoji: '🔄' },
   quantidade: { rotulo: 'Quantidade', emoji: '🔢' },
+  adicao: { rotulo: 'Adição', emoji: '➕' },
   duvida: { rotulo: 'Dúvida', emoji: '❓' },
 };
+
+// Cotação (plano §10.2): só pedidos aguardando compra/em cotação e sem cotação ativa entram numa seleção. Limite de 30 por cotação.
+export const LIMITE_PEDIDOS_COTACAO = 30;
+export const pedidoSelecionavelParaCotacao = (p) =>
+  ['aguardando_compra', 'em_cotacao'].includes(p?.status_compra) && !p?.cotacao_ativa && !p?.sem_itens;
 
 export const ESTADOS_QUESTIONAMENTO = {
   aberto: { rotulo: 'Aberto', emoji: '🟣', classe: BADGE.purple },

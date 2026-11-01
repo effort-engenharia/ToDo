@@ -7,7 +7,7 @@ import { useExecucaoUI } from '../ui/ExecucaoUI';
 import CampoQuantidade from './CampoQuantidade';
 import IconeTemplate from './IconeTemplate';
 import ModalLargo from './ModalLargo';
-import { STATUS_ITENS_TRAVADOS } from '../compras/statusCompra';
+import { STATUS_ITENS_TRAVADOS } from '../../../compras/utils/statusCompra';
 import {
   UNIDADES,
   atualizarCampoItem,

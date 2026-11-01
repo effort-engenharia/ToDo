@@ -8,8 +8,7 @@ const ExecucaoHeader = ({
   subtitle,
   onMenuToggle,
   usuario,
-  isAdmin = false,
-  isCompras = false
+  isAdmin = false
 }) => {
   const hoje = useMemo(() => new Date().toLocaleDateString('pt-BR', {
     weekday: 'long',
@@ -42,7 +41,6 @@ const ExecucaoHeader = ({
         <NotificacoesDropdown 
           usuarioId={usuario?.id} 
           isAdmin={isAdmin}
-          isCompras={isCompras}
         />
       </div>
     </header>

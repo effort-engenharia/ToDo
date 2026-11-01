@@ -1,23 +1,29 @@
 import { useEffect, useRef } from 'react';
 
 // Navegação a partir das notificações de Compras (F18). Mantida fora de tecnico/navegacaoNotificacao.js (esse arquivo
-// é do fluxo do técnico). O pedido viaja:
-//  - para a página Compras: no hash (#/execucao/compras?pedido=ID&aba=conversa), lido pelo DashboardCompras;
+// é do fluxo do técnico). Compras é um módulo próprio (#/compras). O pedido viaja:
+//  - para o módulo Compras: no hash (#/compras?pedido=ID&aba=conversa), lido pelo DashboardCompras;
 //  - para o Pedido de Material (admin): por sessionStorage + evento, consumido pela tela de destino.
 const CHAVE = 'execucao:abrir-pedido';
 const EVENTO = 'execucao:abrir-pedido';
 const PREFIXO_HASH = '#/execucao';
+export const HASH_COMPRAS = '#/compras';
+
+// Hash do módulo Compras (inclui o legado #/execucao/compras, de quando Compras era página da Execução)
+export const hashEhCompras = (hash = window.location.hash) => /^#\/(execucao\/)?compras(?:[/?]|$)/.test(hash);
 
 export const TIPOS_NOTIFICACAO_COMPRAS = ['compra_questionamento', 'compra_resposta', 'compra_status'];
 
 export const ehNotificacaoCompras = (notif) => TIPOS_NOTIFICACAO_COMPRAS.includes(notif?.tipo);
 
 // Retorna { pagina, pedidoId, aba } ou null (notificação não é de Compras / perfil sem tela de pedido)
-export const destinoComprasDaNotificacao = (notif, { isAdmin = false, isCompras = false } = {}) => {
+// `noModuloCompras`: o sino está no módulo Compras, onde toda notificação de Compras abre o pedido no próprio módulo
+export const destinoComprasDaNotificacao = (notif, { isAdmin = false, isCompras = false, noModuloCompras = false } = {}) => {
   if (!ehNotificacaoCompras(notif)) return null;
   const pedidoId = notif?.referencia?.pedido_id ?? null;
   if (!pedidoId) return null;
   const aba = notif.tipo === 'compra_status' ? 'itens' : 'conversa';
+  if (noModuloCompras) return { pagina: 'compras', pedidoId, aba };
   // Compras sempre abre o drawer do pedido; o admin vê status no Dashboard de Compras e a conversa na gestão do pedido
   if (isCompras && !isAdmin) return { pagina: 'compras', pedidoId, aba };
   if (isAdmin) return { pagina: notif.tipo === 'compra_status' ? 'compras' : 'pedido-material', pedidoId, aba };
@@ -28,17 +34,23 @@ export const destinoComprasDaNotificacao = (notif, { isAdmin = false, isCompras 
 export const hashDoPedidoCompras = (pedidoId, aba = null) => {
   const params = new URLSearchParams({ pedido: pedidoId });
   if (aba) params.set('aba', aba);
-  return `${PREFIXO_HASH}/compras?${params.toString()}`;
+  return `${HASH_COMPRAS}?${params.toString()}`;
 };
 
 // Lê ?pedido=ID&aba=... do hash atual (ou null)
 export const pedidoDoHash = () => {
   const hash = window.location.hash;
   const i = hash.indexOf('?');
-  if (i < 0 || !hash.startsWith(`${PREFIXO_HASH}/compras`)) return null;
+  if (i < 0 || !hashEhCompras(hash)) return null;
   const params = new URLSearchParams(hash.slice(i + 1));
   const id = params.get('pedido');
   return id ? { id, aba: params.get('aba') } : null;
+};
+
+// Abre o módulo Compras (App escuta o popstate e troca de módulo)
+export const abrirModuloCompras = () => {
+  if (window.location.hash !== HASH_COMPRAS) window.history.pushState(null, '', HASH_COMPRAS);
+  window.dispatchEvent(new PopStateEvent('popstate'));
 };
 
 export const irParaPedido = ({ pagina, pedidoId, aba = null }) => {

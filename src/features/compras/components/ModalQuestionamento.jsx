@@ -1,11 +1,11 @@
 import React, { useId, useMemo, useState } from 'react';
-import { execucaoComprasService } from '../../../../services/supabase/execucaoCompras';
-import { useExecucaoUI } from '../ui/ExecucaoUI';
-import Modal from '../ui/Modal';
-import CampoQuantidade from '../pedido-material/CampoQuantidade';
-import { UNIDADES, normalizarQuantidade, quantidadeValida } from '../pedido-material/utils';
-import { TIPOS_QUESTIONAMENTO, itensPreenchidos, montarPrevia, rotuloItem } from './statusCompra';
-import './compras.css';
+import { execucaoComprasService } from '../../../services/supabase/execucaoCompras';
+import { useExecucaoUI } from '../../execucao/components/ui/ExecucaoUI';
+import Modal from '../../execucao/components/ui/Modal';
+import CampoQuantidade from '../../execucao/components/pedido-material/CampoQuantidade';
+import { UNIDADES, normalizarQuantidade, quantidadeValida } from '../../execucao/components/pedido-material/utils';
+import { TIPOS_QUESTIONAMENTO, itensPreenchidos, montarPrevia, rotuloItem } from '../utils/statusCompra';
+import '../styles/compras.css';
 
 const MAX_PERGUNTA = 500;
 const MIN_PERGUNTA = 5;

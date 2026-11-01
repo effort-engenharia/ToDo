@@ -6,8 +6,9 @@ import { ExecucaoUIProvider } from './ui/ExecucaoUI';
 import ErrorBoundary from './ui/ErrorBoundary';
 import { Carregando } from './ui/Estados';
 import AvisoSessao from './ui/AvisoSessao';
-import { isAdminExecucao, isCompras, paginaDeSeguranca, paginaInicial, paginaPermitida } from '../utils/permissoes';
+import { isAdminExecucao, paginaDeSeguranca, paginaInicial, paginaPermitida } from '../utils/permissoes';
 import { useBadgesMenu } from '../hooks/useBadgesMenu';
+import { abrirModuloCompras } from '../../compras/utils/navegacaoCompras';
 import '../styles/execucao.css';
 
 // Cada página vira um chunk separado: o técnico não baixa Planejamento (PDF/Excel), gráficos etc.
@@ -15,7 +16,6 @@ const ExecucaoHome = lazy(() => import('./ExecucaoHome'));
 const AtividadesDia = lazy(() => import('./AtividadesDia'));
 const AgendaBase = lazy(() => import('./AgendaBase'));
 const PedidoMaterial = lazy(() => import('./PedidoMaterial'));
-const DashboardCompras = lazy(() => import('./compras/DashboardCompras'));
 const DesempenhoIndividual = lazy(() => import('./DesempenhoIndividual'));
 const DesempenhoTime = lazy(() => import('./DesempenhoTime'));
 const PlanejamentoMacro = lazy(() => import('./PlanejamentoMacro'));
@@ -39,7 +39,6 @@ const pageTitles = {
   'home': 'Visão Geral',
   'atividades-dia': 'Atividades do Dia',
   'pedido-material': 'Pedido de Material',
-  'compras': 'Compras',
   'desempenho-individual': 'Desempenho Individual',
   'desempenho-time': 'Desempenho do Time',
   'planejamento-macro': 'Planejamento Macro',
@@ -57,8 +56,8 @@ const PAGINAS_VALIDAS = new Set(Object.keys(pageTitles));
 const PREFIXO_HASH = '#/execucao';
 
 // A página atual vive no hash (#/execucao/pops): sobrevive ao F5 e funciona com o botão "voltar".
-// Parâmetros depois de "?" (ex.: #/execucao/compras?pedido=ID) não fazem parte do nome da página.
-// Sem hash válido, abre a página inicial do perfil (técnico: "Meu Dia"; Compras: "Compras").
+// Parâmetros depois de "?" não fazem parte do nome da página.
+// Sem hash válido, abre a página inicial do perfil (técnico: "Meu Dia"). Compras é módulo próprio (#/compras).
 const paginaDoHash = (inicial = 'home') => {
   const pagina = window.location.hash.startsWith(PREFIXO_HASH)
     ? window.location.hash.slice(PREFIXO_HASH.length).replace(/^\//, '').split('?')[0]
@@ -69,17 +68,21 @@ const paginaDoHash = (inicial = 'home') => {
 const ExecucaoDashboard = ({ onVoltar }) => {
   const { usuario, logout } = useAuth();
   const isAdmin = isAdminExecucao(usuario);
-  const podeOperarCompras = isCompras(usuario);
   const inicial = paginaInicial(usuario);
   const [pagina, setPagina] = useState(() => paginaDoHash(inicial));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const badges = useBadgesMenu({ isAdmin, isCompras: podeOperarCompras, usuarioId: usuario?.id });
+  const badges = useBadgesMenu({ isAdmin });
 
-  // Cada perfil só acessa as próprias páginas (admin: todas; Compras: Compras e POPs; técnico: as dele);
-  // qualquer outra cai na página segura do perfil ("Compras" ou "Minhas Atividades")
+  // Cada perfil só acessa as próprias páginas (admin: todas; técnico: as dele);
+  // qualquer outra cai na página segura do perfil ("Minhas Atividades")
   const currentPage = paginaPermitida(usuario, pagina) ? pagina : paginaDeSeguranca(usuario);
 
   const navegar = useCallback((destino) => {
+    // Compras virou módulo próprio: o item do menu é só um atalho que o abre
+    if (destino === 'compras') {
+      abrirModuloCompras();
+      return;
+    }
     const alvo = PAGINAS_VALIDAS.has(destino) ? destino : inicial;
     setPagina(alvo);
     const hash = alvo === 'home' ? PREFIXO_HASH : `${PREFIXO_HASH}/${alvo}`;
@@ -111,8 +114,6 @@ const ExecucaoDashboard = ({ onVoltar }) => {
         return <AtividadesDia usuario={usuario} />;
       case 'pedido-material':
         return <PedidoMaterial usuario={usuario} isAdmin={isAdmin} />;
-      case 'compras':
-        return <DashboardCompras usuario={usuario} />;
       case 'desempenho-individual':
         return <DesempenhoIndividual usuario={usuario} />;
       case 'desempenho-time':
@@ -148,7 +149,6 @@ const ExecucaoDashboard = ({ onVoltar }) => {
             onPageChange={navegar}
             usuario={usuario}
             isAdmin={isAdmin}
-            isCompras={podeOperarCompras && !isAdmin}
             onLogout={handleLogout}
             isMobileOpen={isMobileMenuOpen}
             onCloseMobile={() => setIsMobileMenuOpen(false)}
@@ -161,7 +161,6 @@ const ExecucaoDashboard = ({ onVoltar }) => {
               onMenuToggle={() => setIsMobileMenuOpen((aberto) => !aberto)}
               usuario={usuario}
               isAdmin={isAdmin}
-              isCompras={podeOperarCompras && !isAdmin}
               onNavigate={navegar}
             />
 

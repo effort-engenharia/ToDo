@@ -18,7 +18,7 @@ import {
 import { execucaoService } from '../../../services/supabase/execucao';
 import { execucaoTecnicoService } from '../../../services/supabase/execucaoTecnico';
 import { destinoDaNotificacao, irParaDestino } from './tecnico/navegacaoNotificacao';
-import { destinoComprasDaNotificacao, irParaPedido } from './compras/navegacaoCompras';
+import { destinoComprasDaNotificacao, irParaPedido } from '../../compras/utils/navegacaoCompras';
 import '../styles/execucao.css';
 import { useAtualizacaoAoVivo } from '../hooks/useAtualizacaoAoVivo';
 import { EVENTO_BADGES } from '../hooks/useBadgesMenu';
@@ -79,7 +79,7 @@ const formatarTempoRelativo = (dataStr) => {
   return data.toLocaleDateString('pt-BR');
 };
 
-const NotificacoesDropdown = ({ usuarioId, isAdmin = false, isCompras = false }) => {
+const NotificacoesDropdown = ({ usuarioId, isAdmin = false, isCompras = false, noModuloCompras = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [notificacoes, setNotificacoes] = useState([]);
   const [contadorNaoLidas, setContadorNaoLidas] = useState(0);
@@ -216,10 +216,10 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false, isCompras = false })
         console.error('Erro ao marcar notificação como lida:', error);
       }
     }
-    // Notificações de Compras abrem o pedido certo (Compras → drawer; admin → conversa/Compras)
-    const destinoPedido = destinoComprasDaNotificacao(notif, { isAdmin, isCompras });
+    // Notificações de Compras abrem o pedido certo (módulo Compras → drawer; admin na Execução → conversa/módulo Compras)
+    const destinoPedido = destinoComprasDaNotificacao(notif, { isAdmin, isCompras, noModuloCompras });
     if (destinoPedido) irParaPedido(destinoPedido);
-    else irParaDestino(destinoDaNotificacao(notif, isAdmin));
+    else if (!noModuloCompras) irParaDestino(destinoDaNotificacao(notif, isAdmin));
   };
 
   const handleMarcarTodasLidas = async () => {

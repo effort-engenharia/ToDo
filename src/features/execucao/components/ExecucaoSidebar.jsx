@@ -31,7 +31,7 @@ const menuItemsAdmin = [
   { id: 'agenda-galpao', label: 'Agenda Galpão', icon: FaWarehouse, rota: 'execucao/agenda-galpao' },
   { id: 'agenda-gestao', label: 'Agenda Gestão', icon: FaClipboardList, rota: 'execucao/agenda-gestao' },
   { id: 'pedido-material', label: 'Pedido de Material', icon: FaBoxOpen, rota: 'execucao/pedido-material' },
-  { id: 'compras', label: 'Compras', icon: FaShoppingCart, rota: 'execucao/compras' },
+  { id: 'compras', label: 'Compras', icon: FaShoppingCart, rota: 'compras' }, // atalho: abre o módulo próprio de Compras
   { id: 'desempenho-individual', label: 'Desempenho Individual', icon: FaChartLine, rota: 'execucao/desempenho-individual' },
   { id: 'desempenho-time', label: 'Desempenho do Time', icon: FaUsers, rota: 'execucao/desempenho-time' },
   { id: 'planejamento-macro', label: 'Planejamento Macro', icon: FaProjectDiagram, rota: 'execucao/planejamento-macro' },
@@ -49,15 +49,9 @@ const menuItemsTecnico = [
   { id: 'pops', label: 'POPs', icon: FaBook, rota: 'execucao/pops' },
 ];
 
-const menuItemsCompras = [
-  { id: 'compras', label: 'Compras', icon: FaShoppingCart, rota: 'execucao/compras' },
-  { id: 'pops', label: 'POPs', icon: FaBook, rota: 'execucao/pops' },
-];
-
 // Texto lido pelo leitor de tela em cada selo do menu (D.6)
 const ROTULO_SELO = {
   'pedido-material': 'questionamento(s) aberto(s)',
-  compras: 'resposta(s) não lida(s)',
 };
 
 const ExecucaoSidebar = ({ 
@@ -65,13 +59,12 @@ const ExecucaoSidebar = ({
   onPageChange, 
   usuario, 
   isAdmin,
-  isCompras = false,
   onLogout,
   isMobileOpen,
   onCloseMobile,
   badges = {}
 }) => {
-  const menuItems = isAdmin ? menuItemsAdmin : isCompras ? menuItemsCompras : menuItemsTecnico;
+  const menuItems = isAdmin ? menuItemsAdmin : menuItemsTecnico;
 
   // Agrupar itens por seção
   const menuSections = isAdmin ? [
@@ -117,7 +110,6 @@ const ExecucaoSidebar = ({
   const getRoleName = () => {
     if (isAdminExecucao(usuario)) return 'Administrador';
     if (usuario?.nivel_acesso?.nome === NIVEIS.TECNICO) return 'Técnico';
-    if (usuario?.nivel_acesso?.nome === NIVEIS.COMPRAS) return 'Compras';
     return usuario?.nivel_acesso?.nome || 'Usuário';
   };
 

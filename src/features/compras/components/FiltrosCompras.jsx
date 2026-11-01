@@ -1,7 +1,7 @@
 import React, { useId, useState } from 'react';
 import { FaSearch } from 'react-icons/fa';
-import FiltroPeriodo from '../pedido-material/FiltroPeriodo';
-import { STATUS_COMPRA, URGENCIAS } from './statusCompra';
+import FiltroPeriodo from '../../execucao/components/pedido-material/FiltroPeriodo';
+import { STATUS_COMPRA, URGENCIAS } from '../utils/statusCompra';
 
 /**
  * Barra de filtros do Dashboard de Compras (Anexo D.2/D.3). Controlada pelo pai.

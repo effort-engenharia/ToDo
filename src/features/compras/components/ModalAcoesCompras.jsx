@@ -1,9 +1,9 @@
 import React, { useId, useState } from 'react';
-import { execucaoComprasService } from '../../../../services/supabase/execucaoCompras';
-import { useExecucaoUI } from '../ui/ExecucaoUI';
-import Modal from '../ui/Modal';
-import { STATUS_COMPRA, rotuloStatusCompra } from './statusCompra';
-import './compras.css';
+import { execucaoComprasService } from '../../../services/supabase/execucaoCompras';
+import { useExecucaoUI } from '../../execucao/components/ui/ExecucaoUI';
+import Modal from '../../execucao/components/ui/Modal';
+import { STATUS_COMPRA, rotuloStatusCompra } from '../utils/statusCompra';
+import '../styles/compras.css';
 
 const MIN_OBS = 3;
 

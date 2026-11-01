@@ -1,15 +1,15 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { execucaoComprasService } from '../../../../services/supabase/execucaoCompras';
-import { useAsyncData } from '../../hooks/useAsyncData';
-import { CONSULTA_ABAIXO_MD, useMediaQuery } from '../../hooks/useMediaQuery';
-import { formatarDataBR } from '../../utils/datas';
-import { isAdminExecucao, isCompras } from '../../utils/permissoes';
-import { useExecucaoUI } from '../ui/ExecucaoUI';
-import Modal from '../ui/Modal';
-import { ErroCarregamento } from '../ui/Estados';
-import ListaHistorico from '../pedido-material/ListaHistorico';
-import QuestionamentosPedido from '../pedido-material/QuestionamentosPedido';
-import { EVENTO_BADGES } from '../../hooks/useBadgesMenu';
+import { execucaoComprasService } from '../../../services/supabase/execucaoCompras';
+import { useAsyncData } from '../../execucao/hooks/useAsyncData';
+import { CONSULTA_ABAIXO_MD, useMediaQuery } from '../../execucao/hooks/useMediaQuery';
+import { formatarDataBR } from '../../execucao/utils/datas';
+import { isAdminExecucao, isCompras } from '../../execucao/utils/permissoes';
+import { useExecucaoUI } from '../../execucao/components/ui/ExecucaoUI';
+import Modal from '../../execucao/components/ui/Modal';
+import { ErroCarregamento } from '../../execucao/components/ui/Estados';
+import ListaHistorico from '../../execucao/components/pedido-material/ListaHistorico';
+import QuestionamentosPedido from '../../execucao/components/pedido-material/QuestionamentosPedido';
+import { EVENTO_BADGES } from '../../execucao/hooks/useBadgesMenu';
 import ModalQuestionamento from './ModalQuestionamento';
 import { ModalDisponibilidade, ModalStatusCompra } from './ModalAcoesCompras';
 import {
@@ -21,7 +21,7 @@ import {
   formatarDataHora,
   itensPreenchidos,
   rotuloStatusCompra,
-} from './statusCompra';
+} from '../utils/statusCompra';
 
 const ABAS = [
   { id: 'itens', rotulo: 'Itens' },

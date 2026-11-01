@@ -52,6 +52,16 @@ const periodo = await carregar(`${PM}/periodo.js`);
 const estado = await carregar('src/features/execucao/components/planejamento/estadoEtapa.js');
 const conclusao = await carregar('src/features/execucao/utils/conclusao.js');
 const compras = await carregar('src/features/compras/utils/statusCompra.js');
+const cmp = await carregar('src/features/compras/utils/cotacao/comparacao.js');
+const moeda = await carregar('src/features/compras/utils/cotacao/moeda.js');
+const norm = await carregar('src/features/compras/utils/cotacao/normalizacao.js');
+const msgWa = await carregar('src/features/compras/utils/cotacao/mensagemWhatsapp.js');
+const valResp = await carregar('src/features/compras/utils/cotacao/validacaoResposta.js');
+const adapt = await carregar('src/features/compras/utils/cotacao/adaptadores.js');
+const altLista = await carregar('src/features/compras/utils/alteracoesLista.js');
+const comparativo = await carregar('src/features/compras/utils/cotacao/comparativo.js');
+const histPrecos = await carregar('src/features/compras/utils/cotacao/historicoPrecos.js');
+const montagem = await carregar('src/features/compras/utils/cotacao/montagem.js');
 const texto = await carregar('src/components/ui/TextoFormatado.jsx');
 const React = (await import('react')).default;
 const { renderToStaticMarkup } = await import('react-dom/server');
@@ -511,5 +521,505 @@ describe('compras/statusCompra · vocabulário, transições e formatação pt-B
     assert.match(t, /1 dias atrasado/);
     assert.match(t, /1 questionamento/);
     assert.match(c.descricaoAcessivelDoPedido({ descricao: 'x', urgencia: 'normal', sem_itens: true }), /sem lista de itens/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cotação com fornecedores (PLANO_COTACAO_FORNECEDORES §8 e §15.1) · F-01
+describe('compras/cotacao · valor presente (VP-01..04)', () => {
+  const perto = (a, b, tol = 0.01) => assert.ok(Math.abs(a - b) <= tol, `${a} ≠ ${b}`);
+  it('VP-01 à vista 1.000 com 5% de desconto = 950,00', () => {
+    const r = cmp.valorPresente({ base: 1000, condicao: { tipo: 'a_vista', desconto_tipo: 'percentual', desconto_valor: 5 }, taxa: 0.015 });
+    perto(r.vp, 950); perto(r.total, 950);
+  });
+  it('à vista com desconto em valor nunca fica negativo', () => {
+    perto(cmp.valorPresente({ base: 100, condicao: { tipo: 'a_vista', desconto_tipo: 'valor', desconto_valor: 150 }, taxa: 0.01 }).vp, 0);
+  });
+  it('VP-02 parcelado 3x 1.000, 1ª em 30 d, i=1,5% ≈ 970,73', () => {
+    const r = cmp.valorPresente({ base: 1000, condicao: { tipo: 'parcelado', parcelas: 3, entrada_valor: 0, primeira_parcela_dias: 30 }, taxa: 0.015 });
+    perto(r.vp, 970.73); perto(r.total, 1000);
+  });
+  it('VP-03 entrada 100, 2x, 1ª em 0 d: entrada + parcela em d0 + parcela em d30', () => {
+    const r = cmp.valorPresente({ base: 1000, condicao: { tipo: 'parcelado', parcelas: 2, entrada_valor: 100, primeira_parcela_dias: 0 }, taxa: 0.015 });
+    perto(r.vp, 100 + 450 + 450 / 1.015);
+  });
+  it('VP-04 taxa 0: VP = nominal; total_informado substitui a base', () => {
+    const r = cmp.valorPresente({ base: 1000, condicao: { tipo: 'parcelado', parcelas: 4, total_informado: 1100, primeira_parcela_dias: 30 }, taxa: 0 });
+    perto(r.vp, 1100); perto(r.total, 1100);
+  });
+});
+
+// Fixtures: linhas e respostas simples (preço por linha)
+const L = (...qtds) => qtds.map((q, i) => ({ id: `l${i + 1}`, quantidade: q }));
+const R = (id, precos, extra = {}) => ({
+  convite_id: id, fornecedor_id: id, empresa: id, versao_lista: 1, recusou: false,
+  itens: precos.map((p, i) => ({ id: `l${i + 1}`, tem_item: p != null, preco_unitario: p ?? null, quantidade_disponivel: null })),
+  condicoes: [{ tipo: 'a_vista', desconto_tipo: null }], prazo_entrega_dias: 5, frete_tipo: 'cif', frete_valor: 0,
+  respondido_em: '2026-11-01T10:00:00Z', compras_anteriores: 0, ...extra
+});
+const OPC = { taxa_mensal: 0.015, empate_pct: 0.01 };
+const rank = (resps, linhas) => cmp.rankingGlobal(cmp.montarCandidatos(resps, linhas, OPC), OPC);
+
+describe('compras/cotacao · cobertura (CB-01..02)', () => {
+  it('CB-01 quantidade disponível menor que a pedida = linha não atendida para completude', () => {
+    const resp = R('A', [10]); resp.itens[0].quantidade_disponivel = 50;
+    const c = cmp.coberturaResposta(L(100), resp);
+    assert.equal(c.porLinha.l1, 'parcial'); assert.equal(c.completa, false);
+    assert.equal(cmp.totaisCondicao(resp, resp.condicoes[0], L(100), 0).base, 500); // base usa a quantidade disponível
+  });
+  it('CB-02 resposta na lista v1 com linha alterada na v2: linha não cotada e resposta defasada', () => {
+    const linhas = [{ id: 'l1', quantidade: 1, versao_alterada: 1 }, { id: 'l2', quantidade: 1, versao_alterada: 2 }];
+    const c = cmp.coberturaResposta(linhas, R('A', [10, 10]));
+    assert.equal(c.porLinha.l2, 'nao_cotada'); assert.equal(c.defasada, true); assert.equal(c.completa, false);
+    assert.equal(c.versao_lista_respondida, 1);
+  });
+});
+
+describe('compras/cotacao · ranking, empate e parciais (RK-01..04)', () => {
+  it('RK-01 três completas 1000/1005/1100, empate 1%: 1º e 2º empatam; desempate pelo prazo', () => {
+    const r = rank([R('A', [1000], { prazo_entrega_dias: 10 }), R('B', [1005], { prazo_entrega_dias: 3 }), R('C', [1100])], L(1));
+    assert.equal(r.modo, 'completo'); assert.equal(r.empatados, true);
+    assert.equal(r.criterioDesempate, 'prazo_entrega');
+    assert.deepEqual(r.ordenados.map((c) => c.empresa), ['B', 'A', 'C']);
+    assert.equal(r.melhor.empresa, 'B');
+    assert.equal(Math.round(r.deltaMaisCara.valor), 95);
+  });
+  it('sem empate quando a diferença é ≥ 1%', () => {
+    const r = rank([R('A', [1000]), R('B', [1010], { prazo_entrega_dias: 1 })], L(1));
+    assert.equal(r.empatados, false); assert.equal(r.melhor.empresa, 'A');
+    assert.ok(Math.abs(r.deltaSegundo.pct - 0.01) < 1e-9);
+  });
+  it('RK-02 completa 1200 vence parcial 900; parcial traz "cobre X de Y"', () => {
+    const r = rank([R('A', [1200, 1200]), R('P', [900, null])], L(1, 1));
+    assert.equal(r.melhor.empresa, 'A');
+    const p = r.ordenados[1];
+    assert.equal(p.empresa, 'P'); assert.equal(p.linhas_atendidas, 1); assert.equal(p.total_linhas, 2);
+  });
+  it('RK-03 só parciais: melhor parcial = maior cobertura', () => {
+    const r = rank([R('A', [10, null, null]), R('B', [50, 50, null]), R('C', [1, null, null])], L(1, 1, 1));
+    assert.equal(r.modo, 'parcial'); assert.equal(r.melhor.empresa, 'B');
+  });
+  it('RK-04 desempate em cascata: prazo → CIF → compras anteriores → respondido_em', () => {
+    const base = { prazo_entrega_dias: 5, frete_tipo: 'cif', compras_anteriores: 0 };
+    const ids = (resps) => rank(resps, L(1)).ordenados.map((c) => c.empresa);
+    // prazo decide
+    let r = rank([R('A', [100], { ...base, prazo_entrega_dias: 7 }), R('B', [100], { ...base, prazo_entrega_dias: 2 })], L(1));
+    assert.equal(r.criterioDesempate, 'prazo_entrega'); assert.equal(r.melhor.empresa, 'B');
+    // mesmo prazo → CIF
+    r = rank([R('A', [100], { ...base, frete_tipo: 'valor', frete_valor: 0 }), R('B', [100], base)], L(1));
+    assert.equal(r.criterioDesempate, 'frete_cif'); assert.equal(r.melhor.empresa, 'B');
+    // → compras anteriores
+    r = rank([R('A', [100], { ...base, compras_anteriores: 1 }), R('B', [100], { ...base, compras_anteriores: 4 })], L(1));
+    assert.equal(r.criterioDesempate, 'compras_anteriores'); assert.equal(r.melhor.empresa, 'B');
+    // → respondido_em
+    r = rank([R('A', [100], { ...base, respondido_em: '2026-11-01T12:00:00Z' }), R('B', [100], { ...base, respondido_em: '2026-11-01T09:00:00Z' })], L(1));
+    assert.equal(r.criterioDesempate, 'respondido_em'); assert.equal(r.melhor.empresa, 'B');
+    assert.deepEqual(ids([R('A', [100], base)]), ['A']);
+  });
+  it('frete em valor entra no VP e recusas/sem itens ficam fora; melhor condição por fornecedor com alternativa', () => {
+    const a = R('A', [100], { frete_tipo: 'valor', frete_valor: 20 });
+    a.condicoes = [{ tipo: 'a_vista', desconto_tipo: null }, { tipo: 'parcelado', parcelas: 3, primeira_parcela_dias: 30 }];
+    const r = rank([a, R('Z', [1], { recusou: true })], L(1));
+    assert.equal(r.ordenados.length, 1);
+    assert.equal(r.melhor.tipo, 'parcelado'); assert.ok(r.melhor.vp_total < 120 && r.melhor.vp_total > 110); // frete de 20 somado
+    assert.equal(r.melhor.alternativas[0].vp_total, 120);
+    assert.equal(r.melhor.alternativas.length, 1);
+  });
+});
+
+describe('compras/cotacao · compra dividida (DV-01..04)', () => {
+  const linhas = L(10, 10);
+  it('DV-01 A barato no item 1, B barato no item 2, fretes 0: divide A+B com economia', () => {
+    const d = cmp.combinacaoDividida([R('A', [10, 30]), R('B', [30, 10])], linhas, OPC);
+    assert.equal(d.mostrar, true); assert.equal(d.fornecedores.length, 2);
+    assert.equal(d.custo, 200); assert.equal(d.vp_unico, 400); assert.equal(d.economia, 200);
+    assert.deepEqual(d.atribuicoes.map((a) => a.empresa), ['A', 'B']);
+  });
+  it('DV-02 frete de B maior que o ganho: divisão não mostrada', () => {
+    const d = cmp.combinacaoDividida([R('A', [10, 12]), R('B', [30, 10], { frete_tipo: 'valor', frete_valor: 500 })], linhas, OPC);
+    assert.equal(d.mostrar, false);
+  });
+  it('DV-03 nenhum único completo, A∪B cobre tudo: "única forma de cobrir tudo"', () => {
+    const d = cmp.combinacaoDividida([R('A', [10, null]), R('B', [null, 10])], linhas, OPC);
+    assert.equal(d.mostrar, true); assert.equal(d.unica_forma_de_cobrir, true); assert.equal(d.vp_unico, null);
+  });
+  it('DV-04 M=13 usa a heurística gulosa e termina rápido', () => {
+    const resps = Array.from({ length: 13 }, (_, i) => R(`F${i}`, Array.from({ length: 200 }, (__, j) => 100 + ((i * 7 + j * 3) % 17))));
+    const t0 = Date.now();
+    const d = cmp.combinacaoDividida(resps, L(...Array(200).fill(1)), OPC);
+    assert.equal(d.modo, 'guloso'); assert.ok(d.cobre_tudo);
+    assert.ok(Date.now() - t0 < 1500, 'guloso demorou demais');
+  });
+  it('M=12 com 200 linhas fica abaixo do orçamento (sanidade) e é exaustivo', () => {
+    const resps = Array.from({ length: 12 }, (_, i) => R(`F${i}`, Array.from({ length: 200 }, (__, j) => 100 + ((i * 7 + j * 3) % 17))));
+    const t0 = Date.now();
+    const d = cmp.combinacaoDividida(resps, L(...Array(200).fill(1)), OPC);
+    assert.equal(d.modo, 'exaustivo');
+    assert.ok(Date.now() - t0 < 5000, 'exaustivo demorou demais para o Node');
+  });
+  it('aviso N3 quando um fornecedor usado tem desconto em R$', () => {
+    const a = R('A', [10, 30]); a.condicoes = [{ tipo: 'a_vista', desconto_tipo: 'valor', desconto_valor: 5 }];
+    const d = cmp.combinacaoDividida([a, R('B', [30, 10])], linhas, OPC);
+    assert.equal(d.aviso_desconto_valor, true);
+  });
+});
+
+describe('compras/cotacao · variação vs. referência (VR-01..03)', () => {
+  const ref = { media_janela: 10, n_janela: 4, n_total: 4, fora_janela: false, ultimo: { preco_vp: 9.5, quantidade: 20 }, menor: { preco_vp: 9 } };
+  it('VR-01 ref 10,00 e preço 11,30: +1,30 / +13,0%, vermelho, alerta', () => {
+    const v = cmp.variacaoReferencia({ precoVp: 11.3, referencia: ref });
+    assert.equal(v.cor, 'vermelho'); assert.equal(v.alerta, true);
+    assert.equal(v.texto, 'R$ 11,30 (+R$ 1,30 / +13,0% vs. média)');
+    assert.equal(v.detalhe.quantidadeReferencia, 20);
+  });
+  it('VR-02 ref 10,00 e preço 10,15: cinza (dentro de ±2%), sem alerta', () => {
+    const v = cmp.variacaoReferencia({ precoVp: 10.15, referencia: ref });
+    assert.equal(v.cor, 'cinza'); assert.equal(v.alerta, false);
+  });
+  it('abaixo da média fica verde; referência fora da janela é marcada como antiga', () => {
+    assert.equal(cmp.variacaoReferencia({ precoVp: 8, referencia: ref }).cor, 'verde');
+    assert.equal(cmp.variacaoReferencia({ precoVp: 8, referencia: { ...ref, n_janela: 0, fora_janela: true } }).antiga, true);
+  });
+  it('VR-03 sem referência: "primeiro registro"; sem material: "confirme o material"', () => {
+    assert.equal(cmp.variacaoReferencia({ precoVp: 5, referencia: null }).texto, 'primeiro registro');
+    assert.match(cmp.variacaoReferencia({ precoVp: 5, referencia: ref, materialId: null }).texto, /confirme o material/);
+  });
+  it('variação por cotação: economia ou acima da referência', () => {
+    assert.match(cmp.variacaoTotalCotacao([{ ref: 10, quantidade: 10, preco_vp: 9 }]).texto, /^economia de R\$ 10,00 \(−10,0%\)$/);
+    assert.match(cmp.variacaoTotalCotacao([{ ref: 10, quantidade: 10, preco_vp: 11 }]).texto, /^acima da referência em R\$ 10,00 \(\+10,0%\)$/);
+    assert.equal(cmp.variacaoTotalCotacao([{ ref: null, quantidade: 1, preco_vp: 1 }]), null);
+  });
+});
+
+describe('compras/cotacao · moeda, normalização e mensagem (NM-01, MS-01)', () => {
+  it('formatarBRL / parseBRL / arredondar half-up', () => {
+    assert.equal(moeda.formatarBRL(1234.5), 'R$ 1.234,50');
+    assert.equal(moeda.formatarBRL(12.3456, 4), 'R$ 12,3456');
+    assert.equal(moeda.formatarBRL(null), '—');
+    assert.equal(moeda.parseBRL('R$ 1.234,56'), 1234.56);
+    assert.equal(moeda.parseBRL('12,5'), 12.5);
+    assert.equal(moeda.parseBRL('12.5'), 12.5);
+    assert.equal(moeda.parseBRL('1.234'), 1234);
+    assert.equal(moeda.parseBRL('abc'), null);
+    assert.equal(moeda.arredondar(1.005, 2), 1.01);
+    assert.equal(moeda.arredondar(2.675, 2), 2.68);
+  });
+  it('NM-01 nomes equivalentes normalizam igual; unidades seguem a tabela fixa do SQL', () => {
+    assert.equal(norm.normalizarNome('Cabo  Flexível 2,5mm'), norm.normalizarNome('cabo flexivel 2,5mm'));
+    assert.equal(norm.normalizarNome('Tubo ½" (PVC)'), 'tubo pvc');
+    const mapa = { UN: 'un', und: 'un', Unid: 'un', unidade: 'un', pc: 'un', 'peça': 'un', peca: 'un', MT: 'm', metros: 'm', Caixa: 'cx', pacote: 'pct',
+      kg: 'kg', LT: 'l', litro: 'l', 'm²': 'm2', m2: 'm2', 'm³': 'm3', rolo: 'rolo', barra: 'barra', saco: 'saco', galao: 'galao', ' Par ': 'par' };
+    Object.entries(mapa).forEach(([entrada, saida]) => assert.equal(norm.normalizarUnidade(entrada), saida, entrada));
+    assert.equal(norm.chaveConsolidacao({ material_id: 'x', nome: 'a', unidade: 'm' }), 'mat:x');
+    assert.equal(norm.chaveConsolidacao({ nome: 'Cabo Flexível', unidade: 'Metros' }), 'cabo flexivel|m');
+  });
+  it('MS-01 montarMensagem preenche todos os placeholders; urlWhatsapp codifica #, & e acentos', () => {
+    const t = 'Olá {contato}, aqui é da {empresa_publica}. Cotação nº {numero} com {qtd_itens} itens: {link} . Prazo: {prazo}.';
+    const m = msgWa.montarMensagem(t, { contato: 'João', empresa_publica: 'Effort', numero: 7, qtd_itens: 3, link: 'https://x.app/cotacao/#abc_-', prazo: 'qui 03/11 18:00' });
+    assert.equal(m, 'Olá João, aqui é da Effort. Cotação nº 7 com 3 itens: https://x.app/cotacao/#abc_- . Prazo: qui 03/11 18:00.');
+    const url = msgWa.urlWhatsapp('5541999998888', m);
+    assert.ok(url.startsWith('https://wa.me/5541999998888?text='));
+    const q = url.split('?text=')[1];
+    assert.ok(!/[#&\s]/.test(q)); assert.equal(decodeURIComponent(q), m);
+    assert.equal(msgWa.urlWhatsapp('123', 'x'), '');
+    assert.equal(msgWa.montarMensagem('Oi {nada}!', {}), 'Oi !');
+  });
+});
+
+describe('compras/cotacao · validarResposta (VL-01..10)', () => {
+  const itens = [{ id: 'a', quantidade: 10 }, { id: 'b', quantidade: 5 }];
+  const ok = () => ({
+    recusou: false,
+    itens: [{ id: 'a', tem_item: true, preco_unitario: 10 }, { id: 'b', tem_item: false }],
+    condicoes: [{ tipo: 'a_vista', desconto_tipo: null }],
+    prazo_entrega_dias: 5, frete: { tipo: 'cif' }, observacao: ''
+  });
+  const campos = (r) => valResp.validarResposta(itens, r).erros.map((e) => e.campo);
+  it('resposta válida passa; recusa dispensa o resto', () => {
+    assert.deepEqual(valResp.validarResposta(itens, ok()), { ok: true, erros: [] });
+    assert.equal(valResp.validarResposta(itens, { recusou: true }).ok, true);
+  });
+  it('VL-01..02 preço 0 e negativo', () => {
+    let r = ok(); r.itens[0].preco_unitario = 0; assert.deepEqual(campos(r), ['itens[0].preco_unitario']);
+    r = ok(); r.itens[0].preco_unitario = -3; assert.deepEqual(campos(r), ['itens[0].preco_unitario']);
+  });
+  it('VL-03 mais de 4 casas decimais', () => {
+    const r = ok(); r.itens[0].preco_unitario = 1.12345; assert.deepEqual(campos(r), ['itens[0].preco_unitario']);
+    r.itens[0].preco_unitario = 1.1234; assert.deepEqual(campos(r), []);
+  });
+  it('VL-04 "tenho" sem preço', () => {
+    const r = ok(); r.itens[0].preco_unitario = null; assert.deepEqual(campos(r), ['itens[0].preco_unitario']);
+  });
+  it('nenhuma linha com tem_item exige recusa', () => {
+    const r = ok(); r.itens[0].tem_item = false; assert.ok(campos(r).includes('itens'));
+  });
+  it('VL-05..06 sem condição e duas do mesmo tipo', () => {
+    let r = ok(); r.condicoes = []; assert.deepEqual(campos(r), ['condicoes']);
+    r = ok(); r.condicoes = [{ tipo: 'a_vista' }, { tipo: 'a_vista' }]; assert.deepEqual(campos(r), ['condicoes']);
+  });
+  it('VL-07 parcelas 25', () => {
+    const r = ok(); r.condicoes = [{ tipo: 'parcelado', parcelas: 25, entrada_valor: 0, primeira_parcela_dias: 30 }];
+    assert.deepEqual(campos(r), ['condicoes[0].parcelas']);
+  });
+  it('VL-08..09 prazo e frete ausentes', () => {
+    let r = ok(); delete r.prazo_entrega_dias; assert.deepEqual(campos(r), ['prazo_entrega_dias']);
+    r = ok(); delete r.frete; assert.deepEqual(campos(r), ['frete.tipo']);
+    r = ok(); r.frete = { tipo: 'valor' }; assert.deepEqual(campos(r), ['frete.valor']);
+  });
+  it('VL-10 observação com 1001 caracteres', () => {
+    const r = ok(); r.observacao = 'x'.repeat(1001); assert.deepEqual(campos(r), ['observacao']);
+    r.observacao = 'x'.repeat(1000); assert.deepEqual(campos(r), []);
+  });
+  it('limites: desconto % > 50, entrada > total, itens faltando', () => {
+    let r = ok(); r.condicoes = [{ tipo: 'a_vista', desconto_tipo: 'percentual', desconto_valor: 51 }];
+    assert.deepEqual(campos(r), ['condicoes[0].desconto_valor']);
+    r = ok(); r.condicoes = [{ tipo: 'parcelado', parcelas: 2, entrada_valor: 500, primeira_parcela_dias: 30 }];
+    assert.deepEqual(campos(r), ['condicoes[0].entrada_valor']);
+    r = ok(); r.itens = r.itens.slice(0, 1); assert.ok(campos(r).includes('itens'));
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// adaptadores.js: contrato do banco (Anexo C) ⇄ modelo dos helpers
+// ---------------------------------------------------------------------------------------------------------------------
+describe('adaptadores (cotação)', () => {
+  it('respostaParaPayloadPublico: total_informado vira total; desconto só quando há tipo; recusa não leva itens', () => {
+    const p = adapt.respostaParaPayloadPublico({
+      versao_lista: 2, prazo_entrega_dias: 5, frete: { tipo: 'valor', valor: 120 }, observacao: 'ok',
+      itens: [
+        { cotacao_item_id: 'a', tem_item: true, preco_unitario: 4.35, quantidade_disponivel: null },
+        { id: 'b', tem_item: false }
+      ],
+      condicoes: [
+        { tipo: 'a_vista', desconto_tipo: null, desconto_valor: 3 },
+        { tipo: 'parcelado', parcelas: 3, entrada_valor: 0, primeira_parcela_dias: 30, total_informado: 900 }
+      ]
+    });
+    assert.equal(p.versao_lista, 2);
+    assert.deepEqual(p.frete, { tipo: 'valor', valor: 120 });
+    assert.deepEqual(p.itens[0], { id: 'a', tem_item: true, preco_unitario: 4.35 });
+    assert.deepEqual(p.itens[1], { id: 'b', tem_item: false });
+    assert.deepEqual(p.condicoes[0], { tipo: 'a_vista' });
+    assert.equal(p.condicoes[1].total, 900);
+    assert.equal('total_informado' in p.condicoes[1], false);
+    const rec = adapt.respostaParaPayloadPublico({ versao_lista: 1, recusou: true, observacao: 'sem estoque', itens: [{ id: 'x', tem_item: true }] });
+    assert.deepEqual(rec, { versao_lista: 1, recusou: true, observacao: 'sem estoque' });
+  });
+  it('respostaParaPayloadPublico: frete sem tipo valor vira CIF', () => {
+    const p = adapt.respostaParaPayloadPublico({ versao_lista: 1, prazo_entrega_dias: 1, frete: { tipo: 'cif', valor: 50 }, itens: [], condicoes: [] });
+    assert.deepEqual(p.frete, { tipo: 'cif' });
+  });
+  it('respostaPublicaParaModelo: total → total_informado e frete derivado de frete_tipo/frete_valor', () => {
+    assert.equal(adapt.respostaPublicaParaModelo(null), null);
+    const m = adapt.respostaPublicaParaModelo({ frete_tipo: 'valor', frete_valor: 80, condicoes: [{ tipo: 'parcelado', parcelas: 2, total: 500 }, { tipo: 'a_vista' }] });
+    assert.deepEqual(m.frete, { tipo: 'valor', valor: 80 });
+    assert.equal(m.condicoes[0].total_informado, 500);
+    assert.equal('total' in m.condicoes[0], false);
+    assert.equal(m.condicoes[1].total_informado, null);
+  });
+  it('respostasDoDetalhe: junta fornecedor/empresa/compras_anteriores do convite; linhasAtivasDoDetalhe ignora inativas', () => {
+    const detalhe = {
+      convites: [{ id: 'c1', fornecedor_id: 'f1', compras_anteriores: 3, fornecedor: { empresa: 'Elétrica X', nome_contato: 'João' } }],
+      respostas_atuais: [{ convite_id: 'c1', enviado_em: '2026-11-02T10:00:00Z', condicoes: [] }, { convite_id: 'zz', condicoes: [] }],
+      itens: [{ id: 'l1', ativo: true }, { id: 'l2', ativo: false }, { id: 'l3' }]
+    };
+    const rs = adapt.respostasDoDetalhe(detalhe);
+    assert.equal(rs[0].fornecedor_id, 'f1');
+    assert.equal(rs[0].empresa, 'Elétrica X');
+    assert.equal(rs[0].compras_anteriores, 3);
+    assert.equal(rs[0].respondido_em, '2026-11-02T10:00:00Z');
+    assert.equal(rs[1].compras_anteriores, 0);
+    assert.deepEqual(adapt.linhasAtivasDoDetalhe(detalhe).map((l) => l.id), ['l1', 'l3']);
+    assert.deepEqual(adapt.respostasDoDetalhe(null), []);
+  });
+  it('varsMensagem + montarMensagem aceitam {empresa_publica} e o legado {empresa}', () => {
+    const v = adapt.varsMensagem({ contato: 'Ana', empresaPublica: 'Effort', numero: 7, qtdItens: 3, link: 'https://x/cotacao/#t', prazo: 'qui 03/11 18:00' });
+    assert.equal(msgWa.montarMensagem('Olá {contato}, da {empresa_publica}/{empresa}. Cotação {numero}: {link}.', v), 'Olá Ana, da Effort/Effort. Cotação 7: https://x/cotacao/#t .');
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// alteracoesLista.js: classificação ciência × aceite (AL-01), espelho de compras_alterar_itens
+// ---------------------------------------------------------------------------------------------------------------------
+describe('classificação de alterações (AL-01)', () => {
+  const cabo = { id: 'i1', nome: 'Cabo flexível 2,5 mm', quantidade: 300, unidade: 'm' };
+  const disj = { id: 'i2', nome: 'Disjuntor 63A', quantidade: 10, unidade: 'un' };
+  const c = (item, alt) => altLista.classificarAlteracao(item, alt);
+
+  it('AL-01a redução de quantidade = ciência; un/cx/pct arredondam para cima', () => {
+    const r = c(cabo, { acao: 'quantidade', itemId: 'i1', quantidade: 250 });
+    assert.equal(r.classe, 'ciencia');
+    assert.match(r.resumo, /300 → 250 m/);
+    const u = c(disj, { acao: 'quantidade', itemId: 'i2', quantidade: 7.2 });
+    assert.equal(u.classe, 'ciencia');
+    assert.match(u.resumo, /10 → 8 un/);
+  });
+  it('AL-01b aumento de quantidade = aceite (tipo quantidade); igual = inválida', () => {
+    const r = c(cabo, { acao: 'quantidade', itemId: 'i1', quantidade: 400 });
+    assert.equal(r.classe, 'aceite');
+    assert.equal(r.tipo, 'quantidade');
+    assert.equal(c(cabo, { acao: 'quantidade', itemId: 'i1', quantidade: 300 }).classe, 'invalida');
+    assert.equal(c(cabo, { acao: 'quantidade', itemId: 'i1', quantidade: 0 }).classe, 'invalida');
+    assert.equal(c(cabo, { acao: 'quantidade', itemId: 'i1', quantidade: '1.250,5' }).classe, 'aceite');
+  });
+  it('AL-01b2 aumento fracionário em un/cx/pct mostra o valor já arredondado (aprovação arredonda para cima)', () => {
+    const r = c(disj, { acao: 'quantidade', itemId: 'i2', quantidade: 12.2 });
+    assert.equal(r.classe, 'aceite');
+    assert.equal(r.quantidadeFinal, 13);
+    assert.match(r.resumo, /10 → 13 un/);
+    const m = c(cabo, { acao: 'quantidade', itemId: 'i1', quantidade: 300.5 });
+    assert.equal(m.quantidadeFinal, 300.5);
+    assert.match(c(null, { acao: 'adicionar', nome: 'Fita', quantidade: 2.1, unidade: 'un' }).resumo, /3 un/);
+  });
+  it('AL-01c remover = ciência', () => {
+    assert.equal(c(cabo, { acao: 'remover', itemId: 'i1' }).classe, 'ciencia');
+  });
+  it('AL-01d substituir e adicionar = aceite (substituicao/adicao)', () => {
+    const s = c(cabo, { acao: 'substituir', itemId: 'i1', nome: 'Cabo rígido 2,5 mm' });
+    assert.deepEqual([s.classe, s.tipo], ['aceite', 'substituicao']);
+    assert.equal(c(cabo, { acao: 'substituir', itemId: 'i1', nome: '  ' }).classe, 'invalida');
+    const a = c(null, { acao: 'adicionar', nome: 'Fita isolante', quantidade: 5, unidade: 'un' });
+    assert.deepEqual([a.classe, a.tipo], ['aceite', 'adicao']);
+    assert.equal(c(null, { acao: 'adicionar', nome: 'Fita', quantidade: 5 }).classe, 'invalida'); // sem unidade
+    assert.equal(c(null, { acao: 'adicionar', nome: 'Fita', unidade: 'un' }).classe, 'invalida'); // sem quantidade
+  });
+  it('AL-01e corrigir: grafia (acento/caixa/trigrama ≥ 0,6) e unidade sinônima = ciência', () => {
+    assert.equal(c(cabo, { acao: 'corrigir', itemId: 'i1', nome: 'CABO FLEXIVEL 2,5 MM' }).classe, 'ciencia');
+    assert.equal(c(cabo, { acao: 'corrigir', itemId: 'i1', nome: 'Cabo flexivel 2,5 mmm' }).classe, 'ciencia');
+    assert.equal(c(cabo, { acao: 'corrigir', itemId: 'i1', unidade: 'metro' }).classe, 'ciencia');
+    assert.equal(c(disj, { acao: 'corrigir', itemId: 'i2', unidade: 'und' }).classe, 'ciencia');
+  });
+  it('AL-01f corrigir que muda o item (nome distinto ou unidade não sinônima) = inválida com sugestão de Substituir', () => {
+    const n = c(cabo, { acao: 'corrigir', itemId: 'i1', nome: 'Eletroduto corrugado 25 mm' });
+    assert.equal(n.classe, 'invalida');
+    assert.equal(n.sugerirSubstituir, true);
+    const u = c(cabo, { acao: 'corrigir', itemId: 'i1', unidade: 'kg' });
+    assert.equal(u.classe, 'invalida');
+    assert.equal(u.sugerirSubstituir, true);
+    assert.equal(c(cabo, { acao: 'corrigir', itemId: 'i1' }).classe, 'invalida');
+    assert.equal(c(cabo, { acao: 'corrigir', itemId: 'i1', nome: cabo.nome }).classe, 'invalida'); // não muda nada
+  });
+  it('ação inválida e item inexistente', () => {
+    assert.equal(c(cabo, { acao: 'trocar' }).classe, 'invalida');
+    assert.equal(c(null, { acao: 'remover', itemId: 'zz' }).classe, 'invalida');
+  });
+  it('similaridade (aprox. pg_trgm): idênticos 1, disjuntos 0, grafia próxima ≥ 0,6', () => {
+    assert.equal(altLista.similaridade('abc', 'abc'), 1);
+    assert.equal(altLista.similaridade('abc', 'xyz'), 0);
+    assert.ok(altLista.similaridade('disjuntor 63a', 'disjuntor 63 a') >= altLista.LIMITE_SIMILARIDADE_CORRECAO);
+    assert.ok(altLista.similaridade('cabo flexivel', 'tomada dupla') < altLista.LIMITE_SIMILARIDADE_CORRECAO);
+  });
+  it('classificarLote separa as duas listas, barra item repetido e detecta lista vazia', () => {
+    const lote = altLista.classificarLote([cabo, disj], [
+      { acao: 'quantidade', itemId: 'i1', quantidade: 250 },
+      { acao: 'quantidade', itemId: 'i2', quantidade: 20 },
+      { acao: 'adicionar', nome: 'Fita', quantidade: 5, unidade: 'un' },
+      { acao: 'remover', itemId: 'i1' }
+    ]);
+    assert.equal(lote.ciencia.length, 1);
+    assert.equal(lote.aceite.length, 2);
+    assert.equal(lote.invalidas.length, 1); // i1 repetido
+    assert.equal(lote.soAceites, false);
+    const vazio = altLista.classificarLote([cabo, disj], [{ acao: 'remover', itemId: 'i1' }, { acao: 'remover', itemId: 'i2' }]);
+    assert.equal(vazio.ficaVazia, true);
+    const comAdicao = altLista.classificarLote([cabo], [{ acao: 'remover', itemId: 'i1' }, { acao: 'adicionar', nome: 'X', quantidade: 1, unidade: 'un' }]);
+    assert.equal(comAdicao.ficaVazia, false);
+    assert.equal(altLista.classificarLote([cabo], [{ acao: 'quantidade', itemId: 'i1', quantidade: 999 }]).soAceites, true);
+  });
+  it('resumoResultado e podeAlterarItens', () => {
+    assert.equal(altLista.resumoResultado({ aplicadas: [1, 2, 3], pendentes_aceite: [1] }, 'Fulano'), '3 alterações aplicadas. 1 aguarda aceite de Fulano.');
+    assert.equal(altLista.resumoResultado({ aplicadas: [1], pendentes_aceite: [] }), '1 alteração aplicada.');
+    assert.equal(altLista.podeAlterarItens('em_cotacao'), true);
+    assert.equal(altLista.podeAlterarItens('comprado'), false);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// comparativo.js: derivações das telas (snapshot K7, fuga da recomendação, payload da decisão)
+// ---------------------------------------------------------------------------------------------------------------------
+describe('comparativo (decisão)', () => {
+  const resp = (convite, preco, extra = {}) => ({
+    convite_id: convite, versao_lista: 1, recusou: false, prazo_entrega_dias: 5, frete_tipo: 'cif', frete_valor: 0,
+    enviado_em: '2026-11-02T10:00:00Z',
+    itens: [{ cotacao_item_id: 'l1', tem_item: true, preco_unitario: preco }, { cotacao_item_id: 'l2', tem_item: true, preco_unitario: preco * 2 }],
+    condicoes: [{ id: `${convite}-av`, tipo: 'a_vista' }], ...extra
+  });
+  const detalhe = {
+    cotacao: { id: 'c1', numero: 9, versao_lista: 1, taxa_mensal: 0.015, empate_pct: 0.01 },
+    itens: [{ id: 'l1', quantidade: 10, ativo: true, versao_alterada: 1 }, { id: 'l2', quantidade: 5, ativo: true, versao_alterada: 1 }],
+    convites: [
+      { id: 'cvA', fornecedor_id: 'fA', compras_anteriores: 0, fornecedor: { empresa: 'A' } },
+      { id: 'cvB', fornecedor_id: 'fB', compras_anteriores: 0, fornecedor: { empresa: 'B' } }
+    ],
+    respostas_atuais: [resp('cvA', 10), resp('cvB', 12)]
+  };
+  const comp = comparativo.calcularComparativo(detalhe, {});
+
+  it('ranking recomenda o mais barato e o snapshot leva vencedor_recomendado_fornecedor_id (K7)', () => {
+    assert.equal(comp.ranking.melhor.empresa, 'A');
+    const snap = comparativo.snapshotRecomendacao(comp);
+    assert.equal(snap.vencedor_recomendado_fornecedor_id, 'fA');
+    assert.equal(snap.vencedor_recomendado_convite_id, 'cvA');
+  });
+  it('montarDecisao: único recomendado segue a recomendação e grava o snapshot', () => {
+    const d = comparativo.montarDecisao({ comparativo: comp, escolha: { modo: 'unico', conviteId: 'cvA' }, datas: { p1: '2026-11-10' }, justificativa: '' });
+    assert.equal(d.modo, 'unico');
+    assert.equal(d.segue_recomendacao, true);
+    assert.equal(d.recomendacao_snapshot.vencedor_recomendado_fornecedor_id, 'fA');
+    assert.deepEqual(d.itens.map((i) => [i.cotacao_item_id, i.convite_id, i.condicao_tipo]), [['l1', 'cvA', 'a_vista'], ['l2', 'cvA', 'a_vista']]);
+    assert.equal('justificativa' in d, false);
+  });
+  it('escolher o mais caro foge da recomendação (diferença em R$ e %) e leva a justificativa', () => {
+    const f = comparativo.fugaDaRecomendacao({ comparativo: comp, escolha: { modo: 'unico', conviteId: 'cvB' } });
+    assert.equal(f.foge, true);
+    assert.ok(f.diferenca.valor > 0 && f.diferenca.pct > 0.19 && f.diferenca.pct < 0.21);
+    const d = comparativo.montarDecisao({ comparativo: comp, escolha: { modo: 'unico', conviteId: 'cvB' }, datas: {}, justificativa: ' prazo menor ' });
+    assert.equal(d.segue_recomendacao, false);
+    assert.equal(d.justificativa, 'prazo menor');
+  });
+  it('rotuloCondicao e células da matriz', () => {
+    assert.equal(comparativo.rotuloCondicao({ tipo: 'a_vista' }), 'À vista');
+    assert.equal(comparativo.rotuloCondicao({ tipo: 'a_vista', desconto_tipo: 'percentual', desconto_valor: 3 }), 'À vista (−3%)');
+    const porConvite = comparativo.candidatosPorConvite(comp.ranking);
+    const cel = comparativo.celulaDaMatriz(comp.linhas[0], comp.respostas[0], porConvite.get('cvA'));
+    assert.equal(cel.estado, 'atendida');
+    assert.equal(cel.precoVp, 10);
+    assert.equal(comparativo.celulaDaMatriz(comp.linhas[0], null, null).estado, 'sem_resposta');
+  });
+});
+
+describe('histórico de preços e montagem de linhas', () => {
+  const h = [
+    { id: 3, tipo: 'comprado', preco_unitario_vp: 5.6, registrado_em: '2026-09-03' },
+    { id: 2, tipo: 'comprado', preco_unitario_vp: 4.1, registrado_em: '2026-05-12' },
+    { id: 1, tipo: 'comprado', preco_unitario_vp: 4.8, registrado_em: '2026-03-01' },
+    { id: 9, tipo: 'cotado', preco_unitario_vp: 9, registrado_em: '2026-09-04' }
+  ];
+  it('mais barato/mais caro com % sobre o mais barato e variação vs. anterior', () => {
+    const r = histPrecos.resumoHistorico(h);
+    assert.equal(r.maisBarato.id, 2);
+    assert.equal(r.maisCaro.id, 3);
+    assert.ok(Math.abs(r.diferenca.valor - 1.5) < 1e-9 && Math.abs(r.diferenca.pct - 1.5 / 4.1) < 1e-9);
+    const v = histPrecos.variacoesSequenciais(h);
+    assert.ok(Math.abs(v.get(3).valor - 1.5) < 1e-9); // 5,60 vs. 4,10
+    assert.equal(v.has(1), false);
+    assert.equal(histPrecos.resumoHistorico([]).maisBarato, null);
+  });
+  it('separar e juntar linhas preservam as origens', () => {
+    const linhas = [
+      { _chave: 'a', id: 'a', descricao: 'Cabo', unidade: 'm', material_id: null, observacao_publica: '', origens: [{ pedido_id: 'p1', item_id: 'i1', quantidade: 100 }, { pedido_id: 'p2', item_id: 'i2', quantidade: 200 }] },
+      { _chave: 'b', id: 'b', descricao: 'Cabo 2,5', unidade: 'm', material_id: 'm1', observacao_publica: '', origens: [{ pedido_id: 'p3', item_id: 'i3', quantidade: 50 }] }
+    ];
+    const sep = montagem.separarOrigem(linhas, 'a', linhas[0].origens[1]);
+    assert.equal(sep.length, 3);
+    assert.equal(montagem.quantidadeDaLinha(sep[0]), 100);
+    assert.equal(montagem.quantidadeDaLinha(sep[1]), 200);
+    assert.equal('id' in montagem.linhasParaPayload([sep[1]])[0], false); // linha nova sem id
+    const jun = montagem.juntarLinhas(linhas, 'a', 'b');
+    assert.equal(jun.length, 1);
+    assert.equal(montagem.quantidadeDaLinha(jun[0]), 350);
+    assert.equal(montagem.separarOrigem([linhas[1]], 'b', linhas[1].origens[0]).length, 1); // 1 origem: não separa
+    assert.equal(montagem.padraoEndereco.test('Rua das Flores'), true);
+    assert.equal(montagem.padraoEndereco.test('Curitiba/Batel'), false);
   });
 });

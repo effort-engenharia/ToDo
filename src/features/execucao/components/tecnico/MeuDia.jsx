@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { FaBell, FaChevronDown, FaChevronRight, FaClipboardList, FaExclamationTriangle, FaPause, FaRegClock } from 'react-icons/fa';
+import { FaBell, FaCheckCircle, FaChevronDown, FaChevronRight, FaClipboardList, FaExclamationTriangle, FaPause, FaRegClock } from 'react-icons/fa';
 import { execucaoService } from '../../../../services/supabase/execucao';
 import { execucaoTecnicoService } from '../../../../services/supabase/execucaoTecnico';
 import { dataLocalISO, parseDataLocal } from '../../utils/datas';
@@ -30,6 +30,9 @@ const ordenar = (a, b) => {
   return (a.hora_inicio || '99:99').localeCompare(b.hora_inicio || '99:99');
 };
 
+// Pendências do técnico: só não lidas e nunca de replanejamento (R13; também limpa cache offline antigo)
+const naoELidaDoTecnico = (n) => !n.lida && n.tipo !== 'replanejamento';
+
 const carregarDiaDaRede = async (usuarioId, hoje) => {
   const dia = await execucaoTecnicoService.buscarMeuDia(usuarioId, hoje);
   if (!dia.success) return dia;
@@ -51,7 +54,7 @@ const carregarDiaDaRede = async (usuarioId, hoje) => {
       material: material.data ?? {},
       jornada: jornada.success ? jornada.data : null,
       horasExtrasPendentes: horasExtras.count,
-      notificacoes: (notificacoes.data ?? []).filter((n) => !n.lida)
+      notificacoes: (notificacoes.data ?? []).filter(naoELidaDoTecnico)
     }
   };
 };
@@ -83,6 +86,7 @@ const carregarDia = async (usuarioId, hoje) => {
     success: true,
     data: {
       ...r.data,
+      notificacoes: (r.data.notificacoes ?? []).filter(naoELidaDoTecnico),
       atividades: await aplicarPendencias(usuarioId, r.data.atividades),
       cacheEm: r.offline ? r.salvoEm : null
     }
@@ -92,6 +96,7 @@ const carregarDia = async (usuarioId, hoje) => {
 const MeuDia = ({ usuario }) => {
   const hoje = dataLocalISO();
   const [amanhaAberto, setAmanhaAberto] = useState(false);
+  const [concluidasAberto, setConcluidasAberto] = useState(false);
 
   const { data, loading, error, reload, refresh } = useAsyncData(() => carregarDia(usuario.id, hoje), [usuario.id, hoje]);
 
@@ -103,6 +108,10 @@ const MeuDia = ({ usuario }) => {
   const atividades = useMemo(() => data?.atividades ?? [], [data]);
   const atrasadas = useMemo(() => atividades.filter((a) => estaAtrasada(a, hoje)).sort(ordenar), [atividades, hoje]);
   const doDia = useMemo(() => atividades.filter((a) => !estaAtrasada(a, hoje)).sort(ordenar), [atividades, hoje]);
+
+  // Concluídas saem da lista principal (R15); o resumo segue usando doDia
+  const abertasDoDia = useMemo(() => doDia.filter((a) => a.status !== 'concluida'), [doDia]);
+  const concluidasDoDia = useMemo(() => doDia.filter((a) => a.status === 'concluida'), [doDia]);
 
   const resumo = useMemo(() => {
     const previstoMin = Math.round(doDia.reduce((s, a) => s + horasPrevistasNoDia(a, usuario.id), 0) * 60);
@@ -243,10 +252,43 @@ const MeuDia = ({ usuario }) => {
         </section>
       )}
 
-      {doDia.length > 0 && (
+      {abertasDoDia.length > 0 && (
         <section className="tec-lista" aria-label="Atividades de hoje">
-          {atrasadas.length > 0 && <h3 className="tec-secao-titulo">Hoje ({doDia.length})</h3>}
-          {doDia.map(renderCard)}
+          {atrasadas.length > 0 && <h3 className="tec-secao-titulo">Hoje ({abertasDoDia.length})</h3>}
+          {abertasDoDia.map(renderCard)}
+        </section>
+      )}
+
+      {abertasDoDia.length === 0 && atrasadas.length === 0 && concluidasDoDia.length > 0 && (
+        <EstadoVazio
+          icone={<FaCheckCircle aria-hidden="true" />}
+          titulo="Tudo concluído por hoje 🎉"
+          texto="Você concluiu todas as atividades de hoje."
+        />
+      )}
+
+      {concluidasDoDia.length > 0 && (
+        <section aria-label="Concluídas hoje">
+          <button
+            type="button"
+            className="tec-amanha-botao"
+            aria-expanded={concluidasAberto}
+            onClick={() => setConcluidasAberto((v) => !v)}
+          >
+            <span>Concluídas hoje ({concluidasDoDia.length})</span>
+            {concluidasAberto ? <FaChevronDown aria-hidden="true" /> : <FaChevronRight aria-hidden="true" />}
+          </button>
+          {concluidasAberto && (
+            <div className="execucao-card" style={{ padding: 0, marginTop: '0.5rem' }}>
+              {concluidasDoDia.map((a) => (
+                <div key={a.id} className="tec-amanha-item">
+                  {hhmm(a.hora_inicio) && <strong>{hhmm(a.hora_inicio)} </strong>}
+                  {a.titulo}
+                  {a.cliente_nome && ` · ${a.cliente_nome}`}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 

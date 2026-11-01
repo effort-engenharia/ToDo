@@ -301,6 +301,14 @@
   background: #000;
 }
 
+.evid-gravador-acoes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 22rem;
+}
+
 .evid-gravador-botao {
   width: 4.5rem;
   height: 4.5rem;

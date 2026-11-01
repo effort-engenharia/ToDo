@@ -1,6 +1,6 @@
 // Fila local de upload das evidências: IndexedDB + retry com backoff, reenvio ao voltar a conexão.
 // Independente da fila de ações do técnico. Idempotente: caminho/id gerados no cliente; "já existe" = sucesso.
-import { EVIDENCIAS_CONFIG as CFG, extensaoDoTipo, novoUuid } from './config.js';
+import { EVIDENCIAS_CONFIG as CFG, LIMITE_BUCKET_MB, extensaoDoTipo, formatarBytes, mensagemLimiteTamanho, novoUuid } from './config.js';
 import * as local from './armazenamentoLocal.js';
 import { execucaoEvidenciasService, caminhoEvidencia } from '../../../../../services/supabase/execucaoEvidencias.js';
 
@@ -29,7 +29,7 @@ export async function adicionarEvidencia({
   const limites = CFG[tipo];
   if (!limites) throw erro('Tipo de evidência inválido.');
   if (blob.size > limites.maxBytes) {
-    throw erro(`Arquivo grande demais depois da compressão (${Math.round(blob.size / 1048576)} MB).`);
+    throw erro(mensagemLimiteTamanho(tipo, blob.size));
   }
 
   const existentes = await local.listarItens(atividadeId);
@@ -113,16 +113,23 @@ const codigoHttp = (e) => Number(e?.statusCode ?? e?.status) || 0;
 const ehPermanente = (e) => {
   const http = codigoHttp(e);
   const texto = `${e?.message ?? ''}`.toLowerCase();
-  return http === 413 || http === 400 || e?.permanente
-    || /maximum allowed size|exceeded|invalid mime|mime type/.test(texto)
+  return http === 413 || http === 415 || http === 400 || e?.permanente
+    || /maximum allowed size|exceeded|invalid mime|mime type|payload too large/.test(texto)
     || ['23502', '23514', '23503', '22P02'].includes(e?.code);
 };
 
-const mensagemAmigavel = (e) => {
+const mensagemAmigavel = (e, item) => {
   if (e?.permanente) return e.message;
   const http = codigoHttp(e);
   const texto = `${e?.message ?? ''}`.toLowerCase();
-  if (http === 413 || /maximum allowed size|exceeded/.test(texto)) return 'Arquivo acima do limite de 50 MB.';
+  if (http === 413 || /maximum allowed size|exceeded|payload too large/.test(texto)) {
+    const enviado = item?.tamanho ? ` (este tem ${formatarBytes(item.tamanho)})` : '';
+    return `Arquivo maior que o limite de ${LIMITE_BUCKET_MB} MB${enviado}. Grave um vídeo mais curto ou reduza a qualidade da câmera e tente de novo.`;
+  }
+  if (http === 415 || /invalid mime|mime type/.test(texto)) {
+    const tipo = item?.mime ? ` (${item.mime})` : '';
+    return `Formato não aceito pelo servidor${tipo}. Tente gravar de novo; se persistir, avise o suporte.`;
+  }
   if (http === 401 || http === 403 || e?.code === '42501' || /row-level security|jwt|unauthorized/.test(texto)) {
     return 'Sem permissão para enviar (entre de novo no app ou confirme que você faz parte da equipe da atividade).';
   }
@@ -197,7 +204,7 @@ async function enviarItem(item) {
     await local.atualizarItem(item.id, {
       estado: definitivo ? 'erro' : 'pendente',
       tentativas,
-      erro: mensagemAmigavel(e),
+      erro: mensagemAmigavel(e, item),
       proximaTentativa: definitivo ? null : Date.now() + esperaBackoff(tentativas)
     });
     console.warn('[evidencias] falha no envio', item.id, e);

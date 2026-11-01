@@ -153,3 +153,27 @@ export function inspecionarVideoArquivo(arquivo) {
     video.src = url;
   });
 }
+
+// Duração (s) de um arquivo de áudio lida pelo <audio>; null se o navegador não conseguir (não bloqueia o envio).
+export function lerDuracaoAudioArquivo(arquivo) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(arquivo);
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    let encerrado = false;
+    const fim = () => {
+      if (encerrado) return;
+      encerrado = true;
+      clearTimeout(timer);
+      const duracao = Number.isFinite(audio.duration) && audio.duration > 0 ? Math.max(1, Math.round(audio.duration)) : null;
+      URL.revokeObjectURL(url);
+      audio.removeAttribute('src');
+      audio.load();
+      resolve(duracao);
+    };
+    const timer = setTimeout(fim, 4000);
+    audio.onloadedmetadata = fim;
+    audio.onerror = fim;
+    audio.src = url;
+  });
+}

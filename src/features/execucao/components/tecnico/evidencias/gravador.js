@@ -6,28 +6,46 @@ const MIMES = {
   video: ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm', 'video/mp4']
 };
 
-const escolherMime = (tipo) => MIMES[tipo].find((m) => window.MediaRecorder.isTypeSupported?.(m)) || '';
+const escolherMime = (tipo) => MIMES[tipo].find((m) => window.MediaRecorder?.isTypeSupported?.(m)) || '';
+
+// Só como rótulo, quando o navegador não informa o tipo gravado: Safari/iOS grava MP4; os demais, WebM.
+const mimeRotuloPadrao = (tipo) => {
+  const apple = typeof navigator !== 'undefined' && /apple/i.test(navigator.vendor || '');
+  if (apple) return tipo === 'video' ? 'video/mp4' : 'audio/mp4';
+  return tipo === 'video' ? 'video/webm' : 'audio/webm';
+};
 
 export const mimeBase = (mime) => String(mime || '').split(';')[0].trim().toLowerCase();
 
+// Falhas em que vale oferecer a câmera/gravador nativo do aparelho no lugar da gravação pelo app.
+const ERROS_COM_FALLBACK = ['NotAllowedError', 'SecurityError', 'NotSupportedError', 'TypeError', 'NotFoundError', 'NotReadableError', 'AbortError', 'OverconstrainedError'];
+export const deveUsarFallbackNativo = (err) => !err?.name || ERROS_COM_FALLBACK.includes(err.name);
+
 export function mensagemErroMidia(err, tipo) {
   const alvo = tipo === 'video' ? 'a câmera e o microfone' : 'o microfone';
+  const aparelho = tipo === 'video' ? 'a câmera' : 'o gravador';
   switch (err?.name) {
     case 'NotAllowedError':
     case 'SecurityError':
-      return `Permissão negada. Libere ${alvo} nas configurações do navegador e tente de novo.`;
+      return `Permissão negada. Libere ${alvo} nas configurações do navegador e tente de novo, ou use ${aparelho} do aparelho.`;
     case 'NotFoundError':
     case 'OverconstrainedError':
       return `Não encontramos ${alvo} neste aparelho.`;
     case 'NotReadableError':
     case 'AbortError':
       return `${tipo === 'video' ? 'A câmera' : 'O microfone'} está em uso por outro aplicativo.`;
+    case 'NotSupportedError':
+    case 'TypeError':
+      return `Este navegador não grava ${tipo === 'video' ? 'vídeo' : 'áudio'} pelo app; use ${aparelho} do aparelho.`;
     default:
       return err?.message || 'Não foi possível iniciar a gravação.';
   }
 }
 
 export async function abrirMidia(tipo) {
+  if (!navigator.mediaDevices?.getUserMedia || typeof window.MediaRecorder !== 'function') {
+    throw Object.assign(new Error('Gravação não suportada neste navegador.'), { name: 'NotSupportedError' });
+  }
   const cfg = EVIDENCIAS_CONFIG.video;
   const constraints = tipo === 'video'
     ? {
@@ -68,7 +86,8 @@ export function gravar(stream, { tipo, onTick }) {
       clearInterval(tick);
       clearTimeout(limite);
       if (cancelada) { resolve(null); return; }
-      const mime = mimeBase(gravador.mimeType || partes[0]?.type || mimeType) || (tipo === 'video' ? 'video/webm' : 'audio/webm');
+      if (!partes.length) { reject(new Error('A gravação saiu vazia. Tente gravar de novo.')); return; }
+      const mime = mimeBase(gravador.mimeType || partes[0]?.type || mimeType) || mimeRotuloPadrao(tipo);
       const blob = new Blob(partes, { type: mime });
       resolve({ blob, mime, duracaoSeg: Math.max(1, Math.round((performance.now() - inicio) / 1000)) });
     };

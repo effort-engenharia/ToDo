@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { FaCamera, FaCheckCircle, FaExclamationTriangle, FaMicrophone, FaRedo, FaStop, FaTimes, FaVideo, FaClock, FaPlay, FaVolumeUp } from 'react-icons/fa';
-import { EVIDENCIAS_CONFIG, ESTADOS, ROTULO_TIPO, formatarBytes, formatarDuracao, suportaGravacao } from './config.js';
+import { EVIDENCIAS_CONFIG, ESTADOS, ROTULO_TIPO, formatarBytes, formatarDuracao, motivoSemGravacao, suportaGravacaoTipo } from './config.js';
 import { aquecerLocalizacao } from './carimbo.js';
 import GravadorVideo from './GravadorVideo.jsx';
 import './evidencias.css';
@@ -63,7 +63,10 @@ export default function EvidenciasUploader({ controle, desabilitado = false }) {
   const c = controle;
   const inputFoto = useRef(null);
   const inputVideo = useRef(null);
-  const gravadorSuportado = suportaGravacao();
+  const inputAudio = useRef(null);
+  const videoSuportado = suportaGravacaoTipo('video');
+  const audioSuportado = suportaGravacaoTipo('audio');
+  const conexaoInsegura = typeof window !== 'undefined' && window.isSecureContext === false;
   const travado = desabilitado || c.bloqueado || !c.armazenamentoOk;
   const emGravacao = !!c.gravandoAudio || c.gravandoVideo;
   const bloquearNovos = travado || c.limiteAtingido || emGravacao;
@@ -74,11 +77,21 @@ export default function EvidenciasUploader({ controle, desabilitado = false }) {
     aoEscolher(arquivo);
   };
 
+  const abrirCameraNativa = () => { aquecerLocalizacao(); inputVideo.current?.click(); };
+  const abrirGravadorNativo = () => { aquecerLocalizacao(); inputAudio.current?.click(); };
+
   const tocarFoto = () => { aquecerLocalizacao(); inputFoto.current?.click(); };
   const tocarVideo = () => {
     c.setErro('');
-    if (gravadorSuportado) c.setGravandoVideo(true);
-    else { aquecerLocalizacao(); inputVideo.current?.click(); }
+    if (videoSuportado) c.setGravandoVideo(true);
+    else { c.setErro(motivoSemGravacao('video')); abrirCameraNativa(); }
+  };
+  // Falha ao abrir a câmera no app: fecha o gravador e abre a câmera do aparelho (dentro do toque do usuário)
+  const fallbackVideo = () => { c.setGravandoVideo(false); abrirCameraNativa(); };
+  const tocarAudio = () => {
+    if (audioSuportado) { c.iniciarAudio(); return; }
+    c.setErro(motivoSemGravacao('audio'));
+    abrirGravadorNativo();
   };
 
   const total = resumo(c.itens);
@@ -107,7 +120,7 @@ export default function EvidenciasUploader({ controle, desabilitado = false }) {
             <FaStop aria-hidden="true" /> Parar {formatarDuracao(c.gravandoAudio.segundos)}
           </button>
         ) : (
-          <button type="button" className="execucao-btn execucao-btn-secondary tec-btn" onClick={c.iniciarAudio} disabled={bloquearNovos}>
+          <button type="button" className="execucao-btn execucao-btn-secondary tec-btn" onClick={tocarAudio} disabled={bloquearNovos}>
             <FaMicrophone aria-hidden="true" /> Áudio
           </button>
         )}
@@ -115,6 +128,11 @@ export default function EvidenciasUploader({ controle, desabilitado = false }) {
 
       <input ref={inputFoto} type="file" accept="image/*" capture="environment" hidden onChange={escolherArquivo(c.capturarFoto)} />
       <input ref={inputVideo} type="file" accept="video/*" capture="environment" hidden onChange={escolherArquivo(c.capturarVideoArquivo)} />
+      <input ref={inputAudio} type="file" accept="audio/*" capture hidden onChange={escolherArquivo(c.capturarAudioArquivo)} />
+
+      {conexaoInsegura && (
+        <p className="evid-aviso">Câmera/microfone bloqueados: a página não está em conexão segura (HTTPS). Use os botões do aparelho.</p>
+      )}
 
       {c.gravandoAudio && (
         <div className="evid-gravando" role="status">
@@ -124,6 +142,11 @@ export default function EvidenciasUploader({ controle, desabilitado = false }) {
       )}
 
       {c.erro && <p className="tec-erro" role="alert">{c.erro}</p>}
+      {c.falhaAudio && !c.gravandoAudio && (
+        <button type="button" className="execucao-btn execucao-btn-secondary tec-btn" onClick={abrirGravadorNativo} disabled={bloquearNovos}>
+          <FaMicrophone aria-hidden="true" /> Usar gravador do aparelho
+        </button>
+      )}
       {c.limiteAtingido && <p className="evid-aviso">Limite de {EVIDENCIAS_CONFIG.maxArquivosPorAtividade} arquivos por atividade atingido.</p>}
 
       {(c.itens.length > 0 || c.trabalhos.length > 0) && (
@@ -150,6 +173,7 @@ export default function EvidenciasUploader({ controle, desabilitado = false }) {
       {c.gravandoVideo && (
         <GravadorVideo
           onCancelar={() => c.setGravandoVideo(false)}
+          onFallback={fallbackVideo}
           onConcluir={(resultado) => { c.setGravandoVideo(false); c.guardarGravacao('video', resultado); }}
         />
       )}

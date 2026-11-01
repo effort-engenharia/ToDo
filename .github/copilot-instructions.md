@@ -80,7 +80,7 @@ O dashboard evoluiu para um sistema comercial completo com múltiplas funcionali
 - **POPs**: descrição e procedimento formatados (parágrafos e listas) na gestão e no técnico (`src/components/ui/TextoFormatado.jsx`).
 - **Pedido de material**: cliente, quantidade inteira para `un`/`cx`/`pct`, histórico com diff de itens, filtro de período e questionamentos da Compras.
 - **Dashboard de Compras** (nível `COMPRAS`, página `execucao/compras`): fila por status de compra, indicadores e questionamentos.
-- **Estado**: front pronto; migrations 19–30 escritas e **não aplicadas** (ver "Migrations 19–30" em *Banco de dados no grafo*).
+- **Estado**: front pronto; migrations 19–31 **aplicadas** no Supabase de produção em 2026-11-01 (ver "Migrations 19–31" em *Banco de dados no grafo*).
 
 ## 🏗️ Arquitetura do Projeto (Setembro 2025)
 
@@ -202,7 +202,7 @@ Serviços: `src/services/supabase/execucao*.js` (`execucaoCompras.js` chama as R
 
 ## 🎯 Próximos Passos (Roadmap)
 - **Execução e Compras** (checklist completo no *Status consolidado* de `PLANO_MELHORIAS_EXECUCAO_COMPRAS.md`):
-  - Aplicar as migrations 19–30, regenerar o snapshot e o grafo; dry-run de `corrigir_etapas_pai_concluidas.sql`
+  - Migrations 19–31 aplicadas em 2026-11-01 e snapshot `supabase/schema/` regenerado; dry-run de `corrigir_etapas_pai_concluidas.sql` dispensado (B0 sem etapas pai indevidas)
   - QA manual (Anexo E.5), validação visual do Planejamento (Q4) e testes de vídeo/áudio em aparelhos
   - Decidir P8 (data necessária × previsão de chegada) e exibir o indicador de conclusões sem localização (ACH-09)
   - Carregar `useGoogleSheetsData` só nas páginas do Comercial (hoje roda para todos os perfis)
@@ -243,11 +243,12 @@ O grafo também cobre o schema Supabase: `supabase/schema/*.sql` é um snapshot 
 
 Ao alterar o schema (migrations via MCP), regenere o snapshot conforme `supabase/schema/README.md`.
 
-#### Migrations 19–30 (lote 20261101): escritas, **NÃO aplicadas**
-- Arquivos `supabase/migrations/20261101_19_*` a `20261101_30_*`, cada um com `-- ROLLBACK:` no topo. Ordem, dependências e cuidados: `supabase/migrations/README.md`.
+#### Migrations 19–31 (lote 20261101): **aplicadas em 2026-11-01**
+- Arquivos `supabase/migrations/20261101_19_*` a `20261101_31_*`, cada um com `-- ROLLBACK:` no topo. Ordem, dependências e registro de aplicação: `supabase/migrations/README.md`.
+- Ordem real de aplicação: 29, 19, 20, 27, 21, 22, 23, 24, 25, 26, 30, 28, 31.
 - **Não reaplicar a 19 depois da 20** (cria overload de `alterar_status_atividade`).
 - `supabase/manutencao/` tem scripts de diagnóstico e correção de dados. **Não são migrations.**
-- Até a aplicação, o snapshot `supabase/schema/` está defasado e o front chama RPCs que ainda não existem no banco (`compras_*`, `execucao_marcar_passo`, `execucao_passos_pendentes_por_etapa`). Não use o grafo do banco para avaliar impacto nesses objetos.
+- O snapshot `supabase/schema/` já foi regenerado após a aplicação e contém as RPCs `compras_*`, `execucao_marcar_passo` e `execucao_passos_pendentes_por_etapa`.
 
 ## Jev (TypeSafe AI) — decisões rápidas e economia de tokens
 

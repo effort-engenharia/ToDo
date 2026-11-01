@@ -42,4 +42,4 @@ Versões em `supabase_migrations.schema_migrations` (nomes gravados pelo `apply_
 
 - As migrations usam `CREATE OR REPLACE`, `IF NOT EXISTS` e `DROP ... IF EXISTS`, então reaplicar é seguro, com duas exceções: o `UPDATE` de limpeza da 21 e o backfill da 24 só alteram linhas ainda não tratadas.
 - O CHECK de `execucao_atividades_historico.tipo_acao` (19) é criado `NOT VALID`.
-- A numeração 19–30 segue o plano; as anteriores (`20261022_*`, `20261023_01` a `_18`) devem estar aplicadas (conferir com `list_migrations` ou no painel antes de começar).
+- A numeração 19–31 segue o plano; as anteriores (`20261022_*`, `20261023_01` a `_18`) devem estar aplicadas (conferir com `list_migrations` ou no painel antes de começar em outro ambiente).

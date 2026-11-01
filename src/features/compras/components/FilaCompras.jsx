@@ -1,7 +1,7 @@
 import React, { useId } from 'react';
-import { formatarDataBR } from '../../utils/datas';
+import { formatarDataBR } from '../../execucao/utils/datas';
 import CartaoPedidoCompras from './CartaoPedidoCompras';
-import { STATUS_COMPRA, URGENCIAS, descricaoAcessivelDoPedido } from './statusCompra';
+import { STATUS_COMPRA, URGENCIAS, descricaoAcessivelDoPedido } from '../utils/statusCompra';
 
 const contar = (grupo, soAtrasados) => {
   const itens = grupo?.itens ?? [];

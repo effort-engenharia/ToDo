@@ -15,7 +15,7 @@ import ModalConversaPedido from './pedido-material/ModalConversaPedido';
 import TemplatesMateriais from './pedido-material/TemplatesMateriais';
 import { itensComKey, novoItem } from './pedido-material/utils';
 import { PERIODO_INICIAL, filtrosServidorDoPeriodo } from './pedido-material/periodo';
-import { useAbrirPedidoDaNotificacao } from './compras/navegacaoCompras';
+import { useAbrirPedidoDaNotificacao } from '../../compras/utils/navegacaoCompras';
 
 const VALORES_VAZIOS = () => ({
   descricao: '',

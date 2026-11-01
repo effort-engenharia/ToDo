@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { execucaoComprasService } from '../../../../services/supabase/execucaoCompras';
+import { execucaoComprasService } from '../../../services/supabase/execucaoCompras';
 
 const LIMITE_PAGINA = 50;
 const LIMITE_MAXIMO = 200; // teto do compras_listar_pedidos

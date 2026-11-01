@@ -5,9 +5,9 @@ import { useAtualizacaoTabelas } from '../../hooks/useAtualizacaoTabelas';
 import { EVENTO_BADGES } from '../../hooks/useBadgesMenu';
 import { isAdminExecucao } from '../../utils/permissoes';
 import Modal from '../ui/Modal';
-import { STATUS_COMPRA, URGENCIAS } from '../compras/statusCompra';
+import { STATUS_COMPRA, URGENCIAS } from '../../../compras/utils/statusCompra';
 import QuestionamentosPedido from './QuestionamentosPedido';
-import '../compras/compras.css';
+import '../../../compras/styles/compras.css';
 
 /**
  * Conversa do pedido na gestão (Anexo D.5): o solicitante/admin aprova ou reprova a sugestão do comprador.

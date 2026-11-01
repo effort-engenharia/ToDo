@@ -126,7 +126,7 @@ export const authService = {
         usuario = novoUsuario;
       } else if (userError) {
         console.log('❌ Usuário inativo ou erro:', userError);
-        throw new Error('Usuário inativo ou não encontrado');
+        throw new Error('Sua conta está inativa ou ainda não foi liberada. Entre em contato com o administrador para ativar o acesso.');
       }
 
       // Registrar log de acesso bem-sucedido

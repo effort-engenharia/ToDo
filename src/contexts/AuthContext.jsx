@@ -172,38 +172,42 @@ export const AuthProvider = ({ children }) => {
     if (!usuario?.id) return [];
     
     try {
-      // Páginas comerciais e execução
+      // Páginas comerciais, Compras (módulo próprio, rota `compras`) e execução
       const paginasComerciais = ['dashboard', 'apontamentos', 'arsenal'];
       const paginasExecucao = ['execucao', 'execucao/atividades-dia', 'execucao/agenda-eletrica', 
         'execucao/agenda-civil', 'execucao/agenda-galpao', 'execucao/agenda-gestao', 'execucao/pedido-material',
         'execucao/desempenho-individual', 'execucao/desempenho-time', 'execucao/planejamento-macro',
-        'execucao/pops', 'execucao/minhas-atividades', 'execucao/compras'];
-      const todasPaginas = [...paginasComerciais, ...paginasExecucao];
+        'execucao/pops', 'execucao/minhas-atividades'];
+      const todasPaginas = [...paginasComerciais, 'compras', ...paginasExecucao];
       const paginasPermitidas = [];
-      
-      // Administrador geral tem acesso a tudo
-      if (usuario?.nivel_acesso?.nome === 'Administrador') {
-        return paginasComerciais; // Admin comercial só vê páginas comerciais
+
+      // COMPRAS (detectado pelo nome do nível, sem depender da tabela): só o módulo Compras
+      if (usuario?.nivel_acesso?.nome === 'COMPRAS') {
+        return ['compras'];
       }
       
-      // ADMIN_EXECUCAO tem acesso a todas as páginas de execução
+      // Administrador geral: páginas comerciais + módulo Compras
+      if (usuario?.nivel_acesso?.nome === 'Administrador') {
+        return [...paginasComerciais, 'compras'];
+      }
+      
+      // ADMIN_EXECUCAO: todas as páginas de execução + módulo Compras
       if (usuario?.nivel_acesso?.nome === 'ADMIN_EXECUCAO') {
-        return paginasExecucao;
+        return [...paginasExecucao, 'compras'];
       }
       
       // TECNICO tem acesso limitado às páginas de execução
       if (usuario?.nivel_acesso?.nome === 'TECNICO') {
         return ['execucao', 'execucao/minhas-atividades', 'execucao/pops'];
       }
-
-      // COMPRAS: só o Dashboard de Compras (e POPs) dentro do módulo Execução
-      if (usuario?.nivel_acesso?.nome === 'COMPRAS') {
-        return ['execucao', 'execucao/compras', 'execucao/pops'];
-      }
       
       // Verificar permissão para cada página para outros níveis
       for (const pagina of todasPaginas) {
-        const temAcesso = await authService.verificarPermissao(usuario.id, pagina);
+        let temAcesso = await authService.verificarPermissao(usuario.id, pagina);
+        // Tolerância enquanto a migration 32 não é aplicada: a rota antiga era execucao/compras
+        if (!temAcesso && pagina === 'compras') {
+          temAcesso = await authService.verificarPermissao(usuario.id, 'execucao/compras');
+        }
         if (temAcesso) {
           paginasPermitidas.push(pagina);
         }

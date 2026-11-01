@@ -67,6 +67,7 @@ const SmartRedirect = ({ onRedirect }) => {
       apontamentos: 'Apontamentos Comerciais',
       arsenal: 'Arsenal de Guerra',
       execucao: 'Dashboard Execução',
+      compras: 'Dashboard de Compras',
       'execucao/minhas-atividades': 'Minhas Atividades',
       'execucao/pops': 'Procedimentos Operacionais'
     };

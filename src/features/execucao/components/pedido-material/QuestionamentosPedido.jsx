@@ -2,7 +2,7 @@ import React, { useId, useMemo, useState } from 'react';
 import { execucaoComprasService } from '../../../../services/supabase/execucaoCompras';
 import { useExecucaoUI } from '../ui/ExecucaoUI';
 import { ErroCarregamento } from '../ui/Estados';
-import '../compras/compras.css';
+import '../../../compras/styles/compras.css';
 import {
   TIPOS_QUESTIONAMENTO,
   formatarDataHora,
@@ -10,7 +10,7 @@ import {
   rotuloEstadoQuestionamento,
   rotuloItem,
   tempoRelativo,
-} from '../compras/statusCompra';
+} from '../../../compras/utils/statusCompra';
 
 const MAX_OBS = 500;
 const MIN_OBS = 3;

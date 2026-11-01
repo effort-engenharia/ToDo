@@ -13,7 +13,7 @@ import {
   FaTruck
 } from 'react-icons/fa';
 import { formatarDataBR } from '../../utils/datas';
-import { STATUS_COMPRA } from '../compras/statusCompra';
+import { STATUS_COMPRA } from '../../../compras/utils/statusCompra';
 import FiltroPeriodo from './FiltroPeriodo';
 import { periodoAtivo } from './periodo';
 import useDebouncedValue from './useDebouncedValue';

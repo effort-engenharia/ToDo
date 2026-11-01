@@ -1,5 +1,5 @@
 import React, { useId, useState } from 'react';
-import { formatarDuracaoDias, formatarDuracaoHoras } from './statusCompra';
+import { formatarDuracaoDias, formatarDuracaoHoras } from '../utils/statusCompra';
 
 const numero = (n) => (n === null || n === undefined ? '—' : Number(n).toLocaleString('pt-BR'));
 

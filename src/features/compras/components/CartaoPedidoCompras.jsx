@@ -1,12 +1,12 @@
 import React from 'react';
-import { formatarDataBR } from '../../utils/datas';
+import { formatarDataBR } from '../../execucao/utils/datas';
 import {
   STATUS_COMPRA,
   URGENCIAS,
   acaoRapidaDoPedido,
   descricaoAcessivelDoPedido,
   diasDeAtraso,
-} from './statusCompra';
+} from '../utils/statusCompra';
 
 const ROTULO_ACAO = {
   assumir: 'Assumir',

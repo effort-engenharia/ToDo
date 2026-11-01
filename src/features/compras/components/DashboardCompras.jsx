@@ -1,29 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FaSyncAlt } from 'react-icons/fa';
-import { execucaoComprasService } from '../../../../services/supabase/execucaoCompras';
-import { useAsyncData } from '../../hooks/useAsyncData';
-import { useAtualizacaoTabelas } from '../../hooks/useAtualizacaoTabelas';
-import { useDebouncedValue } from '../../hooks/useDebouncedValue';
-import { useMediaQuery } from '../../hooks/useMediaQuery';
-import { isCompras } from '../../utils/permissoes';
-import { intervaloDoPeriodo } from '../pedido-material/periodo';
-import { useExecucaoUI } from '../ui/ExecucaoUI';
-import { ErroCarregamento, EstadoVazio } from '../ui/Estados';
+import { execucaoComprasService } from '../../../services/supabase/execucaoCompras';
+import { useAsyncData } from '../../execucao/hooks/useAsyncData';
+import { useAtualizacaoTabelas } from '../../execucao/hooks/useAtualizacaoTabelas';
+import { useDebouncedValue } from '../../execucao/hooks/useDebouncedValue';
+import { useMediaQuery } from '../../execucao/hooks/useMediaQuery';
+import { isCompras } from '../../execucao/utils/permissoes';
+import { intervaloDoPeriodo } from '../../execucao/components/pedido-material/periodo';
+import { useExecucaoUI } from '../../execucao/components/ui/ExecucaoUI';
+import { ErroCarregamento, EstadoVazio } from '../../execucao/components/ui/Estados';
 import DetalhePedidoCompras from './DetalhePedidoCompras';
 import FilaCompras from './FilaCompras';
 import FiltrosCompras from './FiltrosCompras';
 import IndicadoresCompras from './IndicadoresCompras';
 import { ModalStatusCompra } from './ModalAcoesCompras';
-import { hashDoPedidoCompras, pedidoDoHash } from './navegacaoCompras';
-import { useComprasPainel, useRefreshLimitado } from './useComprasPainel';
-import { COLUNAS_COMPRAS } from './statusCompra';
-import './compras.css';
+import { HASH_COMPRAS, hashDoPedidoCompras, pedidoDoHash } from '../utils/navegacaoCompras';
+import { useComprasPainel, useRefreshLimitado } from '../hooks/useComprasPainel';
+import { COLUNAS_COMPRAS } from '../utils/statusCompra';
+import '../styles/compras.css';
 
 const PERIODO_COMPRAS_INICIAL = { atalho: '30dias', de: '', ate: '' };
 const CONSULTA_DESKTOP = '(min-width: 1280px)';
 const COLUNAS_LISTA = (status) => [{ id: 'todos', status: status ? [status] : undefined }];
 const KPIS_DE_STATUS = ['aguardando_compra', 'em_cotacao', 'aguardando_solicitante'];
-const HASH_COMPRAS = '#/execucao/compras';
 
 const INICIO_TODOS_OS_PERIODOS = '2000-01-01'; // sem "de": os KPIs de período valem para todo o histórico (o RPC assumiria 30 dias)
 
@@ -36,7 +35,7 @@ const rotuloPeriodo = (de, ate) => {
 };
 
 /**
- * Dashboard do setor de Compras (#/execucao/compras): KPIs, fila por status (quadro/abas/lista), filtros, detalhe em
+ * Dashboard do setor de Compras (#/compras): KPIs, fila por status (quadro/abas/lista), filtros, detalhe em
  * drawer (deep link ?pedido=ID) e atualização em tempo real (Realtime + reforço periódico).
  */
 export default function DashboardCompras({ usuario }) {

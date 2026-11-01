@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import AuthGuard from './components/AuthGuard';
 import AdminPanel from './components/AdminPanel';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -8,6 +8,7 @@ import ImpersonationBar from './components/ImpersonationBar';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LayoutProvider, useLayout } from './contexts/LayoutContext';
 import { useGoogleSheetsData } from './hooks/useGoogleSheetsData';
+import { hashEhCompras } from './features/compras/utils/navegacaoCompras';
 
 // Cada módulo vira um chunk próprio: técnico/Compras (Execução) não baixam o Dashboard Comercial (echarts etc.) e vice-versa
 const Dashboard = lazy(() => import('./features/dashboard/components/Dashboard'));
@@ -17,6 +18,9 @@ const ArsenalDeGuerra = lazy(() => import('./components/ArsenalDeGuerra'));
 
 // O módulo Execução só é baixado por quem tem acesso a ele
 const ExecucaoDashboard = lazy(() => import('./features/execucao/components/ExecucaoDashboard'));
+
+// Compras é um módulo de topo próprio (chunk separado); só quem tem a rota `compras` o baixa
+const ComprasModulo = lazy(() => import('./features/compras/ComprasModulo'));
 
 function TelaCarregando() {
   return (
@@ -39,6 +43,35 @@ function AppContent() {
     window.addEventListener('effort:open-admin', handler);
     return () => window.removeEventListener('effort:open-admin', handler);
   }, []);
+
+  // COMPRAS (pelo nome do nível) vive só no módulo Compras: qualquer outro estado/hash cai de volta nele
+  const somenteCompras = usuario?.nivel_acesso?.nome === 'COMPRAS';
+  const paginaAtual = somenteCompras && isAuthenticated ? 'compras' : currentPage;
+
+  // Deep links e atalhos (#/compras?pedido=ID, sino de notificação) abrem o módulo Compras; quem não tem a rota
+  // recebe o redirecionamento do ProtectedRoute
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const aoNavegar = () => {
+      if (hashEhCompras()) setCurrentPage((atual) => (atual === null || atual === 'compras' ? atual : 'compras'));
+      // Botão "voltar" do navegador de Compras para uma página da Execução (admin)
+      else if (window.location.hash.startsWith('#/execucao')) setCurrentPage((atual) => (atual === 'compras' ? 'execucao' : atual));
+    };
+    window.addEventListener('popstate', aoNavegar);
+    // F5/login com #/compras?pedido=ID: a página inicial sai como 'dashboard' antes da autenticação; corrige já
+    aoNavegar();
+    return () => window.removeEventListener('popstate', aoNavegar);
+  }, [isAuthenticated]);
+
+  // Saindo do módulo Compras, o hash #/compras não deve sobrar (a Execução lê o próprio hash).
+  // Só limpa depois de ter estado em Compras: antes disso apagaria o deep link (F5 / login)
+  const paginaAnterior = useRef(null);
+  useEffect(() => {
+    if (paginaAnterior.current === 'compras' && paginaAtual && paginaAtual !== 'compras' && hashEhCompras()) {
+      window.history.replaceState(null, '', paginaAtual === 'execucao' ? '#/execucao' : window.location.pathname + window.location.search);
+    }
+    paginaAnterior.current = paginaAtual;
+  }, [paginaAtual]);
 
   // Determinar página inicial baseada nas permissões
   useEffect(() => {
@@ -65,13 +98,20 @@ function AppContent() {
         }
 
         // Ordem de preferência: dashboard > apontamentos > arsenal > execucao
-        const ordemPreferencia = ['dashboard', 'apontamentos', 'arsenal', 'execucao'];
+        const ordemPreferencia = ['dashboard', 'apontamentos', 'arsenal', 'execucao', 'compras'];
         let paginaInicial = paginasPermitidas[0]; // fallback para primeira permitida
         
+        // COMPRAS: direto para o módulo Compras (nunca vê outro módulo)
+        const isCompras = usuario.nivel_acesso?.nome === 'COMPRAS';
+        // Deep link do módulo Compras (inclui o hash legado #/execucao/compras)
+        const querCompras = hashEhCompras() && paginasPermitidas.includes('compras');
+
         // Verificar se usuário é do módulo execução (ADMIN_EXECUCAO, TECNICO ou COMPRAS)
         const isExecucaoUser = paginasPermitidas.some(p => p.startsWith('execucao'));
         
-        if (isExecucaoUser) {
+        if (isCompras || querCompras) {
+          paginaInicial = 'compras';
+        } else if (isExecucaoUser) {
           // Usuários de execução vão direto para o módulo
           paginaInicial = 'execucao';
         } else {
@@ -108,6 +148,28 @@ function AppContent() {
           <p className="text-gray-400">Carregando...</p>
         </div>
       </div>
+    );
+  }
+
+  // Módulo Compras (rota de topo `compras`): COMPRAS, ADMIN_EXECUCAO e Administrador
+  if (paginaAtual === 'compras') {
+    return (
+      <AuthGuard onOpenAdmin={() => setShowAdminPanel(true)}>
+        <ProtectedRoute
+          requiredRoute="compras"
+          fallbackComponent={
+            <SmartRedirect onRedirect={setCurrentPage} />
+          }
+        >
+          <Suspense fallback={<TelaCarregando />}>
+            <ComprasModulo onVoltar={setCurrentPage} />
+          </Suspense>
+        </ProtectedRoute>
+        <AdminPanel 
+          isOpen={showAdminPanel} 
+          onClose={() => setShowAdminPanel(false)} 
+        />
+      </AuthGuard>
     );
   }
 

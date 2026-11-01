@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   FaChartLine, FaClipboardList, FaFire, FaBars, FaCog, FaUser, FaSignOutAlt,
-  FaBolt, FaChevronLeft, FaTools
+  FaBolt, FaChevronLeft, FaTools, FaShoppingCart
 } from 'react-icons/fa';
 import { useAuth } from '../../../contexts/AuthContext';
 import { effortColors } from '../../../utils/effortTheme';
@@ -27,6 +27,8 @@ const SidebarV2 = ({
     { id: 'dashboard', label: 'Dashboard', icon: FaChartLine, always: true },
     { id: 'apontamentos', label: 'Apontamentos', icon: FaClipboardList, always: true },
     { id: 'arsenal', label: 'Arsenal', icon: FaFire, always: true },
+    // Módulo próprio de Compras: atalho só para o Administrador
+    ...(isAdminUser ? [{ id: 'compras', label: 'Compras', icon: FaShoppingCart }] : []),
   ];
 
   const handleClick = (id) => {

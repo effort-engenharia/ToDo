@@ -168,9 +168,17 @@ const DashboardHeader = ({
           </div>
         </div>
         
-        {/* Segunda linha: Botões APONTAMENTOS COMERCIAL e ARSENAL DE GUERRA (apenas se tiver permissão) */}
-        {(permissoes.apontamentos || permissoes.arsenal) && (
+        {/* Segunda linha: Botões APONTAMENTOS COMERCIAL, ARSENAL DE GUERRA e COMPRAS (apenas se tiver permissão) */}
+        {(permissoes.apontamentos || permissoes.arsenal || usuario?.nivel_acesso?.nome === 'Administrador') && (
           <div className="flex justify-end gap-3">
+            {usuario?.nivel_acesso?.nome === 'Administrador' && (
+              <button
+                onClick={() => setCurrentPage('compras')}
+                className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-4 sm:px-6 py-2 sm:py-3 rounded-md transition-all duration-300 shadow-lg hover:shadow-xl text-xs sm:text-sm transform hover:-translate-y-1"
+              >
+                🛒 COMPRAS
+              </button>
+            )}
             {permissoes.apontamentos && (
               <button 
                 onClick={() => setCurrentPage('apontamentos')}

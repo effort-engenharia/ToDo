@@ -16,25 +16,23 @@ const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null, onR
       }
 
       try {
-        // Administradores têm acesso a tudo (páginas comerciais)
+        // COMPRAS (pelo nome do nível): acessa só o módulo próprio de Compras
+        if (usuario.nivel_acesso?.nome === 'COMPRAS') {
+          setHasPermission(requiredRoute === 'compras');
+          setLoading(false);
+          return;
+        }
+
+        // Administradores: páginas comerciais + módulo Compras (a Execução tem rota própria p/ ADMIN_EXECUCAO)
         if (usuario.nivel_acesso?.nome === 'Administrador') {
-          // Verificar se a rota é do módulo execução
-          if (requiredRoute.startsWith('execucao')) {
-            setHasPermission(false);
-          } else {
-            setHasPermission(true);
-          }
+          setHasPermission(requiredRoute === 'compras' || !requiredRoute.startsWith('execucao'));
           setLoading(false);
           return;
         }
         
-        // ADMIN_EXECUCAO tem acesso a todas as páginas de execução
+        // ADMIN_EXECUCAO tem acesso a todas as páginas de execução e ao módulo Compras
         if (usuario.nivel_acesso?.nome === 'ADMIN_EXECUCAO') {
-          if (requiredRoute.startsWith('execucao')) {
-            setHasPermission(true);
-          } else {
-            setHasPermission(false);
-          }
+          setHasPermission(requiredRoute === 'compras' || requiredRoute.startsWith('execucao'));
           setLoading(false);
           return;
         }
@@ -47,16 +45,9 @@ const ProtectedRoute = ({ children, requiredRoute, fallbackComponent = null, onR
           return;
         }
 
-        // COMPRAS acessa só o Dashboard de Compras (e POPs) dentro do módulo Execução
-        if (usuario.nivel_acesso?.nome === 'COMPRAS') {
-          const paginasCompras = ['execucao', 'execucao/compras', 'execucao/pops'];
-          setHasPermission(paginasCompras.includes(requiredRoute));
-          setLoading(false);
-          return;
-        }
-
-        // Verificar permissão específica para outros níveis
-        const permission = await temPermissao(requiredRoute);
+        // Outros níveis: permissão da tabela (Compras: tolera a rota antiga até a migration 32 ser aplicada)
+        let permission = await temPermissao(requiredRoute);
+        if (!permission && requiredRoute === 'compras') permission = await temPermissao('execucao/compras');
         setHasPermission(permission);
       } catch (error) {
         console.error('Erro ao verificar permissão:', error);

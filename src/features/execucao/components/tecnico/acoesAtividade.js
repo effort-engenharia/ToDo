@@ -27,7 +27,21 @@ registrarExecutor('status', ({ atividadeId, usuarioId, id, ocorridoEm, payload }
     idCliente: id,
     motivoCodigo: payload.motivoCodigo ?? null,
     solicitaReplanejamento: payload.solicitaReplanejamento ?? null,
-    horasRealizadas: payload.horasRealizadas ?? null
+    // horasRealizadas só existe em itens antigos da fila (o técnico não informa mais horas; o servidor calcula)
+    horasRealizadas: payload.horasRealizadas ?? null,
+    // Conclusão: observação e localização do instante do clique (ficam no payload, inclusive offline)
+    observacao: payload.observacao ?? null,
+    latitude: payload.latitude ?? null,
+    longitude: payload.longitude ?? null,
+    precisaoM: payload.precisaoM ?? null,
+    geoStatus: payload.geoStatus ?? null
+  }));
+
+// Passo (sub-etapa) marcado/desmarcado no modal de conclusão. Idempotente no servidor por id_cliente.
+registrarExecutor('passo', ({ atividadeId, id, ocorridoEm, payload }) =>
+  execucaoTecnicoService.marcarPasso(atividadeId, payload.subEtapaId, payload.concluido, {
+    idCliente: id,
+    ocorridoEm
   }));
 
 registrarExecutor('falta_material', ({ atividadeId, id, ocorridoEm, payload }) =>
@@ -104,9 +118,67 @@ export const pausarAtividade = (
     payload: { status: 'pausada', motivo, motivoCodigo, solicitaReplanejamento }
   });
 
-// horasRealizadas null/undefined: o servidor assume as horas previstas
-export const concluirAtividade = (atividadeId, usuarioId, { horasRealizadas = null } = {}, acao = novaAcao()) =>
-  enfileirarOuEnviar({ tipo: 'status', atividadeId, usuarioId, acao, payload: { status: 'concluida', horasRealizadas } });
+const MAX_OBSERVACAO = 1000;
+
+const AVISO_GEO = {
+  negada: 'Localização bloqueada: a conclusão foi registrada sem localização. Para registrar nas próximas, libere em Configurações do navegador → Permissões → Localização.',
+  indisponivel: 'Não foi possível obter a localização agora. A conclusão foi registrada normalmente.',
+  tempo_esgotado: 'Não foi possível obter a localização agora. A conclusão foi registrada normalmente.',
+  nao_suportado: 'Este aparelho não informa a localização. A conclusão foi registrada normalmente.'
+};
+
+// Conclusão pelo técnico. Horário: o instante do clique (`ocorridoEm`) vai na ação; online o servidor usa o próprio
+// relógio e, vindo da fila offline, usa este instante. Não há horas editáveis (o servidor calcula).
+// `localizacao` = resultado de obterLocalizacao() no clique; `passos` = [{ subEtapaId, concluido, nome }] alterados.
+// Os passos entram na fila ANTES da ação de status (a ordem da fila é a ordem de criação); falha de um passo
+// não impede a conclusão e volta em `avisos`.
+export const concluirAtividade = async (
+  atividadeId,
+  usuarioId,
+  { observacao = null, localizacao = null, passos = [], ocorridoEm = null, horasRealizadas = null } = {},
+  acao = novaAcao()
+) => {
+  const instante = ocorridoEm || acao.ocorridoEm;
+  const avisos = [];
+  const falhasPassos = [];
+
+  for (const passo of passos) {
+    const r = await enfileirarOuEnviar({
+      tipo: 'passo',
+      atividadeId,
+      usuarioId,
+      acao: { idCliente: uuid(), ocorridoEm: instante },
+      payload: { subEtapaId: passo.subEtapaId, concluido: !!passo.concluido }
+    });
+    if (r.blocked) return r;
+    if (!r.success) falhasPassos.push(passo.nome || 'passo');
+  }
+
+  const texto = typeof observacao === 'string' ? observacao.trim().slice(0, MAX_OBSERVACAO) : '';
+  const geoOk = localizacao?.status === 'ok';
+  const resultado = await enfileirarOuEnviar({
+    tipo: 'status',
+    atividadeId,
+    usuarioId,
+    acao: { idCliente: acao.idCliente, ocorridoEm: instante },
+    payload: {
+      status: 'concluida',
+      horasRealizadas,
+      observacao: texto || null,
+      geoStatus: localizacao?.status ?? null,
+      latitude: geoOk ? localizacao.latitude : null,
+      longitude: geoOk ? localizacao.longitude : null,
+      precisaoM: geoOk ? localizacao.precisao ?? null : null
+    }
+  });
+  if (!resultado.success) return resultado;
+
+  if (falhasPassos.length) {
+    avisos.push(`A atividade foi concluída, mas não foi possível registrar ${falhasPassos.length === 1 ? 'o passo' : 'os passos'}: ${falhasPassos.join(', ')}.`);
+  }
+  if (localizacao && !geoOk && AVISO_GEO[localizacao.status]) avisos.push(AVISO_GEO[localizacao.status]);
+  return avisos.length ? { ...resultado, avisos } : resultado;
+};
 
 export const reportarFaltaMaterial = (atividadeId, usuarioId, { descricao, pausar = true } = {}, acao = novaAcao()) =>
   enfileirarOuEnviar({ tipo: 'falta_material', atividadeId, usuarioId, acao, payload: { descricao, pausar } });

@@ -26,6 +26,7 @@ import { dataLocalISO, parseDataLocal, formatarDataBR } from '../utils/datas';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useExecucaoUI } from './ui/ExecucaoUI';
 import Modal from './ui/Modal';
+import ConclusaoAtividade from './ConclusaoAtividade';
 import { Carregando, ErroCarregamento } from './ui/Estados';
 
 const FORMATO_DATA_LONGA = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
@@ -846,6 +847,8 @@ const ExecucaoHome = ({ usuario, isAdmin, onNavigate }) => {
                 <p className="text-slate-200 mt-1 whitespace-pre-wrap">{sel.observacoes}</p>
               </div>
             )}
+
+            <ConclusaoAtividade atividade={sel} />
 
             {historicoPausas.error && (
               <p className="text-sm text-red-400" role="alert">

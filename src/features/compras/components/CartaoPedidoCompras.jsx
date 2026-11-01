@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatarDataBR } from '../../execucao/utils/datas';
+import { irParaCotacao } from '../utils/navegacaoCompras';
 import {
   STATUS_COMPRA,
   URGENCIAS,
@@ -18,7 +19,10 @@ const ROTULO_ACAO = {
  * Cartão de pedido (<article>): o botão do título abre o detalhe; a ação rápida muda conforme a coluna.
  * Questionamento aberto → borda roxa + selo ❓; atraso em texto (não só cor).
  */
-function CartaoPedidoCompras({ pedido, onAbrir, onAcao, podeAgir = false, destacado = false, ocupado = false }) {
+function CartaoPedidoCompras({
+  pedido, onAbrir, onAcao, podeAgir = false, destacado = false, ocupado = false,
+  selecionavel = false, selecionado = false, onSelecionar = null, mostrarCotacao = false,
+}) {
   const urg = URGENCIAS[pedido.urgencia];
   const status = STATUS_COMPRA[pedido.status_compra];
   const atraso = diasDeAtraso(pedido.data_material_disponivel);
@@ -29,9 +33,25 @@ function CartaoPedidoCompras({ pedido, onAbrir, onAcao, podeAgir = false, destac
 
   return (
     <article
-      className={`cmp-cartao${abertos > 0 ? ' cmp-cartao-questionado' : ''}${destacado ? ' cmp-destaque' : ''}`}
+      className={`cmp-cartao${abertos > 0 ? ' cmp-cartao-questionado' : ''}${destacado ? ' cmp-destaque' : ''}${selecionado ? ' cmp-cartao-selecionado' : ''}`}
       aria-busy={ocupado || undefined}
     >
+      {selecionavel && onSelecionar && (
+        <label className="cmp-selecionar">
+          <input type="checkbox" checked={selecionado} onChange={() => onSelecionar(pedido)} aria-label={`Selecionar pedido ${titulo}`} />
+          <span className="cmp-selecionar-texto">Selecionar</span>
+        </label>
+      )}
+      {mostrarCotacao && pedido.cotacao_ativa && (
+        <a
+          href={`#/compras/cotacoes?id=${pedido.cotacao_ativa.id}`}
+          className="cmp-selo bg-blue-500/15 text-blue-300 border border-blue-500/40 mb-1"
+          onClick={(e) => { e.preventDefault(); irParaCotacao(pedido.cotacao_ativa.id); }}
+          aria-label={`Abrir cotação nº ${pedido.cotacao_ativa.numero}`}
+        >
+          🧾 Cotação nº {pedido.cotacao_ativa.numero}
+        </a>
+      )}
       <div className="flex items-start justify-between gap-2">
         <button
           type="button"

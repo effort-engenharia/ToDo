@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FaSyncAlt } from 'react-icons/fa';
 import { execucaoComprasService } from '../../../services/supabase/execucaoCompras';
 import { useAsyncData } from '../../execucao/hooks/useAsyncData';
@@ -16,7 +16,11 @@ import IndicadoresCompras from './IndicadoresCompras';
 import { ModalStatusCompra } from './ModalAcoesCompras';
 import { HASH_COMPRAS, hashDoPedidoCompras, pedidoDoHash } from '../utils/navegacaoCompras';
 import { useComprasPainel, useRefreshLimitado } from '../hooks/useComprasPainel';
-import { COLUNAS_COMPRAS } from '../utils/statusCompra';
+import { COLUNAS_COMPRAS, LIMITE_PEDIDOS_COTACAO } from '../utils/statusCompra';
+import { useCotacaoDisponivel } from '../hooks/useCotacaoDisponivel';
+import { irParaCotacao } from '../utils/navegacaoCompras';
+const NovaCotacao = lazy(() => import('./cotacao/NovaCotacao'));
+const IndicadoresCotacao = lazy(() => import('./IndicadoresCotacao'));
 import '../styles/compras.css';
 
 const PERIODO_COMPRAS_INICIAL = { atalho: '30dias', de: '', ate: '' };
@@ -42,6 +46,8 @@ export default function DashboardCompras({ usuario }) {
   const { toast } = useExecucaoUI();
   const desktop = useMediaQuery(CONSULTA_DESKTOP);
   const podeAgir = isCompras(usuario);
+  // Cotação com fornecedores: seleção múltipla só aparece com as migrations 34–39 aplicadas
+  const { disponivel: cotacaoDisponivel, config: configCotacao } = useCotacaoDisponivel();
 
   // ---------- Filtros ----------
   const [periodo, setPeriodo] = useState(PERIODO_COMPRAS_INICIAL);
@@ -214,6 +220,41 @@ export default function DashboardCompras({ usuario }) {
 
   const aposAcaoModal = () => { setModalAcao(null); aoMudar(); };
 
+  // ---------- Seleção múltipla para cotação (F-07, plano §10.2) ----------
+  const [selecionados, setSelecionados] = useState(() => new Map()); // id → pedido
+  const [avisoSelecao, setAvisoSelecao] = useState('');
+  const [assistente, setAssistente] = useState(false);
+
+  const alternarSelecao = useCallback((pedido) => {
+    setSelecionados((atual) => {
+      const novo = new Map(atual);
+      if (novo.has(pedido.id)) {
+        novo.delete(pedido.id);
+        setAvisoSelecao('');
+      } else if (novo.size >= LIMITE_PEDIDOS_COTACAO) {
+        setAvisoSelecao(`Limite de ${LIMITE_PEDIDOS_COTACAO} pedidos por cotação`);
+      } else {
+        novo.set(pedido.id, pedido);
+        setAvisoSelecao('');
+      }
+      return novo;
+    });
+  }, []);
+  const limparSelecao = useCallback(() => { setSelecionados(new Map()); setAvisoSelecao(''); }, []);
+  const selecao = useMemo(
+    () => (cotacaoDisponivel && podeAgir ? { ids: new Set(selecionados.keys()), onAlternar: alternarSelecao } : null),
+    [cotacaoDisponivel, podeAgir, selecionados, alternarSelecao]
+  );
+  const aoTeclarBarra = (e) => { if (e.key === 'Escape') { e.stopPropagation(); limparSelecao(); } };
+
+  const aoConcluirAssistente = (cotacaoId) => {
+    setAssistente(false);
+    limparSelecao();
+    aoMudar();
+    if (cotacaoId) irParaCotacao(cotacaoId);
+  };
+  const aoFecharAssistente = () => { setAssistente(false); aoMudar(); };
+
   const aoClicarKpi = (id) => {
     setKpiAtivo(id);
     if (KPIS_DE_STATUS.includes(id)) setAbaAtiva(id);
@@ -262,6 +303,11 @@ export default function DashboardCompras({ usuario }) {
         rotuloPeriodo={rotuloPeriodo(de, ate)}
       />
 
+      {cotacaoDisponivel && podeAgir && (
+        <Suspense fallback={null}>
+          <IndicadoresCotacao de={de || null} ate={ate || null} versao={versao} />
+        </Suspense>
+      )}
       <FiltrosCompras
         compacto={!desktop}
         periodo={periodo} onPeriodo={setPeriodo}
@@ -318,6 +364,7 @@ export default function DashboardCompras({ usuario }) {
               podeAgir={podeAgir}
               destaques={destaques}
               pedidoOcupado={pedidoOcupado}
+              selecao={selecao}
             />
           )}
           {todosVazios && contagemFiltros > 0 && (
@@ -339,6 +386,32 @@ export default function DashboardCompras({ usuario }) {
           onClose={fecharDetalhe}
           onAlterado={aoMudar}
         />
+      )}
+
+      {selecionados.size > 0 && selecao && (
+        <div className="cmp-barra-acao cmp-barra-selecao" role="region" aria-label="Ações da seleção" onKeyDown={aoTeclarBarra}>
+          <p className="text-sm text-slate-200" aria-live="polite">
+            {selecionados.size} {selecionados.size === 1 ? 'pedido selecionado' : 'pedidos selecionados'}
+            {avisoSelecao && <span className="text-amber-300"> · {avisoSelecao}</span>}
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className="execucao-btn execucao-btn-secondary cmp-btn-toque" onClick={limparSelecao}>Limpar</button>
+            <button type="button" className="execucao-btn execucao-btn-primary cmp-btn-toque" onClick={() => setAssistente(true)}>
+              Criar cotação com {selecionados.size} {selecionados.size === 1 ? 'pedido' : 'pedidos'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {assistente && (
+        <Suspense fallback={null}>
+          <NovaCotacao
+            pedidos={[...selecionados.values()]}
+            config={configCotacao}
+            onClose={aoFecharAssistente}
+            onConcluido={aoConcluirAssistente}
+          />
+        </Suspense>
       )}
 
       {modalAcao?.tipo === 'status' && (

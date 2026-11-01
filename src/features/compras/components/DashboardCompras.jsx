@@ -5,7 +5,7 @@ import { useAsyncData } from '../../execucao/hooks/useAsyncData';
 import { useAtualizacaoTabelas } from '../../execucao/hooks/useAtualizacaoTabelas';
 import { useDebouncedValue } from '../../execucao/hooks/useDebouncedValue';
 import { useMediaQuery } from '../../execucao/hooks/useMediaQuery';
-import { isCompras } from '../../execucao/utils/permissoes';
+import { isCompras } from '../../../utils/permissoes';
 import { intervaloDoPeriodo } from '../../execucao/components/pedido-material/periodo';
 import { useExecucaoUI } from '../../execucao/components/ui/ExecucaoUI';
 import { ErroCarregamento, EstadoVazio } from '../../execucao/components/ui/Estados';

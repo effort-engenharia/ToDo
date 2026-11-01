@@ -8,7 +8,6 @@ import { Carregando } from './ui/Estados';
 import AvisoSessao from './ui/AvisoSessao';
 import { isAdminExecucao, paginaDeSeguranca, paginaInicial, paginaPermitida } from '../utils/permissoes';
 import { useBadgesMenu } from '../hooks/useBadgesMenu';
-import { abrirModuloCompras } from '../../compras/utils/navegacaoCompras';
 import '../styles/execucao.css';
 
 // Cada página vira um chunk separado: o técnico não baixa Planejamento (PDF/Excel), gráficos etc.
@@ -78,11 +77,6 @@ const ExecucaoDashboard = ({ onVoltar }) => {
   const currentPage = paginaPermitida(usuario, pagina) ? pagina : paginaDeSeguranca(usuario);
 
   const navegar = useCallback((destino) => {
-    // Compras virou módulo próprio: o item do menu é só um atalho que o abre
-    if (destino === 'compras') {
-      abrirModuloCompras();
-      return;
-    }
     const alvo = PAGINAS_VALIDAS.has(destino) ? destino : inicial;
     setPagina(alvo);
     const hash = alvo === 'home' ? PREFIXO_HASH : `${PREFIXO_HASH}/${alvo}`;

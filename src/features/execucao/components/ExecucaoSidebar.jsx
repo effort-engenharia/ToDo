@@ -16,8 +16,7 @@ import {
   FaClock,
   FaBalanceScale,
   FaHistory,
-  FaCog,
-  FaShoppingCart
+  FaCog
 } from 'react-icons/fa';
 import { NIVEIS, isAdminExecucao } from '../utils/permissoes';
 import '../styles/execucao.css';
@@ -31,7 +30,6 @@ const menuItemsAdmin = [
   { id: 'agenda-galpao', label: 'Agenda Galpão', icon: FaWarehouse, rota: 'execucao/agenda-galpao' },
   { id: 'agenda-gestao', label: 'Agenda Gestão', icon: FaClipboardList, rota: 'execucao/agenda-gestao' },
   { id: 'pedido-material', label: 'Pedido de Material', icon: FaBoxOpen, rota: 'execucao/pedido-material' },
-  { id: 'compras', label: 'Compras', icon: FaShoppingCart, rota: 'compras' }, // atalho: abre o módulo próprio de Compras
   { id: 'desempenho-individual', label: 'Desempenho Individual', icon: FaChartLine, rota: 'execucao/desempenho-individual' },
   { id: 'desempenho-time', label: 'Desempenho do Time', icon: FaUsers, rota: 'execucao/desempenho-time' },
   { id: 'planejamento-macro', label: 'Planejamento Macro', icon: FaProjectDiagram, rota: 'execucao/planejamento-macro' },
@@ -78,7 +76,7 @@ const ExecucaoSidebar = ({
     },
     {
       title: 'Gestão',
-      items: menuItems.filter(item => ['pedido-material', 'compras', 'desempenho-individual', 'desempenho-time', 'planejamento-macro', 'pops', 'horas-extras', 'capacidade'].includes(item.id))
+      items: menuItems.filter(item => ['pedido-material', 'desempenho-individual', 'desempenho-time', 'planejamento-macro', 'pops', 'horas-extras', 'capacidade'].includes(item.id))
     },
     {
       title: 'Sistema',

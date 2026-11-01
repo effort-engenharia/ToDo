@@ -79,7 +79,7 @@ const formatarTempoRelativo = (dataStr) => {
   return data.toLocaleDateString('pt-BR');
 };
 
-const NotificacoesDropdown = ({ usuarioId, isAdmin = false, isCompras = false, noModuloCompras = false }) => {
+const NotificacoesDropdown = ({ usuarioId, isAdmin = false, noModuloCompras = false }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [notificacoes, setNotificacoes] = useState([]);
   const [contadorNaoLidas, setContadorNaoLidas] = useState(0);
@@ -216,8 +216,8 @@ const NotificacoesDropdown = ({ usuarioId, isAdmin = false, isCompras = false, n
         console.error('Erro ao marcar notificação como lida:', error);
       }
     }
-    // Notificações de Compras abrem o pedido certo (módulo Compras → drawer; admin na Execução → conversa/módulo Compras)
-    const destinoPedido = destinoComprasDaNotificacao(notif, { isAdmin, isCompras, noModuloCompras });
+    // Notificações de Compras abrem o pedido certo (módulo Compras → drawer; ADMIN_EXECUCAO na Execução → conversa do Pedido de Material)
+    const destinoPedido = destinoComprasDaNotificacao(notif, { isAdmin, noModuloCompras });
     if (destinoPedido) irParaPedido(destinoPedido);
     else if (!noModuloCompras) irParaDestino(destinoDaNotificacao(notif, isAdmin));
   };

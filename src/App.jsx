@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LayoutProvider, useLayout } from './contexts/LayoutContext';
 import { useGoogleSheetsData } from './hooks/useGoogleSheetsData';
 import { hashEhCompras } from './features/compras/utils/navegacaoCompras';
+import { NIVEIS, podeAcessarCompras } from './utils/permissoes';
 
 // Cada módulo vira um chunk próprio: técnico/Compras (Execução) não baixam o Dashboard Comercial (echarts etc.) e vice-versa
 const Dashboard = lazy(() => import('./features/dashboard/components/Dashboard'));
@@ -48,20 +49,29 @@ function AppContent() {
   const somenteCompras = usuario?.nivel_acesso?.nome === 'COMPRAS';
   const paginaAtual = somenteCompras && isAuthenticated ? 'compras' : currentPage;
 
-  // Deep links e atalhos (#/compras?pedido=ID, sino de notificação) abrem o módulo Compras; quem não tem a rota
-  // recebe o redirecionamento do ProtectedRoute
+  // Deep links e atalhos (#/compras?pedido=ID, sino de notificação) abrem o módulo Compras, mas só para COMPRAS e
+  // Administrador. Qualquer outro perfil (ex.: ADMIN_EXECUCAO digitando #/compras) volta ao próprio módulo.
   useEffect(() => {
     if (!isAuthenticated) return undefined;
     const aoNavegar = () => {
-      if (hashEhCompras()) setCurrentPage((atual) => (atual === null || atual === 'compras' ? atual : 'compras'));
-      // Botão "voltar" do navegador de Compras para uma página da Execução (admin)
+      if (hashEhCompras()) {
+        if (!podeAcessarCompras(usuario)) {
+          const nivel = usuario?.nivel_acesso?.nome;
+          const daExecucao = nivel === NIVEIS.ADMIN_EXEC || nivel === NIVEIS.TECNICO;
+          window.history.replaceState(null, '', daExecucao ? '#/execucao' : window.location.pathname + window.location.search);
+          setCurrentPage((atual) => (atual === 'compras' ? (daExecucao ? 'execucao' : 'dashboard') : atual));
+          return;
+        }
+        setCurrentPage((atual) => (atual === null || atual === 'compras' ? atual : 'compras'));
+      }
+      // Botão "voltar" do navegador de Compras para uma página da Execução
       else if (window.location.hash.startsWith('#/execucao')) setCurrentPage((atual) => (atual === 'compras' ? 'execucao' : atual));
     };
     window.addEventListener('popstate', aoNavegar);
     // F5/login com #/compras?pedido=ID: a página inicial sai como 'dashboard' antes da autenticação; corrige já
     aoNavegar();
     return () => window.removeEventListener('popstate', aoNavegar);
-  }, [isAuthenticated]);
+  }, [isAuthenticated, usuario]);
 
   // Saindo do módulo Compras, o hash #/compras não deve sobrar (a Execução lê o próprio hash).
   // Só limpa depois de ter estado em Compras: antes disso apagaria o deep link (F5 / login)
@@ -151,7 +161,7 @@ function AppContent() {
     );
   }
 
-  // Módulo Compras (rota de topo `compras`): COMPRAS, ADMIN_EXECUCAO e Administrador
+  // Módulo Compras (rota de topo `compras`): somente COMPRAS e Administrador
   if (paginaAtual === 'compras') {
     return (
       <AuthGuard onOpenAdmin={() => setShowAdminPanel(true)}>

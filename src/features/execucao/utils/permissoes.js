@@ -1,24 +1,11 @@
-// Regras de permissão do módulo de Execução (fonte única; espelham is_admin_execucao() / is_compras() / pode_ver_compras() no banco).
-export const NIVEIS = {
-  ADMIN: 'Administrador',
-  ADMIN_EXEC: 'ADMIN_EXECUCAO',
-  TECNICO: 'TECNICO',
-  COMPRAS: 'COMPRAS',
-};
+// Regras de permissão do módulo de Execução (espelham is_admin_execucao() no banco).
+// Níveis e regras de Compras vivem em src/utils/permissoes.js (neutro).
+import { NIVEIS, isSomenteCompras, nivelDe } from '../../../utils/permissoes';
 
-const nivelDe = (usuario) => usuario?.nivel_acesso?.nome;
+export { NIVEIS };
 
 export const isAdminExecucao = (usuario) =>
   [NIVEIS.ADMIN_EXEC, NIVEIS.ADMIN].includes(nivelDe(usuario));
-
-// Espelha is_compras() do banco: o setor de Compras e o Administrador geral operam a fila (assumir, status, questionar)
-export const isCompras = (usuario) => [NIVEIS.COMPRAS, NIVEIS.ADMIN].includes(nivelDe(usuario));
-
-// Perfil exclusivo do setor de Compras (sem acesso às demais páginas de gestão)
-export const isSomenteCompras = (usuario) => nivelDe(usuario) === NIVEIS.COMPRAS;
-
-// Espelha pode_ver_compras(): quem enxerga o Dashboard de Compras (Compras, ADMIN_EXECUCAO e Administrador)
-export const podeVerCompras = (usuario) => isCompras(usuario) || isAdminExecucao(usuario);
 
 export const PAGINAS_TECNICO = ['meu-dia', 'home', 'minhas-atividades', 'pops'];
 

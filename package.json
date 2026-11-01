@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "check:contract": "node scripts/check-service-contract.mjs",
+    "test:unit": "node scripts/testes-unitarios.mjs",
     "preview": "vite preview",
     "jev": "node scripts/jev.mjs",
     "graph:update": "graphify update . && node scripts/graph-link-db.mjs && graphify cluster-only . --no-label",

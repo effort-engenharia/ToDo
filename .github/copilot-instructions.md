@@ -73,6 +73,15 @@ O dashboard evoluiu para um sistema comercial completo com múltiplas funcionali
 - Dados de exemplo para desenvolvimento
 - Formatação de números e moedas em pt-BR
 
+### 🛠️ Módulo Execução e Compras (obras)
+- **Planejamento Macro**: obras, etapas e sub-etapas; Gantt e visões (semana, mês, ano, linha do tempo, tabela). No celular, lista de etapas e filtros em gaveta.
+- **Técnico (Meu Dia)**: atividades do dia, iniciar/pausar/concluir, falta de material, evidências (foto, vídeo e áudio) com fila offline.
+- **Conclusão**: observação opcional, horário e localização registrados no momento da conclusão; passos da etapa marcáveis.
+- **POPs**: descrição e procedimento formatados (parágrafos e listas) na gestão e no técnico (`src/components/ui/TextoFormatado.jsx`).
+- **Pedido de material**: cliente, quantidade inteira para `un`/`cx`/`pct`, histórico com diff de itens, filtro de período e questionamentos da Compras.
+- **Dashboard de Compras** (nível `COMPRAS`, página `execucao/compras`): fila por status de compra, indicadores e questionamentos.
+- **Estado**: front pronto; migrations 19–30 escritas e **não aplicadas** (ver "Migrations 19–30" em *Banco de dados no grafo*).
+
 ## 🏗️ Arquitetura do Projeto (Setembro 2025)
 
 ### 📁 Estrutura Modular Organizada
@@ -150,10 +159,34 @@ src/
 - **Utils Especializados**: Processamento e formatação
 - **Componentes Reutilizáveis**: DRY principle
 
+### 🛠️ Módulo `src/features/execucao/`
+```
+src/features/execucao/
+├── components/                  # Telas do módulo (ExecucaoDashboard, PlanejamentoMacro, POPs, PedidoMaterial...)
+│   ├── compras/                 # Dashboard de Compras (fila, indicadores, detalhe, questionamento)
+│   ├── planejamento/            # Planejamento Macro (Gantt, visões, cadastro, ListaEtapasMobile)
+│   ├── pedido-material/         # Pedido de material (formulário, CampoQuantidade, DiffItens, FiltroPeriodo)
+│   ├── tecnico/                 # Meu Dia, ModalConcluir, PassosAtividade, evidencias/ (foto, vídeo, áudio)
+│   ├── capacidade/              # Capacidade da equipe e horas extras
+│   ├── desempenho/              # Indicadores e gráficos
+│   ├── historico/               # Histórico e auditoria de alterações
+│   ├── config/                  # Configurações (jornadas, colaboradores, calendário, templates)
+│   └── ui/                      # Modal, Estados, ErrorBoundary, ExecucaoUI
+├── hooks/                       # useAtualizacaoTabelas, useMediaQuery, useAsyncData...
+├── offline/                     # Fila de ações (outbox), sincronizador e cache de leitura
+├── utils/                       # permissoes, conclusao, datas, formatos
+└── styles/execucao.css
+```
+Serviços: `src/services/supabase/execucao*.js` (`execucaoCompras.js` chama as RPCs `compras_*`).
+
 ## 🚀 Como Executar
 1. `npm install` - Instalar dependências
 2. `npm run dev` - Executar em desenvolvimento
 3. `npm run build` - Build para produção
+4. `npm run lint` - ESLint
+5. `npm run check:contract` - Contrato entre services e componentes
+6. `npm run test:unit` - Testes unitários dos helpers (`node:test`, sem dependência extra; script em `scripts/testes-unitarios.mjs`)
+7. `npm run graph:update` - Atualiza o grafo do graphify e os vínculos com o banco
 
 ## 💻 Instruções para Desenvolvimento
 - **Terminal**: Sempre utilize `bash` para comandos do terminal
@@ -168,6 +201,11 @@ src/
 - **Build Otimizado**: Pronto para produção
 
 ## 🎯 Próximos Passos (Roadmap)
+- **Execução e Compras** (checklist completo no *Status consolidado* de `PLANO_MELHORIAS_EXECUCAO_COMPRAS.md`):
+  - Aplicar as migrations 19–30, regenerar o snapshot e o grafo; dry-run de `corrigir_etapas_pai_concluidas.sql`
+  - QA manual (Anexo E.5), validação visual do Planejamento (Q4) e testes de vídeo/áudio em aparelhos
+  - Decidir P8 (data necessária × previsão de chegada) e exibir o indicador de conclusões sem localização (ACH-09)
+  - Carregar `useGoogleSheetsData` só nas páginas do Comercial (hoje roda para todos os perfis)
 - **Filtros Temporais**: Implementar filtros por período no dashboard
 - **Notificações Push**: Sistema de alertas em tempo real
 - **Dashboard Mobile**: Versão otimizada para dispositivos móveis
@@ -204,6 +242,12 @@ O grafo também cobre o schema Supabase: `supabase/schema/*.sql` é um snapshot 
 - `graphify affected "public.execucao_obras"` — impacto de mudar a tabela.
 
 Ao alterar o schema (migrations via MCP), regenere o snapshot conforme `supabase/schema/README.md`.
+
+#### Migrations 19–30 (lote 20261101): escritas, **NÃO aplicadas**
+- Arquivos `supabase/migrations/20261101_19_*` a `20261101_30_*`, cada um com `-- ROLLBACK:` no topo. Ordem, dependências e cuidados: `supabase/migrations/README.md`.
+- **Não reaplicar a 19 depois da 20** (cria overload de `alterar_status_atividade`).
+- `supabase/manutencao/` tem scripts de diagnóstico e correção de dados. **Não são migrations.**
+- Até a aplicação, o snapshot `supabase/schema/` está defasado e o front chama RPCs que ainda não existem no banco (`compras_*`, `execucao_marcar_passo`, `execucao_passos_pendentes_por_etapa`). Não use o grafo do banco para avaliar impacto nesses objetos.
 
 ## Jev (TypeSafe AI) — decisões rápidas e economia de tokens
 

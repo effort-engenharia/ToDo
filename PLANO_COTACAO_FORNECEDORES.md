@@ -8,26 +8,26 @@
 
 ## Status consolidado
 
-> **Atualizado em 2026-11-01.** Resumo para o dono. Detalhes nas seções e itens do §14 citados.
+> **Atualizado em 2026-11-02.** Resumo para o dono. Detalhes nas seções e itens do §14 citados.
 
-**Pronto (no repositório; nada aplicado no banco)**
+**Pronto**
 - Front das ondas 1 a 4 (F-01 a F-15): módulo Compras (fornecedores, cotação, comparativo, histórico de preços, alterações da atendente) e página pública `cotacao/index.html` → `src/cotacao-publica/`.
-- Migrations 34 a 39 escritas e revisadas pelo QA (Q-02, aprovado com ressalvas; as ressalvas foram corrigidas nos arquivos). **NÃO aplicadas.**
+- Migrations 33 a 40 **aplicadas no Supabase de produção em 2026-11-02** (B-00 medido e B-08 executada via MCP; ver Anexo A e `supabase/migrations/README.md`). Testes de permissão e do link público passaram em transação com `ROLLBACK`; advisors sem ERRO novo do lote (avisos esperados descritos no Anexo A).
 - Anexos B (UI/UX) e C (contrato final) preenchidos.
 - `npm run test:unit`: 117 testes passando (2026-11-01).
 - Documentação: `README.md`, `.github/copilot-instructions.md` e `supabase/migrations/README.md` atualizados.
 
 **Pendente (técnico)**
-- **B-00:** confirmar que as migrations 32 e 33 estão aplicadas; medir extensões e preencher o Anexo A. Não feito (sem MCP do Supabase na sessão).
-- **B-08:** aplicar 34→35→36→37 e depois 38 e 39; rodar advisors; regenerar `supabase/schema/`; `npm run graph:update`; registrar a ordem real. Não feito.
-- **B-09 (opcional):** agendar `compras_verificar_alertas` com `pg_cron`, se a extensão existir.
-- **Q-03:** executar §15.2 a §15.6 em produção ou num branch do Supabase. Não feito.
-- **P-01 e P-02:** bundle e benchmark (P-02 depende da B-08). Não feitos.
+- **B-08 (resto):** regenerar `supabase/schema/` (inclui as tabelas e RPCs de cotação) e rodar `npm run graph:update`.
+- **Netlify:** definir `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no build (a página pública exige).
+- **B-09 (opcional):** `pg_cron` **não está habilitado**; habilitar a extensão para agendar `compras_verificar_alertas()` (15 min) e `compras_limpeza_publica()`. Habilitar `pg_cron` **não agenda sozinho**: o bloco `DO` da migration 37 só roda na aplicação (e, naquela data, `pg_cron` não estava habilitado). O agendamento é manual (ver B-09).
+- **Q-03:** executar §15.2 a §15.5 de ponta a ponta (o §15.6 é desempenho, coberto por P-01 e P-02) (com usuários reais e o front). Já foram verificados em SQL: grants de `anon`, RLS, papéis, kill switch, rate limit, resposta válida/inválida/versão errada e token inválido (ver o registro de aplicação em `supabase/migrations/README.md`).
+- **P-01 e P-02:** parciais. Feitos sem banco: bundle e benchmark. Pendentes: Lighthouse (P-01) e `EXPLAIN ANALYZE` (P-02), agora possíveis após a B-08.
 - **D-01:** parcial. Faltam a nota F.12 do `PLANO_MELHORIAS_EXECUCAO_COMPRAS.md`, o guia da atendente (Anexo D) e o snapshot após B-08.
 
 **Checklist do dono**
-- [ ] Aplicar as migrations 34→39 na ordem de [`supabase/migrations/README.md`](supabase/migrations/README.md), depois de confirmar as 32 e 33.
-- [ ] Rodar [`supabase/manutencao/diagnostico_cotacao_B00.sql`](supabase/manutencao/diagnostico_cotacao_B00.sql). O item 4 confirma se `cf-connecting-ip` chega na chamada anon. Se não chegar, o limite por IP é ignorado e valem só os limites por token e global (§16). Registrar o resultado no Anexo A.
+- [x] Aplicar as migrations 33→40 (feito em 2026-11-02).
+- [x] Rodar o diagnóstico B-00; `cf-connecting-ip` chega na chamada anon (Anexo A).
 - [ ] Netlify: definir `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` nas variáveis de build antes do deploy. Sem elas, a página `/cotacao/` não consegue chamar o banco.
 - [ ] Testes manuais: §15.2 (RLS e papéis), §15.3 (segurança do link, S-01 a S-18), §15.4 (fluxo ponta a ponta, celular e desktop) e §15.5 (regressão).
 
@@ -1045,7 +1045,7 @@ Front: um componente novo, `IndicadoresCotacao.jsx`, renderizado abaixo de `Indi
 | publicação `supabase_realtime` | + 3 tabelas | 35 |
 | extensões | `pg_trgm` (se ausente, `CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA extensions`). `pgcrypto` precisa existir em `extensions` (padrão do Supabase) por causa de `gen_random_bytes`. | 34 |
 
-**Pré-requisito:** migrations 32 e 33 aplicadas. A 33 consta como "não aplicada" no PLANO_MELHORIAS F.11, e as RPCs reescritas aqui partem da definição pós-33.
+**Pré-requisito:** migrations 32 e 33 aplicadas. _(Texto original, obsoleto: "A 33 consta como "não aplicada" no PLANO_MELHORIAS F.11".)_ A 33 foi aplicada em 2026-11-02 (Anexo A). As RPCs reescritas aqui partem da definição pós-33.
 
 ### 13.2 Front
 
@@ -1069,7 +1069,7 @@ Front: um componente novo, `IndicadoresCotacao.jsx`, renderizado abaixo de `Indi
 
 ### Onda 0: pré-requisitos
 
-- [ ] **B-00 · Backend.** _(sem MCP nesta sessão: consultas prontas em `supabase/manutencao/diagnostico_cotacao_B00.sql`; Anexo A pendente de medição)_ Arquivos: `supabase/migrations/README.md`, `PLANO_MELHORIAS_EXECUCAO_COMPRAS.md` (F.11).
+- [x] **B-00 · Backend.** _(medido em 2026-11-02 via MCP; resultado no Anexo A)_ Arquivos: `supabase/migrations/README.md`, `PLANO_MELHORIAS_EXECUCAO_COMPRAS.md` (F.11).
   - Confirmar com `list_migrations` que a 32 e a 33 estão aplicadas. Se a 33 faltar, aplicá-la e registrar.
   - Rodar e anotar no Anexo A deste plano:
     - `SELECT extname, extnamespace::regnamespace FROM pg_extension WHERE extname IN ('pgcrypto','pg_trgm','pg_cron')`;
@@ -1079,7 +1079,7 @@ Front: um componente novo, `IndicadoresCotacao.jsx`, renderizado abaixo de `Indi
 
 ### Onda 1: banco base + helpers puros + especificação visual (em paralelo)
 
-- [x] **B-01 · Backend.** _(arquivo escrito, NÃO aplicado; B-08 aplica)_ Arquivo: `supabase/migrations/20261102_34_compras_fornecedores_catalogo.sql`.
+- [x] **B-01 · Backend.** _(arquivo escrito; estado anterior a 2026-11-02: NÃO aplicado; B-08 aplicou)_ Arquivo: `supabase/migrations/20261102_34_compras_fornecedores_catalogo.sql`.
   - Conteúdo:
     - `compras_config` (com seed da linha 1 e das mensagens do §10.3);
     - `compras_config_segredo` (com o pepper);
@@ -1090,7 +1090,7 @@ Front: um componente novo, `IndicadoresCotacao.jsx`, renderizado abaixo de `Indi
     - `pg_trgm`, se disponível (bloco `DO` com `EXCEPTION` para não falhar).
   - RLS e grants conforme o §6.
   - **Dep.:** B-00.
-- [x] **B-02 · Backend.** _(arquivo escrito, NÃO aplicado)_ Arquivo: `supabase/migrations/20261102_35_compras_cotacoes_base.sql`.
+- [x] **B-02 · Backend.** _(arquivo escrito; estado anterior a 2026-11-02: NÃO aplicado)_ Arquivo: `supabase/migrations/20261102_35_compras_cotacoes_base.sql`.
   - Conteúdo:
     - todas as tabelas dos §5.4–5.7;
     - os índices;
@@ -1099,14 +1099,14 @@ Front: um componente novo, `IndicadoresCotacao.jsx`, renderizado abaixo de `Indi
     - a função `compras_valor_presente`;
     - a publicação Realtime.
   - **Dep.:** B-01.
-- [x] **B-03 · Backend.** _(arquivo escrito, NÃO aplicado; reescritas a partir dos arquivos 25/26/28 + gate da 33, sem confronto com produção)_ Arquivo: `supabase/migrations/20261102_36_compras_cotacoes_rpcs.sql`.
+- [x] **B-03 · Backend.** _(arquivo escrito; estado anterior a 2026-11-02: NÃO aplicado; reescritas a partir dos arquivos 25/26/28 + gate da 33, sem confronto com produção)_ Arquivo: `supabase/migrations/20261102_36_compras_cotacoes_rpcs.sql`.
   - Conteúdo:
     - as RPCs do §7.2;
     - `compras_precos_referencia`, `compras_material_historico`, `compras_verificar_alertas`;
     - a reescrita de `compras_alterar_status`, `compras_listar_pedidos` e `compras_detalhe_pedido`, partindo do `pg_get_functiondef` de produção.
   - Registrar no cabeçalho o diff em relação à definição anterior.
   - **Dep.:** B-02.
-- [x] **B-04 · Backend.** _(arquivo escrito, NÃO aplicado)_ Arquivo: `supabase/migrations/20261102_37_compras_cotacao_publica.sql`.
+- [x] **B-04 · Backend.** _(arquivo escrito; estado anterior a 2026-11-02: NÃO aplicado)_ Arquivo: `supabase/migrations/20261102_37_compras_cotacao_publica.sql`.
   - Conteúdo:
     - os helpers do §7.4;
     - `cotacao_publica_obter` e `cotacao_publica_responder`;
@@ -1194,12 +1194,12 @@ Front: um componente novo, `IndicadoresCotacao.jsx`, renderizado abaixo de `Indi
 - [x] **F-13 · Frontend.** Arquivos: `QuestionamentosPedido.jsx`, `ModalConversaPedido.jsx`, `ListaHistorico.jsx`, `DetalheAlteracao.jsx`, `PedidoMaterial.jsx` e `statusCompra.js` (§11, lado Execução). **Dep.:** B-06.
 - [x] **F-14 · Frontend.** Arquivos: `components/precos/{PrecosPagina,DetalheMaterial,Sparkline}.jsx`. **Dep.:** F-03, B-03.
 - [x] **F-15 · Frontend.** Arquivos: `components/IndicadoresCotacao.jsx` e `IndicadoresCompras.jsx`. **Dep.:** B-07, F-03.
-- [ ] **B-08 · Backend.** Aplicar 34→35→36→37 numa janela, depois 38 e 39 (ou as seis juntas, se o front das ondas 3–4 estiver pronto).
+- [~] **B-08 · Backend.** _(migrations 33–40 aplicadas em 2026-11-02, UTC; noite de 2026-11-01 em Brasília, via MCP. Pendentes: regenerar `supabase/schema/` e rodar `npm run graph:update`; definir `VITE_SUPABASE_*` no Netlify, ver *Status consolidado*)_ Aplicar 34→35→36→37 numa janela, depois 38 e 39 (ou as seis juntas, se o front das ondas 3–4 estiver pronto).
   - Rodar os advisors de segurança e performance via MCP e corrigir os achados.
   - Regenerar `supabase/schema/` (conforme `supabase/schema/README.md`) e rodar `npm run graph:update`.
   - Registrar a ordem real em `supabase/migrations/README.md`.
   - **Dep.:** B-01..B-07 revisados por QA (Q-02).
-- [ ] **B-09 · Backend (opcional).** Se `pg_cron` existir: `SELECT cron.schedule('compras-alertas','*/15 * * * *', $$SELECT public.compras_verificar_alertas()$$)`. A chamada pelo front continua (idempotente). **Dep.:** B-08.
+- [ ] **B-09 · Backend (opcional).** Se `pg_cron` existir: `SELECT cron.schedule('compras-alertas','*/15 * * * *', $$SELECT public.compras_verificar_alertas()$$)`. A chamada pelo front continua (idempotente). Habilitar `pg_cron` **não agenda sozinho**: o bloco `DO` da migration 37 só roda na aplicação e não é reexecutado. Em 2026-11-02 `pg_cron` não estava habilitado, então nada foi agendado. O agendamento é manual: o comando acima para `compras_verificar_alertas()` e, para a limpeza, `cron.schedule('compras-limpeza-publica', '30 6 * * *', 'SELECT public.compras_limpeza_publica()')` (horário definido na migration 37). **Dep.:** B-08.
 
 ### Onda 5: qualidade, desempenho e documentação
 
@@ -1244,7 +1244,7 @@ Front: um componente novo, `IndicadoresCotacao.jsx`, renderizado abaixo de `Indi
       - 🟠 **Média — Frontend/notificações:** `TIPOS_NOTIFICACAO_COMPRAS` (`navegacaoCompras.js`) e o `NotificacoesDropdown` não conhecem `compra_alteracao`/`compra_cotacao` (ícone/rota ausentes); `ListaHistorico.jsx` não tem rótulo para `alteracao_compras` (não quebra: renderiza sem badge e sem diff de itens, pois `TIPOS_COM_ITENS` não o inclui). Direcionar ao Frontend.
       - 🟡 **Baixa:** `compras_verificar_alertas` escreve "24 h úteis" fixo na mensagem do alerta (o prazo é configurável); `compras_somar_horas_uteis` com prazo < 24 h não pula fim de semana/feriado; aumento de quantidade em un/cx/pct com valor fracionário mostra "de 4 para 4,5" mas a aprovação arredonda para 5; `p_revisar_cotacao.novo_prazo` é exigido mesmo quando só há alterações de aceite; K7 não lista fornecedor que só participou (sem convite no período e sem vitória); `alteracao_compras` aprovado pelo solicitante também grava histórico desse tipo (K8 já filtra pela descrição); anonimização não limpa `ip_hash`/`user_agent` das respostas.
     - **Antes de aplicar (B-08) — acréscimos:** (a) ordem **34→35→36→37→38→39** (36 chama `compras_cotacao_revisar` só a partir da 38; `compras_verificar_alertas` já ignora as colunas da 38 se ausentes); (b) comparar `pg_get_functiondef` de produção de `compras_abrir_questionamento`, `compras_responder_questionamento` e `compras_listar_questionamentos` com 25/28+33 (a 38 não foi comparada com produção); (c) smoke test como ADMIN_EXECUCAO: `compras_responder_questionamento` OK, `compras_listar_questionamentos` OK, `compras_alterar_itens` e `compras_indicadores_cotacao` → "Sem permissão"; (d) testar `alterar_itens` em pedido com cotação rascunho/enviada, e aprovação de `adicao` pelo solicitante; (e) `has_function_privilege('anon', …)` falso para as funções da 38/39; (f) conferir `SELECT cron.job` após a 37.
-- [ ] **Q-03 · QA.** Executar o §15.2 a §15.6 em produção (com dados de teste marcados `[TESTE]`) e/ou num branch do Supabase, se disponível. **Dep.:** B-08, F-04..F-15.
+- [ ] **Q-03 · QA.** Executar o §15.2 a §15.5 em produção (o §15.6 é desempenho, coberto por P-01 e P-02) (com dados de teste marcados `[TESTE]`) e/ou num branch do Supabase, se disponível. **Dep.:** B-08, F-04..F-15.
 - [~] **P-01 · Performance.** *(medição sem banco feita em 2026-11-02; Lighthouse pendente)*
   - **Resultado (`npm run build`, gzip -9):** entrada pública `cotacao` = JS 11,0 kB + `react` 58,6 + `moeda` 0,6 + `adaptadores` 0,75 + polyfill 0,4 + CSS 2,0 ≈ **73 kB** (orçamento ≤ 120 kB ✔). Sem `supabase-js` (chunk `supabase` 34,4 kB não é referenciado em `dist/cotacao/index.html`; a API pública usa `fetch` direto) e sem app logado.
   - **Lazy ✔:** `ComprasModulo` (App.jsx, 4,15 kB gz) → `DashboardCompras` 19,2, `CotacoesPagina`, `FornecedoresPagina` 3,6, `PrecosPagina` 4,4, `ConfigComprasPagina` 3,5, `NovaCotacao` 7,5, `IndicadoresCotacao` 2,0, modais de decisão/revisão. Chunk inicial `main` (65,9 kB gz): 0 ocorrências de `compras_cotacao`/`compras_precos`/`CombinacaoDividida` → nada novo no inicial. `echarts`/`zrender` ausentes dos chunks de Compras ✔.
@@ -1253,7 +1253,7 @@ Front: um componente novo, `IndicadoresCotacao.jsx`, renderizado abaixo de `Indi
 - [~] **P-02 · Performance.** *(parte sem banco feita em 2026-11-02; EXPLAIN após B-08 pendente)*
   - **Benchmark `combinacaoDividida`** (Node, esbuild do `comparacao.js`, dados sintéticos, mediana de 7 execuções após aquecimento): M=4/N=50 0,1 ms; M=8/N=200 1,6 ms; M=10/N=200 5,1 ms; **M=12/N=200 5,8 ms (máx. 19 ms)**; M=12/N=500 15 ms; M=13/N=200 guloso 0,7 ms; M=20/N=200 guloso 1,6 ms. Meta < 150 ms ✔ (folga ≈ 25×; mesmo 4× pior caso de cobertura esparsa fica < 100 ms em N=200). Celular médio ≈ 4–6× mais lento que o Node de desenvolvimento → ≈ 35 ms.
   - **Realtime (revisão):** 1 canal por detalhe (`useAtualizacaoTabelas`, 3 tabelas, sem filtro por `cotacao_id`; o filtro é no cliente em `aoEvento`); debounce 500 ms com espera máx. 3 s; polling de reforço (30 s) só com Realtime desconectado e aba visível/online; cleanup completo (canal, listener de auth, timers). `assinarCotacao` em `comprasCotacao.js` não tem uso (código morto, 1 canal extra se usado) — manter fora das telas. Alertas: `compras_verificar_alertas` ao montar + a cada 15 min só com `visibilityState !== 'hidden'`, com cleanup ✔. `calcularComparativo` já em `useMemo`. Nenhuma correção no front foi necessária.
-  - **Índices 34–39 (revisão):** todas as FKs estão cobertas por PK/UNIQUE/índice; consultas principais (`cotacao_ativa` via `uq_compras_cotacao_pedidos_ativa`, detalhe por `cotacao_id`, preços por `(material_id,tipo,registrado_em DESC)`, trigram em materiais, tokens por PK `token_hash`) OK. Faltavam só os filtros de período do K-indicadores (39): criada **`20261102_40_compras_cotacao_indices.sql`** (`compras_cotacoes(aberta_em)` parcial e `compras_cotacao_decisoes(decidido_em)`), pglast OK, **não aplicada** (B-08/orquestrador).
+  - **Índices 34–39 (revisão):** todas as FKs estão cobertas por PK/UNIQUE/índice; consultas principais (`cotacao_ativa` via `uq_compras_cotacao_pedidos_ativa`, detalhe por `cotacao_id`, preços por `(material_id,tipo,registrado_em DESC)`, trigram em materiais, tokens por PK `token_hash`) OK. Faltavam só os filtros de período do K-indicadores (39): criada **`20261102_40_compras_cotacao_indices.sql`** (`compras_cotacoes(aberta_em)` parcial e `compras_cotacao_decisoes(decidido_em)`), pglast OK; _(texto original, obsoleto: "**não aplicada** (B-08/orquestrador)")_ **aplicada em 2026-11-02**, no lote 33–40.
   - **Pendente:** `EXPLAIN ANALYZE` de `compras_cotacao_detalhe`, `compras_precos_referencia` (500 materiais), `compras_listar_pedidos`, `compras_indicadores_cotacao` após B-08.
 - [ ] **D-01 · Documentação.** Itens do §17. **Dep.:** Q-03. _(Parcial, 2026-11-01: `README.md`, `.github/copilot-instructions.md` e `supabase/migrations/README.md` atualizados. Pendentes: nota F.12, Anexo D e snapshot após B-08.)_
 
@@ -1441,14 +1441,16 @@ Cada arquivo traz o seu bloco `-- ROLLBACK:` com os comandos exatos.
 
 ---
 
-## Anexo A: pré-requisitos medidos (preencher em B-00)
+## Anexo A: pré-requisitos medidos (B-00)
 
-> **Estado (B-00): NÃO MEDIDO.** O MCP do Supabase (`execute_sql`, `apply_migration`, `list_migrations`, `get_advisors`) **não está disponível** nesta sessão (busca de ferramentas retornou vazio). Por regra, não foram usados tokens do `.env` nem a Management API. As consultas estão prontas em `supabase/manutencao/diagnostico_cotacao_B00.sql` (rodar no SQL Editor ou numa sessão com o MCP) e os resultados devem ser anotados abaixo **antes da B-08**.
+> **Estado (B-00): MEDIDO em 2026-11-02**, via MCP do Supabase, imediatamente antes da B-08. Consultas em `supabase/manutencao/diagnostico_cotacao_B00.sql`. Nenhuma chave foi impressa; a função temporária do item 4 foi removida.
 
-- Migrations 32/33: _pendente_ (consulta (1) e (1b) do arquivo). Se a 33 faltar: aplicar `20261101_33_compras_acesso_exclusivo.sql` como `execucao_33_compras_acesso_exclusivo`.
-- Extensões (`pgcrypto`, `pg_trgm`, `pg_cron`): _pendente_ (consulta (2)). Dependências do código: `extensions.gen_random_bytes` (mig. 36, tokens) é obrigatória; `pg_trgm` é opcional (a 34 cria e cai em `ILIKE` se faltar); `pg_cron` é opcional.
-- Cabeçalho de IP disponível em `request.headers`: _pendente_ (consulta (4), função temporária + chamada anon). A `compras_request_ip()` tenta `cf-connecting-ip`, `x-real-ip` e o 1º de `x-forwarded-for`; se nenhum vier, os limites por IP são ignorados (valem token e global).
-- Reconciliação das RPCs reescritas pela 36 com a definição de produção: _pendente_ (consulta (3b)).
+- **Migrations 32/33:** a 32 estava aplicada (`20261101200000`). A **33 NÃO estava** (as 3 RPCs ainda usavam `pode_ver_compras()` e `ADMIN_EXECUCAO` ainda tinha a página `compras`). Foi aplicada antes da 34 (`20261102002917 execucao_33_compras_acesso_exclusivo`); depois, só COMPRAS e Administrador têm a página.
+- **Extensões:** `pgcrypto` 1.3 no schema `extensions` (`gen_random_bytes(integer)` e `sha256(bytea)` existem). `pg_trgm` não existia; a 34 o criou no schema `extensions` e o índice trigram `idx_compras_materiais_trgm` foi criado. **`pg_cron` não está habilitado:** `compras_limpeza_publica()` e `compras_verificar_alertas()` não estão agendadas (B-09 segue opcional/pendente).
+- **Cabeçalho de IP em chamada anon real** (função temporária + `curl` com a chave anon): chegam `cf-connecting-ip` (IP do visitante), `x-forwarded-for` (um único IP, o mesmo) e `x-forwarded-proto: https`; `x-real-ip` **não** chega. `compras_request_ip()` funciona como projetada (usa `cf-connecting-ip`), então o limite por IP está ativo.
+- **Reconciliação das RPCs reescritas pela 36:** as migrations 27–32 não tocam `compras_alterar_status`, `compras_listar_pedidos` nem `compras_detalhe_pedido`; a produção era exatamente 25/26/28 + gate da 33, como o DIFF do cabeçalho da 36 assume. Nenhuma divergência. O mesmo vale para `compras_abrir_questionamento`, `compras_responder_questionamento` e `compras_listar_questionamentos` (38).
+- **Estado do CHECK de `execucao_notificacoes`** antes da 34: já com `compra_questionamento/resposta/status` (mig. 25); a 34 acrescentou `compra_cotacao` e `compra_alteracao`.
+- **Advisors após aplicar (2026-11-02):** segurança sem ERRO novo do lote. Esperados e intencionais: 2× `anon_security_definer_function_executable` (as RPCs públicas), 3× `rls_enabled_no_policy` (INFO: `compras_config_segredo`, `compras_cotacao_tokens`, `compras_rate_limit`, de propósito sem policy) e as RPCs `SECURITY DEFINER` para `authenticated` (padrão do projeto, com gate `is_compras()` dentro). Os 13 `rls_disabled_in_public` (ERROR), `function_search_path_mutable` e `auth_leaked_password_protection` **não são do lote** (pré-existentes). Desempenho: nenhum alerta de FK sem índice nem de policy do lote; os `unused_index` dos índices novos são esperados (tabelas vazias).
 
 ## Anexo B: especificação visual (U-01, concluído)
 
@@ -2065,9 +2067,11 @@ Textos de notificação e de histórico, tom claro e sem jargão de compras:
 - "Tenho / Não tenho" (B.1.3): mantido como segmentado (`radiogroup`), conforme §9.3, e não como checkbox (confiança 0,16 para a alternativa).
 - Estilo do botão primário no Compras (B.11): depende de validar com o dono antes de alterar o que já existe.
 
-## Anexo C: contrato final do banco (migrations 34–37 por B-05; 38 e 39 por B-06/B-07, escritas e NÃO aplicadas)
+## Anexo C: contrato final do banco (migrations 34–37 por B-05; 38 e 39 por B-06/B-07; escritas e _NÃO aplicadas até 2026-11-02_, aplicadas depois)
 
-> **Estado:** as migrations 34–37 estão **escritas como arquivos e NÃO aplicadas** (a aplicação é a B-08, depois da revisão Q-02). Não houve execução de SQL, então **nada foi testado contra um banco**: a sintaxe plpgsql não foi validada por parser. O Q-02 deve revisar e a B-08 deve rodar `get_advisors` (security/performance) e o teste de paridade VP-PAR. Ordem obrigatória: 34 → 35 → 36 → 37 (34 e 36 referenciam tabelas/colunas criadas depois; só funcionam com o lote completo aplicado).
+> **Estado anterior a 2026-11-02** _(texto original, obsoleto)_: as migrations 34–37 estão **escritas como arquivos e NÃO aplicadas** (a aplicação é a B-08, depois da revisão Q-02). Não houve execução de SQL, então **nada foi testado contra um banco**: a sintaxe plpgsql não foi validada por parser. O Q-02 deve revisar e a B-08 deve rodar `get_advisors` (security/performance) e o teste de paridade VP-PAR. Ordem obrigatória: 34 → 35 → 36 → 37 (34 e 36 referenciam tabelas/colunas criadas depois; só funcionam com o lote completo aplicado).
+>
+> **Estado atual (2026-11-02):** migrations 33–40 aplicadas no Supabase de produção (B-08); ver *Status consolidado* e Anexo A.
 >
 > **Convenções.** Todas as RPCs autenticadas: `SECURITY DEFINER`, `search_path = public`, `REVOKE ... FROM PUBLIC, anon`, `GRANT EXECUTE TO authenticated`, validam `is_compras()` (COMPRAS e Administrador) dentro. Erros de negócio = `RAISE EXCEPTION` em pt-BR (o service devolve `{ success:false, message }`). Helpers internos não têm grant. As únicas funções com `GRANT` para `anon` são `cotacao_publica_obter` e `cotacao_publica_responder`.
 
@@ -2156,7 +2160,7 @@ Triggers em `execucao_pedidos_material` (35): `trg_pedido_guarda_cotacao` (BEFOR
 - Rollback: cada migration traz o bloco `-- ROLLBACK:` no cabeçalho (ordem inversa 37 → 34). Tabelas só devem ser dropadas após exportar os dados.
 - Serviço: `src/services/supabase/comprasCotacao.js` (novo) e `execucaoCompras.js` (`verificarAlertas`, filtro `semCotacao`). Sem alteração de componentes React.
 
-### C.6 Migration 38: alterações da atendente (escrita, NÃO aplicada; sintaxe SQL e plpgsql validadas só por parser, sem banco)
+### C.6 Migration 38: alterações da atendente (escrita; _estado anterior a 2026-11-02: NÃO aplicada_; sintaxe SQL e plpgsql validadas só por parser, sem banco)
 
 **Tabela `execucao_pedidos_questionamentos`:** CHECK `tipo` aceita `'adicao'`; colunas `origem text NOT NULL DEFAULT 'questionamento'` (`'questionamento'|'alteracao_compras'`), `motivo_alteracao text` (≤ 500), `prazo_resposta_em timestamptz`, `alerta_enviado_em timestamptz`; índice parcial `idx_quest_aceite_vencendo`. RLS inalterada. `compras_verificar_alertas` (36) passa a tratar aceites vencidos assim que as colunas existirem.
 
@@ -2172,7 +2176,7 @@ Notificações/tipos usados: `compra_alteracao` (ciência), `compra_questionamen
 
 Service: `execucaoComprasService.alterarItens(pedidoId, alteracoes, motivo, revisarCotacao?)` (`alteracoes[].itemId` → `item_id`; `revisarCotacao = { novoPrazo }`). `buscarQuestionamentosPedido` já devolve as colunas novas.
 
-### C.7 Migration 39: KPIs (escrita, NÃO aplicada)
+### C.7 Migration 39: KPIs (escrita; _estado anterior a 2026-11-02: NÃO aplicada_)
 
 `compras_indicadores_cotacao(p_de date = null, p_ate date = null) → jsonb` (`is_compras()`; STABLE; padrão últimos 90 dias; máx. 5 anos). Retorno: `{periodo:{de,ate}, k1..k10, por_fornecedor:[...]}`; cada `kN` tem `suficiente` (limites do §12).
 - `k1 {valor, pct, total_referencia, n_linhas}`; `k2 {acima, abaixo, neutras, acima_pct, abaixo_pct, neutras_pct, n_linhas}` (faixa = `faixa_neutra_pct`); `k3 {enviados, respondidos, recusaram, taxa}`; `k4 {primeira_resposta_horas, decisao_horas, n_primeira_resposta, n_decisao}` (medianas); `k5 {abertas, vencendo_24h, prazo_vencido, sem_respostas}`; `k6 {total, concentracao_pct, fornecedor_top, por_categoria[{categoria, valor}]}`; `k7 {cotacoes_com_ranking}`; `k8 {questionamentos, aprovados, reprovados, abertos, historicos, mediana_aceite_horas, por_atendente[{usuario_id, nome, questionamentos, historicos}]}`; `k9 {a_vista, parcelado, a_vista_pct, parcelado_pct}`; `k10 {itens[{material_id, nome, unidade, n_linhas, delta_pct, ref_medio, vp_medio}]}`.

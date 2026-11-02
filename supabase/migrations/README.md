@@ -3,9 +3,15 @@
 Arquivos `YYYYMMDD_NN_tema.sql`, aplicados **em ordem numérica**. Cada migration traz no topo o objetivo, as dependências e um bloco `-- ROLLBACK:`.
 Detalhes e contratos: `PLANO_MELHORIAS_EXECUCAO_COMPRAS.md` (Anexo F).
 
-## Lote 20261102 (34 a 39): **NÃO APLICADO** (escrito e revisado pelo QA)
+## Lote 20261102 (33 a 40): **APLICADO em 2026-11-02** (via MCP do Supabase)
 
-Cotação com fornecedores. Plano e contrato: `../PLANO_COTACAO_FORNECEDORES.md` (§5 a §7 e Anexo C). Aplicar na Onda B-08 do plano, depois do diagnóstico abaixo.
+Cotação com fornecedores. Plano e contrato: `../PLANO_COTACAO_FORNECEDORES.md` (§5 a §7 e Anexo C). Aplicado na Onda B-08, depois do diagnóstico B-00 (Anexo A do plano). A 33 estava pendente em produção e foi aplicada antes da 34. A 40 (índices de `aberta_em` e `decidido_em`) é complementar às 34–39.
+
+**Registro de aplicação (2026-11-02)** em `supabase_migrations.schema_migrations`, aplicadas em sequência (nunca em paralelo): `20261102002917 execucao_33_compras_acesso_exclusivo`, `20261102003051 execucao_34_compras_fornecedores_catalogo`, `20261102003144 execucao_35_compras_cotacoes_base`, `20261102003533 execucao_36_compras_cotacoes_rpcs`, `20261102003648 execucao_37_compras_cotacao_publica`, `20261102003815 execucao_38_compras_alteracoes_lista`, `20261102003855 execucao_39_compras_indicadores_cotacao`, `20261102003900 execucao_40_compras_cotacao_indices`. Como no lote anterior, os cabeçalhos de comentário (objetivo e `-- ROLLBACK:`) foram omitidos nas versões gravadas; **os arquivos deste diretório são a fonte**.
+
+**Verificado após aplicar:** só `cotacao_publica_obter` e `cotacao_publica_responder` são executáveis por `anon`; as 19 tabelas novas têm RLS, nenhuma policy é `TO anon` e `compras_config_segredo`, `compras_cotacao_tokens` e `compras_rate_limit` não têm policy nem grant; TECNICO, ADMIN_EXECUCAO e COMERCIAL não executam RPCs de Compras; COMPRAS não altera configurações (só Administrador); kill switch, rate limit e token inválido conferidos em transação com `ROLLBACK` (ver o registro de aplicação acima). `pg_cron` **não está habilitado**: `compras_limpeza_publica()` não foi agendada (a limpeza segue em `compras_cotacao_abrir` e `compras_verificar_alertas`). Ainda pendente: regenerar `supabase/schema/` e `npm run graph:update`.
+
+(Texto original abaixo, mantido como referência do plano de aplicação.)
 
 | Ordem | Arquivo | Resumo | Depende de |
 |------:|---------|--------|------------|
@@ -17,9 +23,9 @@ Cotação com fornecedores. Plano e contrato: `../PLANO_COTACAO_FORNECEDORES.md`
 | 5 | `20261102_38_compras_alteracoes_lista.sql` | Colunas e CHECK de alterações (§5.8), `compras_somar_horas_uteis`, `compras_alterar_itens`, questionamentos com `adicao`. | 36 |
 | 6 | `20261102_39_compras_indicadores_cotacao.sql` | `compras_indicadores_cotacao` (§12). | 36 |
 
-**Ordem de aplicação:** 34 → 35 → 36 → 37, numa janela só; depois 38 e 39 (ou as seis juntas, se o front estiver pronto).
+**Ordem de aplicação (concluída em 2026-11-02):** 34 → 35 → 36 → 37, numa janela só; depois 38 e 39 (ou as seis juntas, se o front estiver pronto).
 
-**Antes de aplicar**
+**Antes de aplicar** _(concluído em 2026-11-02, UTC; noite de 2026-11-01 em Brasília; checklist mantido como referência)_
 - Confirmar que as migrations **32 e 33** estão aplicadas. Elas não constam no registro de aplicação abaixo. O bloco 1 do diagnóstico mostra isso. Se a 33 faltar, aplicá-la antes e registrar.
 - Rodar o diagnóstico (bloco 3b confirma que as definições de produção batem com o diff documentado no cabeçalho da 36).
 - Confirmar que `cf-connecting-ip` chega na chamada anon (item 4 do diagnóstico). Sem ele, o limite por IP fica ignorado.
@@ -33,7 +39,7 @@ Cotação com fornecedores. Plano e contrato: `../PLANO_COTACAO_FORNECEDORES.md`
 
 **Depois de aplicar:** advisors de segurança e performance; regenerar `supabase/schema/` (ver `supabase/schema/README.md`); `npm run graph:update`; `npm run check:contract` e `npm run lint`; testes do §15.2 em transação com `ROLLBACK` quando forem só SQL.
 
-**Rollback:** cada arquivo tem o bloco `-- ROLLBACK:` no topo. Ordem inversa: 39, 38, 37, 36 (reaplicar as definições anteriores), 35, 34. Ver §16 do plano.
+**Rollback:** cada arquivo tem o bloco `-- ROLLBACK:` no topo. Ordem inversa: 40, 39, 38, 37, 36 (reaplicar as definições anteriores), 35, 34, 33. Ver §16 do plano.
 
 ## Lote 20261101 (19 a 31): **APLICADO em 2026-11-01** (via MCP do Supabase)
 

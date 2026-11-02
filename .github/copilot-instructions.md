@@ -82,7 +82,7 @@ O dashboard evoluiu para um sistema comercial completo com múltiplas funcionali
 - **Dashboard de Compras** (nível `COMPRAS`, página `execucao/compras`): fila por status de compra, indicadores e questionamentos.
 - **Fornecedores, cotação e preços** (nível `COMPRAS` + Administrador, rota `compras`): cadastro de fornecedores, cotação com um link por fornecedor via WhatsApp (`wa.me`), comparativo com valor presente, compra dividida, histórico de preços e alterações da atendente nas listas (ciência ou aceite).
 - **Página pública de cotação** (`cotacao/index.html` → `src/cotacao-publica/`): fornecedor responde sem login pelo link `/cotacao/#<token>`. Entrada MPA separada do app; `public/_headers` aplica noindex e CSP. Exige `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no build do Netlify.
-- **Estado**: front pronto; migrations 19–31 **aplicadas** no Supabase de produção em 2026-11-01 (ver "Migrations 19–31" em *Banco de dados no grafo*). Cotação: migrations 34–39 **NÃO aplicadas** (ver "Migrations 34–39" no mesmo bloco).
+- **Estado**: front pronto; migrations 19–31 **aplicadas** no Supabase de produção em 2026-11-01 (ver "Migrations 19–31" em *Banco de dados no grafo*). Cotação: migrations 33–40 **aplicadas** em 2026-11-02 (ver "Migrations 33–40" no mesmo bloco); falta regenerar o snapshot do schema e definir as variáveis do Netlify.
 
 ## 🏗️ Arquitetura do Projeto (Setembro 2025)
 
@@ -226,7 +226,7 @@ Serviço: `src/services/supabase/comprasCotacao.js` (uma função por RPC de for
 
 ## 🎯 Próximos Passos (Roadmap)
 - **Execução e Compras** (checklist completo no *Status consolidado* de `PLANO_MELHORIAS_EXECUCAO_COMPRAS.md`):
-  - Cotação com fornecedores (`PLANO_COTACAO_FORNECEDORES.md`, *Status consolidado*): aplicar migrations 34–39 (B-08), definir `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no Netlify, rodar o diagnóstico B-00 e os testes do §15
+  - Cotação com fornecedores (`PLANO_COTACAO_FORNECEDORES.md`, *Status consolidado*): regenerar o snapshot `supabase/schema/`, definir `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no Netlify e rodar os testes do §15 _(Texto original, obsoleto: "aplicar migrations 34–39 (B-08)" e "rodar o diagnóstico B-00", concluídos em 2026-11-02)_
   - Migrations 19–31 aplicadas em 2026-11-01 e snapshot `supabase/schema/` regenerado; dry-run de `corrigir_etapas_pai_concluidas.sql` dispensado (B0 sem etapas pai indevidas)
   - QA manual (Anexo E.5), validação visual do Planejamento (Q4) e testes de vídeo/áudio em aparelhos
   - Decidir P8 (data necessária × previsão de chegada) e exibir o indicador de conclusões sem localização (ACH-09)
@@ -273,15 +273,15 @@ Ao alterar o schema (migrations via MCP), regenere o snapshot conforme `supabase
 - Ordem real de aplicação: 29, 19, 20, 27, 21, 22, 23, 24, 25, 26, 30, 28, 31.
 - **Não reaplicar a 19 depois da 20** (cria overload de `alterar_status_atividade`).
 - `supabase/manutencao/` tem scripts de diagnóstico e correção de dados. **Não são migrations.**
-- O snapshot `supabase/schema/` já foi regenerado após a aplicação e contém as RPCs `compras_*`, `execucao_marcar_passo` e `execucao_passos_pendentes_por_etapa`.
+- O snapshot `supabase/schema/` já foi regenerado após a aplicação do lote 19–31 (o snapshot do lote 33–40 segue pendente) e contém as RPCs `compras_*`, `execucao_marcar_passo` e `execucao_passos_pendentes_por_etapa`.
 
-#### Migrations 34–39 (lote 20261102): **NÃO aplicadas**
-- Arquivos `supabase/migrations/20261102_34_*` a `20261102_39_*`, revisados pelo QA (Q-02). Ordem, dependências e rollback: `supabase/migrations/README.md`; plano: `PLANO_COTACAO_FORNECEDORES.md`.
-- Pré-requisitos: migrations 32 e 33 aplicadas (a confirmar pelo diagnóstico `supabase/manutencao/diagnostico_cotacao_B00.sql`) e `pgcrypto`.
-- Ordem de aplicação: 34 → 35 → 36 → 37, depois 38 e 39.
-- **Não reaplicar 25, 26 ou 28 depois da 36** (a 36 reescreve `compras_alterar_status`, `compras_listar_pedidos` e `compras_detalhe_pedido`).
-- Kill switch: `compras_config.link_publico_ativo = false`.
-- O snapshot `supabase/schema/` ainda não contém as tabelas e RPCs de cotação; regenerar após a aplicação.
+#### Migrations 33–40 (lote 20261102): **aplicadas em 2026-11-02**
+- Arquivos `supabase/migrations/20261101_33_*` e `20261102_34_*` a `20261102_40_*`. Ordem, registro de versões e rollback: `supabase/migrations/README.md`; plano e Anexo A: `PLANO_COTACAO_FORNECEDORES.md`.
+- A 33 estava pendente em produção e foi aplicada antes da 34. A 40 só cria dois índices (`aberta_em`, `decidido_em`).
+- **Não reaplicar 25, 26 ou 28 depois da 36** (a 36 reescreve `compras_alterar_status`, `compras_listar_pedidos` e `compras_detalhe_pedido`). Tampouco reaplicar a 38 sem necessidade (reescreve `compras_*questionamento`).
+- Só `cotacao_publica_obter` e `cotacao_publica_responder` são executáveis por `anon`. Kill switch: `compras_config.link_publico_ativo = false`.
+- `pg_cron` não está habilitado: `compras_verificar_alertas()` e `compras_limpeza_publica()` não estão agendadas.
+- O snapshot `supabase/schema/` ainda não contém as tabelas e RPCs de cotação; regenerar (`supabase/schema/README.md`) e rodar `npm run graph:update`.
 
 ## Jev (TypeSafe AI) — decisões rápidas e economia de tokens
 

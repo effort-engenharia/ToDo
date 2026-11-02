@@ -23,7 +23,7 @@ npm run graph:update     # atualiza o grafo do graphify e os vínculos com o ban
 | Dashboard Comercial | Métricas, funil, metas e gráficos. Contexto em [`DASHBOARD_COMERCIAL_CONTEXTO.md`](DASHBOARD_COMERCIAL_CONTEXTO.md) |
 | Apontamentos | Cadastro e acompanhamento de oportunidades |
 | Arsenal de Guerra | Links úteis e tabela de administradoras |
-| Execução | Planejamento de obras, técnico em campo, POPs, pedidos de material, Dashboard de Compras, fornecedores e cotação (esta última aguarda as migrations 34–39). Perfis: `ADMIN_EXECUCAO`, `TECNICO` e `COMPRAS` |
+| Execução | Planejamento de obras, técnico em campo, POPs, pedidos de material, Dashboard de Compras, fornecedores e cotação (esta última teve as migrations 33–40 aplicadas em 2026-11-02, UTC; noite de 2026-11-01 em Brasília; faltam snapshot e Netlify; _texto original, obsoleto: "aguarda as migrations 34–39"_). Perfis: `ADMIN_EXECUCAO`, `TECNICO` e `COMPRAS` |
 
 ## 🏗️ Execução
 
@@ -54,7 +54,7 @@ npm run graph:update     # atualiza o grafo do graphify e os vínculos com o ban
 
 ## 🛒 Compras: fornecedores e cotação
 
-> **Estado:** front implementado. As RPCs de cotação só existem no banco depois da aplicação das migrations **34 a 39**, que **ainda não foram aplicadas**. Plano e pendências: [`PLANO_COTACAO_FORNECEDORES.md`](PLANO_COTACAO_FORNECEDORES.md) (*Status consolidado*).
+> **Estado:** front implementado. As RPCs de cotação existem no banco desde a aplicação das migrations **33 a 40**, em **2026-11-02** (UTC; noite de 2026-11-01 em Brasília). Pendentes: regenerar `supabase/schema/` e definir `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no Netlify (a página pública exige). _(Texto original, obsoleto: "só existem no banco depois da aplicação das migrations **34 a 39**, que **ainda não foram aplicadas**.")_ Plano e pendências: [`PLANO_COTACAO_FORNECEDORES.md`](PLANO_COTACAO_FORNECEDORES.md) (*Status consolidado*).
 
 - **Fornecedores** (perfis COMPRAS e Administrador): cadastro de empresa, contato e WhatsApp, gravado como `55DDDNÚMERO`. Mesmo WhatsApp com a mesma empresa é bloqueado. Fornecedor com convite ou compra só pode ser inativado. O Administrador anonimiza (LGPD) e o histórico continua íntegro.
 - **Cotação:** a atendente seleciona um ou mais pedidos. Itens iguais de listas diferentes são somados, com a composição por pedido guardada. Escolhe os fornecedores e o prazo (padrão 48 h, prorrogável) e envia **um link por fornecedor** pelo WhatsApp (`wa.me`). O clique marca "enviado"; não há confirmação de entrega.
@@ -64,7 +64,9 @@ npm run graph:update     # atualiza o grafo do graphify e os vínculos com o ban
 - **Alterações da atendente nas listas:** redução de quantidade e remoção pedem só ciência do solicitante. Aumento de quantidade, substituição e inclusão pedem aceite. Tudo fica registrado no histórico do pedido. O solicitante vê a empresa vencedora, nunca os preços.
 - **Alerta de 24 h úteis** sem resposta do solicitante para a atendente e o gestor. Nunca aprova por silêncio.
 
-### Como aplicar o lote 34–39 (pendente)
+### Como aplicar o lote 33–40 (concluído em 2026-11-02, UTC; noite de 2026-11-01 em Brasília; mantido como referência para outros ambientes)
+
+_A 33 foi aplicada antes da 34 e a 40 por último. Registro de versões em [`supabase/migrations/README.md`](supabase/migrations/README.md). Títulos e passos abaixo são o roteiro original._
 
 1. Confirmar que as migrations 32 e 33 estão aplicadas.
 2. Rodar [`supabase/manutencao/diagnostico_cotacao_B00.sql`](supabase/manutencao/diagnostico_cotacao_B00.sql) bloco a bloco no SQL Editor. É só leitura, exceto o item 4, que cria e remove uma função temporária. Registrar o resultado no Anexo A do plano. O item 4 confirma se `cf-connecting-ip` chega na chamada anon.
@@ -78,7 +80,7 @@ As migrations ficam em `supabase/migrations/` e são aplicadas em ordem numéric
 
 > **Estado atual (2026-11-01):** as migrations `20261101_19` a `_31` estão **aplicadas** no Supabase (a 29 e a 19 pelo orquestrador; as demais pelo Backend, via MCP) e o snapshot `supabase/schema/` foi regenerado. Resultados e testes de fumaça no Anexo A e na seção F.10 do plano.
 >
-> **Lote `20261102` (34 a 39): NÃO aplicado.** Escrito e revisado pelo QA. Ordem e dependências em [`supabase/migrations/README.md`](supabase/migrations/README.md) e na seção Compras acima.
+> **Lote `20261102` (33 a 40): aplicado em 2026-11-02** (UTC; noite de 2026-11-01 em Brasília) no Supabase de produção (via MCP), com testes de permissão e do link público e advisors sem ERRO novo (avisos esperados descritos no Anexo A do [`PLANO_COTACAO_FORNECEDORES.md`](PLANO_COTACAO_FORNECEDORES.md)). Falta regenerar `supabase/schema/` e definir `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` no Netlify. Ordem, versões gravadas e dependências em [`supabase/migrations/README.md`](supabase/migrations/README.md) e na seção Compras acima.
 
 ### Como aplicar o lote 19–31 (já aplicado; mantido como referência para outros ambientes)
 
@@ -105,7 +107,7 @@ Ordem que respeita as dependências (detalhes em [`supabase/migrations/README.md
 Não são migrations.
 
 - **`diagnostico_B0.sql`**: somente `SELECT`. Rodar bloco a bloco no SQL Editor.
-- **`diagnostico_cotacao_B00.sql`**: diagnóstico do lote 34–39 (só leitura, exceto o item 4, que cria e remove uma função temporária). Ver a seção Compras acima.
+- **`diagnostico_cotacao_B00.sql`**: diagnóstico do lote 33–40 (só leitura, exceto o item 4, que cria e remove uma função temporária). Ver a seção Compras acima.
 - **`corrigir_etapas_pai_concluidas.sql`**: correção de dados que reabre etapas pai concluídas indevidamente. Só depois da migration 19 e da aprovação do Negócio, fora do horário comercial. Ordem: PASSO 1 (dry-run, só `SELECT`) → aprovação → PASSO 3 (`UPDATE` com `ROLLBACK` até conferir a contagem) → PASSO 4 (conferência) → PASSO 5 (reversão, se preciso).
 
 ## 📚 Documentação
